@@ -136,7 +136,7 @@ func (bs *Server) ListValidatorAssignments(
 
 // GetProposerList retrieves the validator assignments for a given epoch, [This api is specially used for Orchestrator client]
 // optional validator indices or public keys may be included to filter validator assignments.
-func (bs *Server) GetNextEpochProposerList(
+func (bs *Server) NextEpochProposerList(
 	ctx context.Context, empty *ptypes.Empty) (*ethpb.ValidatorAssignments, error) {
 
 	var res []*ethpb.ValidatorAssignments_CommitteeAssignment
