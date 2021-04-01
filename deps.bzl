@@ -1119,8 +1119,8 @@ def prysm_deps():
     go_repository(
         name = "com_github_grpc_ecosystem_grpc_gateway",
         importpath = "github.com/grpc-ecosystem/grpc-gateway",
-        sum = "h1:8ERzHx8aj1Sc47mu9n/AksaKCSWrMchFtkdrS4BIj5o=",
-        version = "v1.14.6",
+        sum = "h1:gmcG1KaJ57LophUzW0Hy8NmPhnMZb4M0+kPpLofRdBo=",
+        version = "v1.16.0",
     )
     go_repository(
         name = "com_github_gxed_hashland_keccakpg",
@@ -2577,8 +2577,9 @@ def prysm_deps():
         name = "com_github_prysmaticlabs_ethereumapis",
         build_file_generation = "off",
         importpath = "github.com/prysmaticlabs/ethereumapis",
-        sum = "h1:WbNiB9+NFslsXtM8mjOEjcsSbedl+06eGBkW7zvSynE=",
-        version = "v0.0.0-20210303155523-663cc605c7d9",
+        replace = "github.com/lukso-network/vanguard-apis",
+        sum = "h1:rDNUyoCvw9DzB2fLV2U9MkR1GEqrJNXGK16I+wKp0io=",
+        version = "v0.0.0-20210331083856-a569864eb9aa",
     )
     go_repository(
         name = "com_github_prysmaticlabs_go_bitfield",
