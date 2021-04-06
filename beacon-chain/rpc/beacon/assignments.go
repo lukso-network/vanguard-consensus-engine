@@ -140,22 +140,21 @@ func (bs *Server) NextEpochProposerList(
 	ctx context.Context, empty *ptypes.Empty) (*ethpb.ValidatorAssignments, error) {
 
 	var res []*ethpb.ValidatorAssignments_CommitteeAssignment
-	currentEpoch := helpers.SlotToEpoch(bs.GenesisTimeFetcher.CurrentSlot())
-	// nextEpoch is the future epoch
-	nextEpoch := currentEpoch + 1
-	startSlot, err := helpers.StartSlot(nextEpoch)
+	curEpoch := helpers.SlotToEpoch(bs.GenesisTimeFetcher.CurrentSlot())
+	startSlot, err := helpers.StartSlot(curEpoch)
 	if err != nil {
 		return nil, err
 	}
-	// latestState is the canonical head state.
+
+	// latestState is the state of last epoch.
 	latestState, err := bs.StateGen.StateBySlot(ctx, startSlot)
 	if err != nil {
 		return nil, status.Errorf(
-			codes.Internal, "Could not retrieve archived state for epoch %d: %v", nextEpoch, err)
+			codes.Internal, "Could not retrieve archived state for epoch %d: %v", curEpoch, err)
 	}
 
 	// Initialize all committee related data.
-	proposerIndexToSlots, err := helpers.ProposerAssignments(latestState, nextEpoch)
+	proposerIndexToSlots, err := helpers.ProposerAssignments(latestState, curEpoch)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not compute committee assignments: %v", err)
 	}
@@ -171,7 +170,7 @@ func (bs *Server) NextEpochProposerList(
 	}
 
 	return &ethpb.ValidatorAssignments{
-		Epoch:       nextEpoch,
+		Epoch:       curEpoch,
 		Assignments: res,
 	}, nil
 }
