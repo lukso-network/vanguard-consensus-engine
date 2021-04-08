@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
+	ptypes "github.com/gogo/protobuf/types"
 	types "github.com/prysmaticlabs/eth2-types"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	mock "github.com/prysmaticlabs/prysm/beacon-chain/blockchain/testing"
@@ -392,4 +393,55 @@ func TestServer_ListAssignments_CanFilterPubkeysIndices_WithPagination(t *testin
 	}
 
 	assert.DeepEqual(t, wantedRes, res, "Did not receive wanted assignments")
+}
+
+func TestServer_NextEpochProposerList(t *testing.T) {
+	helpers.ClearCache()
+	db := dbTest.SetupDB(t)
+	ctx := context.Background()
+	count := 100
+	validators := make([]*ethpb.Validator, 0, count)
+	withdrawCred := make([]byte, 32)
+	for i := 0; i < count; i++ {
+		pubKey := make([]byte, params.BeaconConfig().BLSPubkeyLength)
+		binary.LittleEndian.PutUint64(pubKey, uint64(i))
+		val := &ethpb.Validator{
+			PublicKey:             pubKey,
+			WithdrawalCredentials: withdrawCred,
+			ExitEpoch:             params.BeaconConfig().FarFutureEpoch,
+		}
+		validators = append(validators, val)
+	}
+
+	blk := testutil.NewBeaconBlock().Block
+	blockRoot, err := blk.HashTreeRoot()
+	require.NoError(t, err)
+	s, err := testutil.NewBeaconState()
+	require.NoError(t, err)
+	require.NoError(t, s.SetValidators(validators))
+	require.NoError(t, db.SaveState(ctx, s, blockRoot))
+	require.NoError(t, db.SaveGenesisBlockRoot(ctx, blockRoot))
+
+	bs := &Server{
+		BeaconDB: db,
+		FinalizationFetcher: &mock.ChainService{
+			FinalizedCheckPoint: &ethpb.Checkpoint{
+				Epoch: 0,
+			},
+		},
+		GenesisTimeFetcher: &mock.ChainService{},
+		StateGen:           stategen.New(db),
+	}
+
+	t.Run("should return 32 proposers for epoch 0", func(t *testing.T) {
+		ctx := context.Background()
+		assignments, err := bs.NextEpochProposerList(ctx, &ptypes.Empty{})
+		require.NoError(t, err)
+		assert.Equal(t, types.Epoch(0), assignments.Epoch)
+		require.Equal(t, 32, len(assignments.Assignments))
+	})
+
+	t.Run("should return 32 proposer for each epoch", func(t *testing.T) {
+
+	})
 }
