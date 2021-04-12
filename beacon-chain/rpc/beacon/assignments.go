@@ -3,6 +3,7 @@ package beacon
 import (
 	"context"
 	ptypes "github.com/gogo/protobuf/types"
+	stateTrie "github.com/prysmaticlabs/prysm/beacon-chain/state"
 	"strconv"
 
 	types "github.com/prysmaticlabs/eth2-types"
@@ -133,34 +134,62 @@ func (bs *Server) ListValidatorAssignments(
 	}, nil
 }
 
-
-// GetProposerList retrieves the validator assignments for a given epoch, [This api is specially used for Orchestrator client]
+// NextEpochProposerList retrieves the validator assignments for a given epoch,
+// [This api is specially used for Orchestrator client]
 // optional validator indices or public keys may be included to filter validator assignments.
 func (bs *Server) NextEpochProposerList(
 	ctx context.Context, empty *ptypes.Empty) (*ethpb.ValidatorAssignments, error) {
 
-	var res []*ethpb.ValidatorAssignments_CommitteeAssignment
 	curEpoch := helpers.SlotToEpoch(bs.GenesisTimeFetcher.CurrentSlot())
-	startSlot, err := helpers.StartSlot(curEpoch)
+	nextEpoch := curEpoch + 1
+
+	curEpochStartSlot, err := helpers.StartSlot(curEpoch)
+	if err != nil {
+		return nil, err
+	}
+
+	nextEpochStratSlot, err := helpers.StartSlot(nextEpoch)
 	if err != nil {
 		return nil, err
 	}
 
 	// latestState is the state of last epoch.
-	latestState, err := bs.StateGen.StateBySlot(ctx, startSlot)
+	curEpochState, err := bs.StateGen.StateBySlot(ctx, curEpochStartSlot)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal, "Could not retrieve archived state for epoch %d: %v", curEpoch, err)
 	}
 
-	// Initialize all committee related data.
-	proposerIndexToSlots, err := helpers.ProposerAssignments(latestState, curEpoch)
+	// latestState is the state of last epoch.
+	nextEpochState, err := bs.StateGen.StateBySlot(ctx, nextEpochStratSlot)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Could not compute committee assignments: %v", err)
+		return nil, status.Errorf(
+			codes.Internal, "Could not retrieve archived state for epoch %d: %v", nextEpoch, err)
 	}
 
-	for index, proposerSlots := range proposerIndexToSlots {
-		pubkey := latestState.PubkeyAtIndex(index)
+	res, err := prepareProposerAssignments(curEpochState, nextEpochState, curEpoch, nextEpoch)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ethpb.ValidatorAssignments{
+		Epoch:       curEpoch,
+		Assignments: res,
+	}, nil
+}
+
+// prepareProposerList
+func prepareProposerAssignments(curEpochState, nextEpochState *stateTrie.BeaconState,
+	curEpoch, nextEpoch types.Epoch)  ([]*ethpb.ValidatorAssignments_CommitteeAssignment, error) {
+
+	var res []*ethpb.ValidatorAssignments_CommitteeAssignment
+	// Initialize all committee related data.
+	proposerListCurEpoch, err := helpers.ProposerAssignments(curEpochState, curEpoch)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Could not compute committee assignments for current epoch: %v", err)
+	}
+	for index, proposerSlots := range proposerListCurEpoch {
+		pubkey := curEpochState.PubkeyAtIndex(index)
 		assign := &ethpb.ValidatorAssignments_CommitteeAssignment{
 			ProposerSlots:  proposerSlots,
 			PublicKey:      pubkey[:],
@@ -169,8 +198,18 @@ func (bs *Server) NextEpochProposerList(
 		res = append(res, assign)
 	}
 
-	return &ethpb.ValidatorAssignments{
-		Epoch:       curEpoch,
-		Assignments: res,
-	}, nil
+	proposerListNextEpoch, err := helpers.ProposerAssignments(nextEpochState, nextEpoch)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Could not compute committee assignments for next epoch: %v", err)
+	}
+	for index, proposerSlots := range proposerListNextEpoch {
+		pubkey := curEpochState.PubkeyAtIndex(index)
+		assign := &ethpb.ValidatorAssignments_CommitteeAssignment{
+			ProposerSlots:  proposerSlots,
+			PublicKey:      pubkey[:],
+			ValidatorIndex: index,
+		}
+		res = append(res, assign)
+	}
+	return res, nil
 }
