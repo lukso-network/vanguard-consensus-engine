@@ -762,6 +762,8 @@ github.com/logrusorgru/aurora v2.0.3+incompatible h1:tOpm7WcpBTn4fjmVfgpQq0EfczG
 github.com/logrusorgru/aurora v2.0.3+incompatible/go.mod h1:7rIyQOR62GCctdiQpZ/zOJlFyk6y+94wXzv6RNZgaR4=
 github.com/lukso-network/vanguard-apis v0.0.0-20210331083856-a569864eb9aa h1:rDNUyoCvw9DzB2fLV2U9MkR1GEqrJNXGK16I+wKp0io=
 github.com/lukso-network/vanguard-apis v0.0.0-20210331083856-a569864eb9aa/go.mod h1:F9YaSp95tvq5wfh3p8VJ9h5RJkpI7XaasoY8tKm2VmI=
+github.com/lukso-network/vanguard-apis v0.0.0-20210401140126-ee8ec3c2f19e h1:qY884LqxThy8DLy4QhQ/vY0zaHNu1NIazm3aTCbNrqM=
+github.com/lukso-network/vanguard-apis v0.0.0-20210401140126-ee8ec3c2f19e/go.mod h1:YS3iOCGE+iVDE007GHWtj+UoPK9hyYA7Fo4mSDNTtiY=
 github.com/lunixbochs/vtclean v0.0.0-20180621232353-2d01aacdc34a/go.mod h1:pHhQNgMf3btfWnGBVipUOjRYhoOsdGqdm/+2c2E2WMI=
 github.com/lunixbochs/vtclean v1.0.0 h1:xu2sLAri4lGiovBDQKxl5mrXyESr3gUr5m5SM5+LVb8=
 github.com/lunixbochs/vtclean v1.0.0/go.mod h1:pHhQNgMf3btfWnGBVipUOjRYhoOsdGqdm/+2c2E2WMI=
