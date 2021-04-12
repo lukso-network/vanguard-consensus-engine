@@ -452,13 +452,39 @@ func TestServer_NextEpochProposerList(t *testing.T) {
 
 	t.Run("should return 32 proposer for each epoch", func(t *testing.T) {
 		maxEpochs := 4
+		// Go through 4 epochs
+		count := types.Slot(maxEpochs) * config.SlotsPerEpoch
+		// Should return the proper genesis block if it exists.
+		parentRoot := [32]byte{1, 2, 3}
+		blk := testutil.NewBeaconBlock()
+		blk.Block.ParentRoot = parentRoot[:]
+		root, err := blk.Block.HashTreeRoot()
+		require.NoError(t, err)
+		require.NoError(t, db.SaveBlock(ctx, blk))
+		require.NoError(t, db.SaveGenesisBlockRoot(ctx, root))
 
-		for index := 1; index < maxEpochs; index++ {
-			ctx := context.Background()
-			assignments, err := bs.GetProposerListForEpoch(ctx, types.Epoch(index))
+		blks := make([]*ethpb.SignedBeaconBlock, count)
+		for i := types.Slot(0); i < count; i++ {
+			b := testutil.NewBeaconBlock()
+			b.Block.Slot = i
 			require.NoError(t, err)
-			assert.Equal(t, types.Epoch(1), assignments.Epoch)
-			require.Equal(t, config.SlotsPerEpoch, len(assignments.Assignments))
+			blks[i] = b
 		}
+		require.NoError(t, db.SaveBlocks(ctx, blks))
+
+		ctx := context.Background()
+		assignments, err := bs.GetProposerListForEpoch(ctx, types.Epoch(1))
+		require.NoError(t, err)
+		assert.Equal(t, types.Epoch(1), assignments.Epoch)
+		require.Equal(t, config.SlotsPerEpoch, len(assignments.Assignments))
+
+		// Start from epoch 1
+		//for index := 1; index < maxEpochs; index++ {
+		//	ctx := context.Background()
+		//	assignments, err := bs.GetProposerListForEpoch(ctx, types.Epoch(index))
+		//	require.NoError(t, err)
+		//	assert.Equal(t, types.Epoch(1), assignments.Epoch)
+		//	require.Equal(t, config.SlotsPerEpoch, len(assignments.Assignments))
+		//}
 	})
 }
