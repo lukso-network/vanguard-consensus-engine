@@ -2,7 +2,9 @@ package beacon
 
 import (
 	"context"
+	"fmt"
 	ptypes "github.com/gogo/protobuf/types"
+	"github.com/prysmaticlabs/prysm/shared/params"
 	"strconv"
 
 	types "github.com/prysmaticlabs/eth2-types"
@@ -133,14 +135,11 @@ func (bs *Server) ListValidatorAssignments(
 	}, nil
 }
 
-
-// GetProposerList retrieves the validator assignments for a given epoch, [This api is specially used for Orchestrator client]
-// optional validator indices or public keys may be included to filter validator assignments.
-func (bs *Server) NextEpochProposerList(
-	ctx context.Context, empty *ptypes.Empty) (*ethpb.ValidatorAssignments, error) {
-
+func (bs *Server) GetProposerListForEpoch(
+	ctx context.Context,
+	curEpoch types.Epoch,
+) (*ethpb.ValidatorAssignments, error) {
 	var res []*ethpb.ValidatorAssignments_CommitteeAssignment
-	curEpoch := helpers.SlotToEpoch(bs.GenesisTimeFetcher.CurrentSlot())
 	startSlot, err := helpers.StartSlot(curEpoch)
 	if err != nil {
 		return nil, err
@@ -169,8 +168,31 @@ func (bs *Server) NextEpochProposerList(
 		res = append(res, assign)
 	}
 
+	maxValidators := params.BeaconConfig().SlotsPerEpoch
+
+	// We omit the genesis slot
+	if curEpoch == 0 {
+		maxValidators = maxValidators - 1
+	}
+
+	if len(res) != int(maxValidators) {
+		return nil, fmt.Errorf("invalid validators len, expected: %d, got: %d", maxValidators, len(res))
+	}
+
 	return &ethpb.ValidatorAssignments{
 		Epoch:       curEpoch,
 		Assignments: res,
 	}, nil
+}
+
+// GetProposerList retrieves the validator assignments for a given epoch, [This api is specially used for Orchestrator client]
+// optional validator indices or public keys may be included to filter validator assignments.
+func (bs *Server) NextEpochProposerList(
+	ctx context.Context,
+	empty *ptypes.Empty,
+) (assignments *ethpb.ValidatorAssignments, err error) {
+	curEpoch := helpers.SlotToEpoch(bs.GenesisTimeFetcher.CurrentSlot())
+	assignments, err = bs.GetProposerListForEpoch(ctx, curEpoch)
+
+	return
 }

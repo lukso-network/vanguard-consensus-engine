@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
-	ptypes "github.com/gogo/protobuf/types"
 	types "github.com/prysmaticlabs/eth2-types"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	mock "github.com/prysmaticlabs/prysm/beacon-chain/blockchain/testing"
@@ -399,7 +398,7 @@ func TestServer_NextEpochProposerList(t *testing.T) {
 	helpers.ClearCache()
 	db := dbTest.SetupDB(t)
 	ctx := context.Background()
-	count := 100
+	count := 10000
 	validators := make([]*ethpb.Validator, 0, count)
 	withdrawCred := make([]byte, 32)
 	for i := 0; i < count; i++ {
@@ -412,6 +411,15 @@ func TestServer_NextEpochProposerList(t *testing.T) {
 		}
 		validators = append(validators, val)
 	}
+
+	config := params.BeaconConfig().Copy()
+	oldConfig := config.Copy()
+	config.SlotsPerEpoch = 32
+	params.OverrideBeaconConfig(config)
+
+	defer func() {
+		params.OverrideBeaconConfig(oldConfig)
+	}()
 
 	blk := testutil.NewBeaconBlock().Block
 	blockRoot, err := blk.HashTreeRoot()
@@ -435,13 +443,22 @@ func TestServer_NextEpochProposerList(t *testing.T) {
 
 	t.Run("should return 32 proposers for epoch 0", func(t *testing.T) {
 		ctx := context.Background()
-		assignments, err := bs.NextEpochProposerList(ctx, &ptypes.Empty{})
+		assignments, err := bs.GetProposerListForEpoch(ctx, types.Epoch(0))
 		require.NoError(t, err)
 		assert.Equal(t, types.Epoch(0), assignments.Epoch)
-		require.Equal(t, 32, len(assignments.Assignments))
+		// This is genesis epoch, so there will be 31 slots instead of 32
+		require.Equal(t, int(config.SlotsPerEpoch)-1, len(assignments.Assignments))
 	})
 
 	t.Run("should return 32 proposer for each epoch", func(t *testing.T) {
+		maxEpochs := 4
 
+		for index := 1; index < maxEpochs; index++ {
+			ctx := context.Background()
+			assignments, err := bs.GetProposerListForEpoch(ctx, types.Epoch(index))
+			require.NoError(t, err)
+			assert.Equal(t, types.Epoch(1), assignments.Epoch)
+			require.Equal(t, config.SlotsPerEpoch, len(assignments.Assignments))
+		}
 	})
 }
