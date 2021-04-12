@@ -467,8 +467,11 @@ func TestServer_NextEpochProposerList(t *testing.T) {
 		for i := types.Slot(0); i < count; i++ {
 			b := testutil.NewBeaconBlock()
 			b.Block.Slot = i
-			require.NoError(t, err)
+			b.Block.ParentRoot = parentRoot[:]
 			blks[i] = b
+			currentRoot, err := b.Block.HashTreeRoot()
+			require.NoError(t, err)
+			parentRoot = currentRoot
 		}
 		require.NoError(t, db.SaveBlocks(ctx, blks))
 
