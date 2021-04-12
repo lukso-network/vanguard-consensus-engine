@@ -420,14 +420,6 @@ func ProposerAssignments(
 	state *stateTrie.BeaconState,
 	epoch types.Epoch,
 ) (map[types.ValidatorIndex][]types.Slot, error) {
-	nextEpoch := NextEpoch(state)
-	if epoch > nextEpoch {
-		return nil, fmt.Errorf(
-			"epoch %d can't be greater than next epoch %d",
-			epoch,
-			nextEpoch,
-		)
-	}
 
 	// We determine the slots in which proposers are supposed to act.
 	// Some validators may need to propose multiple times per epoch, so
