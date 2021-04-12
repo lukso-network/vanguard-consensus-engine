@@ -463,6 +463,8 @@ func TestServer_NextEpochProposerList(t *testing.T) {
 		require.NoError(t, db.SaveBlock(ctx, blk))
 		require.NoError(t, db.SaveGenesisBlockRoot(ctx, root))
 
+		parentRoot = root
+
 		blks := make([]*ethpb.SignedBeaconBlock, count)
 		for i := types.Slot(0); i < count; i++ {
 			b := testutil.NewBeaconBlock()
@@ -474,20 +476,14 @@ func TestServer_NextEpochProposerList(t *testing.T) {
 			parentRoot = currentRoot
 		}
 		require.NoError(t, db.SaveBlocks(ctx, blks))
-
 		ctx := context.Background()
-		assignments, err := bs.GetProposerListForEpoch(ctx, types.Epoch(1))
-		require.NoError(t, err)
-		assert.Equal(t, types.Epoch(1), assignments.Epoch)
-		require.Equal(t, config.SlotsPerEpoch, len(assignments.Assignments))
 
 		// Start from epoch 1
-		//for index := 1; index < maxEpochs; index++ {
-		//	ctx := context.Background()
-		//	assignments, err := bs.GetProposerListForEpoch(ctx, types.Epoch(index))
-		//	require.NoError(t, err)
-		//	assert.Equal(t, types.Epoch(1), assignments.Epoch)
-		//	require.Equal(t, config.SlotsPerEpoch, len(assignments.Assignments))
-		//}
+		for index := 1; index < maxEpochs; index++ {
+			assignments, err := bs.GetProposerListForEpoch(ctx, types.Epoch(index))
+			require.NoError(t, err)
+			assert.Equal(t, types.Epoch(index), assignments.Epoch)
+			require.Equal(t, config.SlotsPerEpoch, len(assignments.Assignments))
+		}
 	})
 }
