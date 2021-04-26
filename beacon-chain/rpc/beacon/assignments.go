@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	ptypes "github.com/gogo/protobuf/types"
+	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/subscriber/api/events"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"strconv"
 
@@ -195,4 +196,17 @@ func (bs *Server) NextEpochProposerList(
 	assignments, err = bs.GetProposerListForEpoch(ctx, curEpoch)
 
 	return
+}
+
+func (bs *Server) GetMinimalConsensusInfo(
+	ctx context.Context,
+	curEpoch types.Epoch,
+) (minConsensusInfo *events.MinimalEpochConsensusInfo, err error) {
+	minConsensusInfo = &events.MinimalEpochConsensusInfo{
+		Epoch:            0,
+		ValidatorList:    [32]string{},
+		EpochStartTime:   0,
+		SlotTimeDuration: 0,
+	}
+	return minConsensusInfo, nil
 }
