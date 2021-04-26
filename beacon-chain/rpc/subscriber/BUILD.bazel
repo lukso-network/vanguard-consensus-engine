@@ -24,6 +24,6 @@ go_test(
         "//beacon-chain/rpc/subscriber/api/events:go_default_library",
         "@com_github_ethereum_go_ethereum//rpc:go_default_library",
         "@com_github_ethereum_go_ethereum//event:go_default_library",
-        "@com_github_prysmaticlabs//eth2-types:go_default_library",
+        "@com_github_prysmaticlabs_eth2_types//:go_default_library"
     ],
 )

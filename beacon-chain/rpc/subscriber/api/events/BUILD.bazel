@@ -8,6 +8,9 @@ go_library(
     visibility = ["//beacon-chain:__subpackages__"],
     deps = [
         "@com_github_ethereum_go_ethereum//rpc:go_default_library",
+        "@com_github_ethereum_go_ethereum//event:go_default_library",
+        "@com_github_ethereum_go_ethereum//log:go_default_library",
+        "@com_github_prysmaticlabs_eth2_types//:go_default_library"
     ],
 )
 
@@ -20,5 +23,8 @@ go_test(
         "//beacon-chain/rpc/subscriber/api:go_default_library",
         "//beacon-chain/rpc/subscriber/api/event:go_default_library",
         "@com_github_ethereum_go_ethereum//rpc:go_default_library",
+        "@com_github_ethereum_go_ethereum//event:go_default_library",
+        "@com_github_ethereum_go_ethereum//log:go_default_library",
+        "@com_github_prysmaticlabs_eth2_types//:go_default_library"
     ],
 )
