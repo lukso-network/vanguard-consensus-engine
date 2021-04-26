@@ -10,12 +10,6 @@ import (
 )
 
 func setup() (*Config, error) {
-	//epochExtractor, err := epochextractor.NewService(context.Background(),
-	//	cmd.DefaultVanguardRPCEndpoint, cmd.DefaultPandoraRPCEndpoint, 13434434)
-	//
-	//if err != nil {
-	//	return nil, err
-	//}
 	return &Config{
 		IPCPath:    cmd.DefaultIpcPath,
 		HTTPEnable: true,

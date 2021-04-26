@@ -27,15 +27,14 @@ const (
 
 // subscription
 type subscription struct {
-	id        rpc.ID
-	typ       Type
-	created   time.Time
-	installed chan struct{} // closed when the filter is installed
-	err       chan error    // closed when the filter is uninstalled
-
+	typ           Type
 	isNew         bool
 	epoch         eth2Types.Epoch // last served epoch number
+	err           chan error      // closed when the filter is uninstalled
+	installed     chan struct{}   // closed when the filter is installed
 	consensusInfo chan *MinimalEpochConsensusInfo
+	id            rpc.ID
+	created       time.Time
 }
 
 // EventSystem creates subscriptions, processes events and broadcasts them to the

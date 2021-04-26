@@ -51,7 +51,11 @@ func (api *PublicFilterAPI) MinimalConsensusInfo(ctx context.Context, epoch uint
 			select {
 			case c := <-consensusInfo:
 				log.WithField("epoch", c.Epoch).Info("sending consensus info to subscriber")
-				notifier.Notify(rpcSub.ID, c)
+				err := notifier.Notify(rpcSub.ID, c)
+				if nil != err {
+					log.Info("subscriber notify error")
+					return
+				}
 			case <-rpcSub.Err():
 				log.Info("unsubscribing registered subscriber")
 				consensusInfoSub.Unsubscribe()
