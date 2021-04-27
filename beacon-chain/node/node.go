@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/subscriber"
 	"io/ioutil"
 	"os"
 	"os/signal"
@@ -207,6 +208,10 @@ func New(cliCtx *cli.Context) (*BeaconNode, error) {
 	}
 
 	if err := beacon.registerRPCService(); err != nil {
+		return nil, err
+	}
+
+	if err := beacon.registerSubscriberRPCService(); err != nil {
 		return nil, err
 	}
 
@@ -657,6 +662,24 @@ func (b *BeaconNode) registerRPCService() error {
 	})
 
 	return b.services.RegisterService(rpcService)
+}
+func (b *BeaconNode) registerSubscriberRPCService() error {
+	config := &subscriber.Config{
+		IPCPath:    cmd.DefaultIpcPath,
+		HTTPEnable: true,
+		HTTPHost:   cmd.DefaultHTTPHost,
+		HTTPPort:   cmd.DefaultHTTPPort,
+		WSEnable:   true,
+		WSHost:     cmd.DefaultWSHost,
+		WSPort:     cmd.DefaultWSPort,
+	}
+
+	subscriberRpcService, err := subscriber.NewService(b.ctx, config)
+	if err != nil {
+		return err
+	}
+
+	return b.services.RegisterService(subscriberRpcService)
 }
 
 func (b *BeaconNode) registerPrometheusService(cliCtx *cli.Context) error {
