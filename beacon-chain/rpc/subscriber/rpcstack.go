@@ -125,7 +125,12 @@ func (h *httpServer) start() error {
 		return err
 	}
 	h.listener = listener
-	go h.server.Serve(listener)
+	go func(listener net.Listener) {
+		err := h.server.Serve(listener)
+		if nil != err {
+			log.WithField("listener", listener.Addr().String()).Errorf("serve listener server err = %s", err.Error())
+		}
+	}(listener)
 
 	if h.wsAllowed() {
 		url := fmt.Sprintf("ws://%v", listener.Addr())
@@ -164,7 +169,7 @@ func (h *httpServer) start() error {
 
 func (h *httpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// check if ws request and serve if ws enabled
-	ws := h.wsHandler.Load().(*rpcHandler)
+	var ws = h.wsHandler.Load().(*rpcHandler)
 	if ws != nil && isWebsocket(r) {
 		if checkPath(r, h.wsConfig.prefix) {
 			ws.ServeHTTP(w, r)
@@ -172,7 +177,7 @@ func (h *httpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// if http-rpc is enabled, try to serve request
-	rpc := h.httpHandler.Load().(*rpcHandler)
+	var rpc = h.httpHandler.Load().(*rpcHandler)
 	if rpc != nil {
 		// First try to route in the mux.
 		// Requests to a path below root are handled by the mux,
@@ -232,8 +237,8 @@ func (h *httpServer) doStop() {
 	}
 
 	// Shut down the server.
-	httpHandler := h.httpHandler.Load().(*rpcHandler)
-	wsHandler := h.httpHandler.Load().(*rpcHandler)
+	var httpHandler = h.httpHandler.Load().(*rpcHandler)
+	var wsHandler = h.httpHandler.Load().(*rpcHandler)
 	if httpHandler != nil {
 		h.httpHandler.Store((*rpcHandler)(nil))
 		httpHandler.server.Stop()
@@ -242,8 +247,15 @@ func (h *httpServer) doStop() {
 		h.wsHandler.Store((*rpcHandler)(nil))
 		wsHandler.server.Stop()
 	}
-	h.server.Shutdown(context.Background())
-	h.listener.Close()
+	err := h.server.Shutdown(context.Background())
+	if nil != err {
+		log.Errorf("shutdowning err = %s", err.Error())
+	}
+
+	err = h.listener.Close()
+	if nil != err {
+		log.WithField("endpoint", h.listener.Addr()).Errorf("close err = %s", err.Error())
+	}
 	log.WithField("endpoint", h.listener.Addr()).Info("HTTP server stopped")
 
 	// Clear out everything to allow re-configuring it later.
@@ -275,7 +287,7 @@ func (h *httpServer) enableRPC(apis []rpc.API, config httpConfig) error {
 
 // disableRPC stops the HTTP RPC handler. This is internal, the caller must hold h.mu.
 func (h *httpServer) disableRPC() bool {
-	handler := h.httpHandler.Load().(*rpcHandler)
+	var handler = h.httpHandler.Load().(*rpcHandler)
 	if handler != nil {
 		h.httpHandler.Store((*rpcHandler)(nil))
 		handler.server.Stop()
@@ -319,7 +331,7 @@ func (h *httpServer) stopWS() {
 
 // disableWS disables the WebSocket handler. This is internal, the caller must hold h.mu.
 func (h *httpServer) disableWS() bool {
-	ws := h.wsHandler.Load().(*rpcHandler)
+	var ws = h.wsHandler.Load().(*rpcHandler)
 	if ws != nil {
 		h.wsHandler.Store((*rpcHandler)(nil))
 		ws.server.Stop()
@@ -442,11 +454,16 @@ func newGzipHandler(next http.Handler) http.Handler {
 
 		w.Header().Set("Content-Encoding", "gzip")
 
-		gz := gzPool.Get().(*gzip.Writer)
+		var gz = gzPool.Get().(*gzip.Writer)
 		defer gzPool.Put(gz)
 
 		gz.Reset(w)
-		defer gz.Close()
+		defer func() {
+			err := gz.Close()
+			if nil != err {
+				log.WithField("newGzipHandler", gz.Name).Errorf("gz close err = %s", err.Error())
+			}
+		}()
 
 		next.ServeHTTP(&gzipResponseWriter{ResponseWriter: w, Writer: gz}, r)
 	})

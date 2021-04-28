@@ -2,11 +2,13 @@ package beacon
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	ptypes "github.com/gogo/protobuf/types"
 	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/subscriber/api/events"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"strconv"
+	"time"
 
 	types "github.com/prysmaticlabs/eth2-types"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
@@ -202,11 +204,30 @@ func (bs *Server) GetMinimalConsensusInfo(
 	ctx context.Context,
 	curEpoch types.Epoch,
 ) (minConsensusInfo *events.MinimalEpochConsensusInfo, err error) {
-	minConsensusInfo = &events.MinimalEpochConsensusInfo{
-		Epoch:            0,
-		ValidatorList:    [32]string{},
-		EpochStartTime:   0,
-		SlotTimeDuration: 0,
+	curSlot := bs.GenesisTimeFetcher.CurrentSlot()
+	curEpoch = helpers.SlotToEpoch(curSlot)
+	assignments, err := bs.GetProposerListForEpoch(ctx, curEpoch)
+	if err != nil {
+		return nil, err
 	}
+
+	assignmentsString := make([]string, 32)
+	for _, assigment := range assignments.Assignments {
+		assignmentsString = append(assignmentsString, hex.EncodeToString(assigment.PublicKey))
+	}
+
+	genesisTime := bs.GenesisTimeFetcher.GenesisTime()
+	epochStartTime, err := helpers.SlotToTime(uint64(genesisTime.Unix()), curSlot)
+	if nil != err {
+		return nil, err
+	}
+
+	minConsensusInfo = &events.MinimalEpochConsensusInfo{
+		Epoch:            uint64(curEpoch),
+		ValidatorList:    assignmentsString,
+		EpochStartTime:   uint64(epochStartTime.Unix()),
+		SlotTimeDuration: time.Duration(params.BeaconConfig().SecondsPerSlot),
+	}
+
 	return minConsensusInfo, nil
 }

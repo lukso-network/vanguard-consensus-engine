@@ -192,7 +192,10 @@ func (s *Service) wsServerForPort(port int) *httpServer {
 func (s *Service) stopRPC() {
 	s.http.stop()
 	s.ws.stop()
-	s.ipc.stop()
+	err := s.ipc.stop()
+	if nil != err {
+		log.Errorf("stopping RPC err = %s", err.Error())
+	}
 	s.stopInProc()
 }
 
