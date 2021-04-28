@@ -12,25 +12,20 @@ import (
 
 // Config
 type Config struct {
-	// ipc config
-	IPCPath string
-
-	// http config
 	HTTPEnable       bool
-	HTTPHost         string
+	WSEnable         bool
+	WSPort           int
 	HTTPPort         int
-	HTTPCors         []string
+	WSHost           string
+	WSPathPrefix     string
+	HTTPPathPrefix   string
+	IPCPath          string
+	HTTPHost         string
+	WSOrigins        []string
 	HTTPVirtualHosts []string
 	HTTPModules      []string
 	HTTPTimeouts     rpc.HTTPTimeouts
-	HTTPPathPrefix   string
-
-	// WebSocket config
-	WSEnable     bool
-	WSHost       string
-	WSPort       int
-	WSPathPrefix string
-	WSOrigins    []string
+	HTTPCors         []string
 }
 
 // Service
