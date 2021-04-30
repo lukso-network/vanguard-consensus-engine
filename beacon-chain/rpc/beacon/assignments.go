@@ -204,57 +204,36 @@ func (bs *Server) GetMinimalConsensusInfoRange(
 	ctx context.Context,
 	fromEpoch types.Epoch,
 ) (consensusInfos []*events.MinimalEpochConsensusInfo, err error) {
-	assignments, err := bs.NextEpochProposerList(ctx, &ptypes.Empty{})
+	consensusInfo, err := bs.GetMinimalConsensusInfo(ctx, fromEpoch)
 
 	if nil != err {
 		log.WithField("currentEpoch", "unknown").
 			WithField("requestedEpoch", fromEpoch).Error(err.Error())
 
-		return
+		return nil, err
 	}
 
-	if fromEpoch > assignments.Epoch {
-		err = fmt.Errorf("requested epoch too high")
-		log.WithField("currentEpoch", assignments.Epoch).
-			WithField("requestedEpoch", fromEpoch).Error(err.Error())
-
-		return
-	}
-
-	epochRange := assignments.Epoch - fromEpoch
 	consensusInfos = make([]*events.MinimalEpochConsensusInfo, 0)
+	tempEpochIndex := consensusInfo.Epoch
 
-	for index := 0; index < int(epochRange); index++ {
-		currentEpoch := types.Epoch(index) + epochRange
-		minimalConsensusInfo, err := bs.GetMinimalConsensusInfo(ctx, currentEpoch)
+	for {
+		tempEpochIndex++
+		minimalConsensusInfo, currentErr := bs.GetMinimalConsensusInfo(ctx, types.Epoch(tempEpochIndex))
 
-		if nil != err {
-			currentErr := fmt.Errorf("requested epoch not present")
-			log.WithField("currentEpoch", assignments.Epoch).
-				WithField("internal", currentErr.Error()).
-				WithField("requestedEpoch", fromEpoch).Error(err.Error())
+		if nil != currentErr {
+			log.WithField("currentEpoch", tempEpochIndex).
+				WithField("context", "epochNotFound").
+				WithField("requestedEpoch", fromEpoch).Error(currentErr.Error())
 
-			return nil, err
+			break
 		}
 
 		consensusInfos = append(consensusInfos, minimalConsensusInfo)
 	}
 
-	// get the latest
-	currentInfo, err := bs.GetMinimalConsensusInfo(ctx, assignments.Epoch)
-
-	if nil != err {
-		// Do not send invalid slice back
-		consensusInfos = nil
-		currentErr := fmt.Errorf("error during fetching latest epoch")
-		log.WithField("currentEpoch", assignments.Epoch).
-			WithField("internal", currentErr.Error()).
-			WithField("requestedEpoch", fromEpoch).Error(err.Error())
-
-		return
-	}
-
-	consensusInfos = append(consensusInfos, currentInfo)
+	log.WithField("currentEpoch", tempEpochIndex).
+		WithField("gathered", len(consensusInfos)).
+		WithField("requestedEpoch", fromEpoch).Info("I should send epoch list")
 
 	return
 }

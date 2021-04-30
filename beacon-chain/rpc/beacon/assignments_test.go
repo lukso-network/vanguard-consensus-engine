@@ -562,7 +562,7 @@ func TestServer_GetMinimalConsensusInfoRange(t *testing.T) {
 
 	t.Run("should work", func(t *testing.T) {
 		ctx := context.Background()
-		consensusInfos, err := bs.GetMinimalConsensusInfoRange(ctx, types.Epoch(count))
+		consensusInfos, err := bs.GetMinimalConsensusInfoRange(ctx, types.Epoch(0))
 		assert.NoError(t, err)
 		assert.Equal(t, count, len(consensusInfos))
 	})

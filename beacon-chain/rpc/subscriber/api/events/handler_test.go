@@ -134,7 +134,7 @@ func NewMinimalConsensusInfo(epoch types.Epoch) *MinimalEpochConsensusInfo {
 	copy(validatorList32[:], validatorList)
 	return &MinimalEpochConsensusInfo{
 		Epoch:            uint64(epoch),
-		ValidatorList:    validatorList32,
+		ValidatorList:    validatorList32[:],
 		EpochStartTime:   rand.Uint64(),
 		SlotTimeDuration: time.Duration(6),
 	}
