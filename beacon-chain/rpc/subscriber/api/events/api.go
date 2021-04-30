@@ -13,6 +13,7 @@ type Backend interface {
 	SubscribeNewEpochEvent(chan<- *MinimalEpochConsensusInfo) event.Subscription
 	GetProposerListForEpoch(context.Context, eth2Types.Epoch) (*eth.ValidatorAssignments, error)
 	GetMinimalConsensusInfo(context.Context, eth2Types.Epoch) (*MinimalEpochConsensusInfo, error)
+	GetMinimalConsensusInfoRange(context.Context, eth2Types.Epoch) ([]*MinimalEpochConsensusInfo, error)
 }
 
 // PublicFilterAPI offers support to create and manage filters. This will allow external clients to retrieve various
@@ -41,6 +42,27 @@ func (api *PublicFilterAPI) MinimalConsensusInfo(ctx context.Context, epoch uint
 		return &rpc.Subscription{}, rpc.ErrNotificationsUnsupported
 	}
 	rpcSub := notifier.CreateSubscription()
+
+	minimalInfos, err := api.backend.GetMinimalConsensusInfoRange(ctx, eth2Types.Epoch(epoch))
+
+	if nil != err {
+		log.WithField("err", err.Error()).WithField("epoch", epoch).Error("could not get minimal info")
+
+		return nil, err
+	}
+
+	log.WithField("range", len(minimalInfos)).Info("I will be sending epochs range")
+
+	for _, consensusInfo := range minimalInfos {
+		log.WithField("epoch", consensusInfo.Epoch).Info("sending consensus range to subscriber")
+		err = notifier.Notify(rpcSub.ID, consensusInfo)
+
+		if nil != err {
+			log.WithField("err", err.Error()).WithField("epoch", epoch).Error("invalid notification")
+
+			return nil, err
+		}
+	}
 
 	go func() {
 		consensusInfo := make(chan *MinimalEpochConsensusInfo)

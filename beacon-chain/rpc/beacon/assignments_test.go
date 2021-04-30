@@ -488,6 +488,68 @@ func TestServer_NextEpochProposerList(t *testing.T) {
 	})
 }
 
+func TestServer_GetMinimalConsensusInfoRange(t *testing.T) {
+	helpers.ClearCache()
+	db := dbTest.SetupDB(t)
+	ctx := context.Background()
+	count := 10000
+	validators := make([]*ethpb.Validator, 0, count)
+	withdrawCred := make([]byte, 32)
+	for i := 0; i < count; i++ {
+		pubKey := make([]byte, params.BeaconConfig().BLSPubkeyLength)
+		binary.LittleEndian.PutUint64(pubKey, uint64(i))
+		val := &ethpb.Validator{
+			PublicKey:             pubKey,
+			WithdrawalCredentials: withdrawCred,
+			ExitEpoch:             params.BeaconConfig().FarFutureEpoch,
+		}
+		validators = append(validators, val)
+	}
+
+	config := params.BeaconConfig().Copy()
+	oldConfig := config.Copy()
+	config.SlotsPerEpoch = 32
+	params.OverrideBeaconConfig(config)
+
+	defer func() {
+		params.OverrideBeaconConfig(oldConfig)
+	}()
+
+	blk := testutil.NewBeaconBlock().Block
+	blockRoot, err := blk.HashTreeRoot()
+	require.NoError(t, err)
+	s, err := testutil.NewBeaconState()
+	require.NoError(t, err)
+	require.NoError(t, s.SetValidators(validators))
+	require.NoError(t, db.SaveState(ctx, s, blockRoot))
+	require.NoError(t, db.SaveGenesisBlockRoot(ctx, blockRoot))
+
+	bs := &Server{
+		BeaconDB: db,
+		FinalizationFetcher: &mock.ChainService{
+			FinalizedCheckPoint: &ethpb.Checkpoint{
+				Epoch: 0,
+			},
+		},
+		GenesisTimeFetcher: &mock.ChainService{},
+		StateGen:           stategen.New(db),
+	}
+
+	t.Run("should throw error when invalid range", func(t *testing.T) {
+		ctx := context.Background()
+		consensusInfos, err := bs.GetMinimalConsensusInfoRange(ctx, types.Epoch(count+1))
+		assert.NotNil(t, err)
+		assert.Equal(t, 0, len(consensusInfos))
+	})
+
+	t.Run("should work", func(t *testing.T) {
+		ctx := context.Background()
+		consensusInfos, err := bs.GetMinimalConsensusInfoRange(ctx, types.Epoch(count))
+		assert.NoError(t, err)
+		assert.Equal(t, count, len(consensusInfos))
+	})
+}
+
 func TestServer_GetMinimalConsensusInfo(t *testing.T) {
 	helpers.ClearCache()
 	db := dbTest.SetupDB(t)
@@ -535,7 +597,7 @@ func TestServer_GetMinimalConsensusInfo(t *testing.T) {
 		StateGen:           stategen.New(db),
 	}
 
-	t.Run("should ", func(t *testing.T) {
+	t.Run("should GetMinimalConsensusInfo", func(t *testing.T) {
 		ctx := context.Background()
 		assignments, err := bs.GetMinimalConsensusInfo(ctx, types.Epoch(0))
 		require.NoError(t, err)

@@ -200,6 +200,62 @@ func (bs *Server) NextEpochProposerList(
 	return
 }
 
+func (bs *Server) GetMinimalConsensusInfoRange(
+	ctx context.Context,
+	fromEpoch types.Epoch,
+) (consensusInfos []*events.MinimalEpochConsensusInfo, err error) {
+	assignments, err := bs.NextEpochProposerList(ctx, &ptypes.Empty{})
+
+	if nil != err {
+		return
+	}
+
+	if fromEpoch > assignments.Epoch {
+		err = fmt.Errorf("requested epoch too high")
+		log.WithField("currentEpoch", assignments.Epoch).
+			WithField("requestedEpoch", fromEpoch).Error(err.Error())
+
+		return
+	}
+
+	epochRange := assignments.Epoch - fromEpoch
+	consensusInfos = make([]*events.MinimalEpochConsensusInfo, 0)
+
+	for index := 0; index < int(epochRange); index++ {
+		currentEpoch := types.Epoch(index) + epochRange
+		minimalConsensusInfo, err := bs.GetMinimalConsensusInfo(ctx, currentEpoch)
+
+		if nil != err {
+			currentErr := fmt.Errorf("requested epoch not present")
+			log.WithField("currentEpoch", assignments.Epoch).
+				WithField("internal", currentErr.Error()).
+				WithField("requestedEpoch", fromEpoch).Error(err.Error())
+
+			return nil, err
+		}
+
+		consensusInfos = append(consensusInfos, minimalConsensusInfo)
+	}
+
+	// get the latest
+	currentInfo, err := bs.GetMinimalConsensusInfo(ctx, assignments.Epoch)
+
+	if nil != err {
+		// Do not send invalid slice back
+		consensusInfos = nil
+		currentErr := fmt.Errorf("error during fetching latest epoch")
+		log.WithField("currentEpoch", assignments.Epoch).
+			WithField("internal", currentErr.Error()).
+			WithField("requestedEpoch", fromEpoch).Error(err.Error())
+
+		return
+	}
+
+	consensusInfos = append(consensusInfos, currentInfo)
+
+	return
+}
+
 func (bs *Server) GetMinimalConsensusInfo(
 	ctx context.Context,
 	curEpoch types.Epoch,
