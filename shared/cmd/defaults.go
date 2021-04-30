@@ -26,9 +26,9 @@ import (
 )
 
 const (
-	DefaultHTTPHost = "localhost" // Default host interface for the HTTP RPC server
+	DefaultHTTPHost = "0.0.0.0" // Default host interface for the HTTP RPC server
 	DefaultHTTPPort = 8565        // Default TCP port for the HTTP RPC server
-	DefaultWSHost   = "localhost" // Default host interface for the websocket RPC server
+	DefaultWSHost   = "0.0.0.0" // Default host interface for the websocket RPC server
 	DefaultWSPort   = 8566        // Default TCP port for the websocket RPC server
 	DefaultIpcPath  = "vanguard.ipc"
 )
