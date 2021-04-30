@@ -26,3 +26,10 @@ func (backend *APIBackend) GetProposerListForEpoch(ctx context.Context, epoch et
 func (backend *APIBackend) GetMinimalConsensusInfo(ctx context.Context, epoch eth2Types.Epoch) (*events.MinimalEpochConsensusInfo, error) {
 	return backend.BeaconChain.GetMinimalConsensusInfo(ctx, epoch)
 }
+
+func (backend *APIBackend) GetMinimalConsensusInfoRange(
+	ctx context.Context,
+	epoch eth2Types.Epoch,
+) ([]*events.MinimalEpochConsensusInfo, error) {
+	return backend.BeaconChain.GetMinimalConsensusInfoRange(ctx, epoch)
+}
