@@ -207,6 +207,9 @@ func (bs *Server) GetMinimalConsensusInfoRange(
 	assignments, err := bs.NextEpochProposerList(ctx, &ptypes.Empty{})
 
 	if nil != err {
+		log.WithField("currentEpoch", "unknown").
+			WithField("requestedEpoch", fromEpoch).Error(err.Error())
+
 		return
 	}
 
