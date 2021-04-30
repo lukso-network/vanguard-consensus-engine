@@ -515,7 +515,10 @@ func TestServer_GetMinimalConsensusInfoRange(t *testing.T) {
 		params.OverrideBeaconConfig(oldConfig)
 	}()
 
+	parentRoot := [32]byte{1, 2, 3}
+
 	blk := testutil.NewBeaconBlock().Block
+	blk.ParentRoot = parentRoot[:]
 	blockRoot, err := blk.HashTreeRoot()
 	require.NoError(t, err)
 	s, err := testutil.NewBeaconState()
@@ -534,6 +537,21 @@ func TestServer_GetMinimalConsensusInfoRange(t *testing.T) {
 		GenesisTimeFetcher: &mock.ChainService{},
 		StateGen:           stategen.New(db),
 	}
+
+	parentRoot = blockRoot
+
+	blks := make([]*ethpb.SignedBeaconBlock, count)
+
+	for i := types.Slot(0); i < types.Slot(count); i++ {
+		b := testutil.NewBeaconBlock()
+		b.Block.Slot = i
+		b.Block.ParentRoot = parentRoot[:]
+		blks[i] = b
+		currentRoot, err := b.Block.HashTreeRoot()
+		require.NoError(t, err)
+		parentRoot = currentRoot
+	}
+	require.NoError(t, db.SaveBlocks(ctx, blks))
 
 	t.Run("should throw error when invalid range", func(t *testing.T) {
 		ctx := context.Background()
