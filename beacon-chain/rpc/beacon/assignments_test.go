@@ -489,95 +489,6 @@ func TestServer_NextEpochProposerList(t *testing.T) {
 	})
 }
 
-func TestServer_GetMinimalConsensusInfoRange(t *testing.T) {
-	helpers.ClearCache()
-	db := dbTest.SetupDB(t)
-	ctx := context.Background()
-	count := 10000
-	validators := make([]*ethpb.Validator, 0, count)
-	withdrawCred := make([]byte, 32)
-	for i := 0; i < count; i++ {
-		pubKey := make([]byte, params.BeaconConfig().BLSPubkeyLength)
-		binary.LittleEndian.PutUint64(pubKey, uint64(i))
-		val := &ethpb.Validator{
-			PublicKey:             pubKey,
-			WithdrawalCredentials: withdrawCred,
-			ExitEpoch:             params.BeaconConfig().FarFutureEpoch,
-		}
-		validators = append(validators, val)
-	}
-
-	config := params.BeaconConfig().Copy()
-	oldConfig := config.Copy()
-	config.SlotsPerEpoch = 32
-	params.OverrideBeaconConfig(config)
-
-	defer func() {
-		params.OverrideBeaconConfig(oldConfig)
-	}()
-
-	parentRoot := [32]byte{1, 2, 3}
-
-	blk := testutil.NewBeaconBlock().Block
-	blk.ParentRoot = parentRoot[:]
-	blockRoot, err := blk.HashTreeRoot()
-	require.NoError(t, err)
-	s, err := testutil.NewBeaconState()
-	require.NoError(t, err)
-	require.NoError(t, s.SetValidators(validators))
-	require.NoError(t, db.SaveState(ctx, s, blockRoot))
-	require.NoError(t, db.SaveGenesisBlockRoot(ctx, blockRoot))
-	testStartTime := time.Now()
-	validTestEpochs := 5
-	totalSec := int64(params.BeaconConfig().SlotsPerEpoch.Mul(uint64(validTestEpochs) * params.BeaconConfig().SecondsPerSlot))
-	genTime := testStartTime.Unix() - totalSec
-
-	bs := &Server{
-		BeaconDB: db,
-		FinalizationFetcher: &mock.ChainService{
-			Genesis: time.Unix(genTime, 0),
-			FinalizedCheckPoint: &ethpb.Checkpoint{
-				Epoch: 0,
-			},
-		},
-		GenesisTimeFetcher: &mock.ChainService{
-			Genesis: time.Unix(genTime, 0),
-		},
-		StateGen: stategen.New(db),
-	}
-
-	parentRoot = blockRoot
-
-	blks := make([]*ethpb.SignedBeaconBlock, validTestEpochs*int(params.BeaconConfig().SlotsPerEpoch))
-	lastValidTestSlot := params.BeaconConfig().SlotsPerEpoch * types.Slot(validTestEpochs)
-
-	for i := types.Slot(0); i < lastValidTestSlot; i++ {
-		b := testutil.NewBeaconBlock()
-		b.Block.Slot = i
-		b.Block.ParentRoot = parentRoot[:]
-		blks[i] = b
-		currentRoot, err := b.Block.HashTreeRoot()
-		require.NoError(t, err)
-		parentRoot = currentRoot
-	}
-
-	require.NoError(t, db.SaveBlocks(ctx, blks))
-
-	t.Run("should throw error when invalid range", func(t *testing.T) {
-		ctx := context.Background()
-		consensusInfos, err := bs.GetMinimalConsensusInfoRange(ctx, types.Epoch(count+1))
-		assert.NotNil(t, err)
-		assert.Equal(t, 0, len(consensusInfos))
-	})
-
-	t.Run("should work", func(t *testing.T) {
-		ctx := context.Background()
-		consensusInfos, err := bs.GetMinimalConsensusInfoRange(ctx, types.Epoch(1))
-		assert.NoError(t, err)
-		assert.Equal(t, count, len(consensusInfos))
-	})
-}
-
 func TestServer_GetMinimalConsensusInfo(t *testing.T) {
 	helpers.ClearCache()
 	db := dbTest.SetupDB(t)
@@ -669,5 +580,19 @@ func TestServer_GetMinimalConsensusInfo(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, epoch, types.Epoch(assignments.Epoch))
 		}
+	})
+
+	t.Run("should GetMinimalConsensusInfoRange", func(t *testing.T) {
+		ctx := context.Background()
+		consensusInformation, err := bs.GetMinimalConsensusInfoRange(ctx, 0)
+		require.NoError(t, err)
+		require.DeepEqual(t, validTestEpochs, len(consensusInformation))
+	})
+
+	t.Run("should fail GetMinimalConsensusInfoRange", func(t *testing.T) {
+		ctx := context.Background()
+		consensusInformation, err := bs.GetMinimalConsensusInfoRange(ctx, types.Epoch(validTestEpochs+1))
+		require.NotNil(t, err)
+		require.DeepEqual(t, 0, len(consensusInformation))
 	})
 }

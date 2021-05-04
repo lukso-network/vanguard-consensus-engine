@@ -243,6 +243,7 @@ func (bs *Server) GetMinimalConsensusInfoRange(
 	}
 
 	consensusInfos = make([]*events.MinimalEpochConsensusInfo, 0)
+	consensusInfos = append(consensusInfos, consensusInfo)
 	tempEpochIndex := consensusInfo.Epoch
 
 	for {
