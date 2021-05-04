@@ -635,8 +635,11 @@ func TestServer_GetMinimalConsensusInfo(t *testing.T) {
 
 	t.Run("should GetMinimalConsensusInfo", func(t *testing.T) {
 		ctx := context.Background()
-		assignments, err := bs.GetMinimalConsensusInfo(ctx, types.Epoch(0))
-		require.NoError(t, err)
-		assert.Equal(t, types.Epoch(0), types.Epoch(assignments.Epoch))
+
+		for epoch := types.Epoch(0); epoch < types.Epoch(validTestEpochs); epoch++ {
+			assignments, err := bs.GetMinimalConsensusInfo(ctx, epoch)
+			require.NoError(t, err)
+			assert.Equal(t, epoch, types.Epoch(assignments.Epoch))
+		}
 	})
 }
