@@ -35,7 +35,9 @@ func NewPublicFilterAPI(backend Backend, timeout time.Duration) *PublicFilterAPI
 	return api
 }
 
-// MinimalConsensusInfo
+// MinimalConsensusInfo is used to serve information about epochs from certain epoch until most recent
+// This should be used as a pub/sub live subscription by Orchestrator client
+// Due to the fact that a lot of notifications could happen you should use it wisely
 func (api *PublicFilterAPI) MinimalConsensusInfo(ctx context.Context, epoch uint64) (*rpc.Subscription, error) {
 	notifier, supported := rpc.NotifierFromContext(ctx)
 	if !supported {

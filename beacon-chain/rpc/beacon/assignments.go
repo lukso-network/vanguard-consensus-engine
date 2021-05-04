@@ -217,7 +217,8 @@ func (bs *Server) GetProposerListForEpoch(
 	}, nil
 }
 
-// GetProposerList retrieves the validator assignments for a given epoch, [This api is specially used for Orchestrator client]
+// Deprecated: use GetMinimalConsensusInfoRange or GetMinimalConsensusInfo
+// NextEpochProposerList retrieves the validator assignments for a given epoch, [This api is specially used for Orchestrator client]
 // optional validator indices or public keys may be included to filter validator assignments.
 func (bs *Server) NextEpochProposerList(
 	ctx context.Context,
@@ -229,6 +230,8 @@ func (bs *Server) NextEpochProposerList(
 	return
 }
 
+// GetMinimalConsensusInfoRange allows to subscribe into feed about minimalConsensusInformation from particular epoch
+// TODO: Serve it in chunks, if recent epoch will be a very high number flood of responses could kill the connection
 func (bs *Server) GetMinimalConsensusInfoRange(
 	ctx context.Context,
 	fromEpoch types.Epoch,
@@ -268,6 +271,8 @@ func (bs *Server) GetMinimalConsensusInfoRange(
 	return
 }
 
+// GetMinimalConsensusInfo will give simple information about particular epoch
+// If epoch is not present it will return an error
 func (bs *Server) GetMinimalConsensusInfo(
 	ctx context.Context,
 	curEpoch types.Epoch,
