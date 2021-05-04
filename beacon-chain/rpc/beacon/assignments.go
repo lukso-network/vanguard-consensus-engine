@@ -6,6 +6,7 @@ import (
 	"fmt"
 	ptypes "github.com/gogo/protobuf/types"
 	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/subscriber/api/events"
+	"github.com/prysmaticlabs/prysm/beacon-chain/state"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/sirupsen/logrus"
 	"os"
@@ -144,17 +145,43 @@ func (bs *Server) GetProposerListForEpoch(
 	ctx context.Context,
 	curEpoch types.Epoch,
 ) (*ethpb.ValidatorAssignments, error) {
-	var res []*ethpb.ValidatorAssignments_CommitteeAssignment
+	var (
+		res         []*ethpb.ValidatorAssignments_CommitteeAssignment
+		latestState *state.BeaconState
+	)
 	startSlot, err := helpers.StartSlot(curEpoch)
+
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(
+			codes.Internal, "Could not retrieve startSlot for epoch %d: %v", curEpoch, err)
 	}
 
-	// latestState is the state of last epoch.
-	latestState, err := bs.StateGen.StateBySlot(ctx, startSlot)
+	endSlot, err := helpers.EndSlot(curEpoch)
+
+	if nil != err {
+		return nil, status.Errorf(
+			codes.Internal, "Could not retrieve endSlot for epoch %d: %v", curEpoch, err)
+	}
+
+	states, err := bs.BeaconDB.HighestSlotStatesBelow(ctx, endSlot)
+
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal, "Could not retrieve archived state for epoch %d: %v", curEpoch, err)
+	}
+
+	// Any state should return same proposer assignments so I pick first in slice
+	for _, currentState := range states {
+		if currentState.Slot() >= startSlot && currentState.Slot() <= endSlot {
+			latestState = currentState
+
+			break
+		}
+	}
+
+	if nil == latestState {
+		return nil, status.Errorf(
+			codes.Internal, "Could not retrieve any state for epoch %d: %v", curEpoch, err)
 	}
 
 	// Initialize all committee related data.
@@ -246,7 +273,7 @@ func (bs *Server) GetMinimalConsensusInfo(
 ) (minConsensusInfo *events.MinimalEpochConsensusInfo, err error) {
 	newLogger := logrus.New()
 	newLogger.WithField("prefix", "GetMinimalConsensusInfo")
-	file, err := os.OpenFile("./vanguard_rpc.log", os.O_WRONLY | os.O_CREATE, 0755)
+	file, err := os.OpenFile("./vanguard_rpc.log", os.O_WRONLY|os.O_CREATE, 0755)
 	if err != nil {
 		newLogger.Errorf("[VAN_SUB] Logger file err = %s", err.Error())
 		return nil, err
