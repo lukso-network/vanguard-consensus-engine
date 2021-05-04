@@ -614,14 +614,22 @@ func TestServer_GetMinimalConsensusInfo(t *testing.T) {
 	require.NoError(t, db.SaveState(ctx, s, blockRoot))
 	require.NoError(t, db.SaveGenesisBlockRoot(ctx, blockRoot))
 
+	testStartTime := time.Now()
+	validTestEpochs := 5
+	totalSec := int64(params.BeaconConfig().SlotsPerEpoch.Mul(uint64(validTestEpochs) * params.BeaconConfig().SecondsPerSlot))
+	genTime := testStartTime.Unix() - totalSec
+
 	bs := &Server{
 		BeaconDB: db,
 		FinalizationFetcher: &mock.ChainService{
+			Genesis: time.Unix(genTime, 0),
 			FinalizedCheckPoint: &ethpb.Checkpoint{
 				Epoch: 0,
 			},
 		},
-		GenesisTimeFetcher: &mock.ChainService{},
+		GenesisTimeFetcher: &mock.ChainService{
+			Genesis: time.Unix(genTime, 0),
+		},
 		StateGen:           stategen.New(db),
 	}
 
@@ -629,6 +637,6 @@ func TestServer_GetMinimalConsensusInfo(t *testing.T) {
 		ctx := context.Background()
 		assignments, err := bs.GetMinimalConsensusInfo(ctx, types.Epoch(0))
 		require.NoError(t, err)
-		assert.Equal(t, types.Epoch(0), assignments.Epoch)
+		assert.Equal(t, types.Epoch(0), types.Epoch(assignments.Epoch))
 	})
 }

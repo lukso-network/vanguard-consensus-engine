@@ -254,9 +254,11 @@ func (bs *Server) GetMinimalConsensusInfo(
 	defer file.Close()
 	logrus.SetOutput(file)
 
-	curSlot := bs.GenesisTimeFetcher.CurrentSlot()
-	curEpoch = helpers.SlotToEpoch(curSlot)
 	assignments, err := bs.GetProposerListForEpoch(ctx, curEpoch)
+	if nil != err {
+		newLogger.Errorf("[VAN_SUB] GetProposerListForEpoch err = %s", err.Error())
+		return nil, err
+	}
 
 	assignmentsString := make([]string, 32)
 	for _, assigment := range assignments.Assignments {
@@ -264,7 +266,12 @@ func (bs *Server) GetMinimalConsensusInfo(
 	}
 
 	genesisTime := bs.GenesisTimeFetcher.GenesisTime()
-	epochStartTime, err := helpers.SlotToTime(uint64(genesisTime.Unix()), curSlot)
+	startSlot, err := helpers.StartSlot(curEpoch)
+	if nil != err {
+		newLogger.Errorf("[VAN_SUB] StartSlot err = %s", err.Error())
+		return nil, err
+	}
+	epochStartTime, err := helpers.SlotToTime(uint64(genesisTime.Unix()), startSlot)
 	if nil != err {
 		newLogger.Errorf("[VAN_SUB] SlotToTime err = %s", err.Error())
 		return nil, err
