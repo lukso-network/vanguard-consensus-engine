@@ -650,12 +650,14 @@ func TestServer_GetMinimalConsensusInfo(t *testing.T) {
 		require.NoError(t, err)
 		parentRoot = currentRoot
 
-		s, err := testutil.NewBeaconState()
+		st, err := testutil.NewBeaconState()
 		require.NoError(t, err)
-		err = db.SaveState(ctx, s, currentRoot)
+		require.NoError(t, st.SetSlot(i))
+		require.NoError(t, db.SaveState(ctx, st, currentRoot))
+		assert.Equal(t, true, db.HasState(ctx, currentRoot))
+		hasState, err := bs.StateGen.HasState(ctx, currentRoot)
 		require.NoError(t, err)
-		err = bs.StateGen.SaveState(ctx, currentRoot, s)
-		require.NoError(t, err)
+		assert.Equal(t, true, hasState)
 	}
 
 	require.NoError(t, db.SaveBlocks(ctx, blks))
@@ -665,12 +667,12 @@ func TestServer_GetMinimalConsensusInfo(t *testing.T) {
 	t.Run("should GetMinimalConsensusInfo", func(t *testing.T) {
 		ctx := context.Background()
 
-		hashTreeRoot, err := blks[1].HashTreeRoot()
-		require.NoError(t, err)
-
-		hasState, err := bs.StateGen.HasState(ctx, hashTreeRoot)
-		require.NoError(t, err)
-		require.DeepEqual(t,  true, hasState)
+		//hashTreeRoot, err := blks[1].HashTreeRoot()
+		//require.NoError(t, err)
+		//
+		//hashState, err := bs.StateGen.HasState(ctx, hashTreeRoot)
+		//require.NoError(t, err)
+		//assert.Equal(t, true, db.HasState(ctx, hashState))
 
 		for epoch := types.Epoch(0); epoch < types.Epoch(validTestEpochs); epoch++ {
 			assignments, err := bs.GetMinimalConsensusInfo(ctx, epoch)
