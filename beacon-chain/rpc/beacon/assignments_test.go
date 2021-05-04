@@ -605,7 +605,10 @@ func TestServer_GetMinimalConsensusInfo(t *testing.T) {
 		params.OverrideBeaconConfig(oldConfig)
 	}()
 
+	parentRoot := [32]byte{1, 2, 3}
+
 	blk := testutil.NewBeaconBlock().Block
+	blk.ParentRoot = parentRoot[:]
 	blockRoot, err := blk.HashTreeRoot()
 	require.NoError(t, err)
 	s, err := testutil.NewBeaconState()
@@ -618,6 +621,11 @@ func TestServer_GetMinimalConsensusInfo(t *testing.T) {
 	validTestEpochs := 5
 	totalSec := int64(params.BeaconConfig().SlotsPerEpoch.Mul(uint64(validTestEpochs) * params.BeaconConfig().SecondsPerSlot))
 	genTime := testStartTime.Unix() - totalSec
+
+	parentRoot = blockRoot
+
+	blks := make([]*ethpb.SignedBeaconBlock, validTestEpochs*int(params.BeaconConfig().SlotsPerEpoch))
+	lastValidTestSlot := params.BeaconConfig().SlotsPerEpoch * types.Slot(validTestEpochs)
 
 	bs := &Server{
 		BeaconDB: db,
@@ -633,8 +641,36 @@ func TestServer_GetMinimalConsensusInfo(t *testing.T) {
 		StateGen:           stategen.New(db),
 	}
 
+	for i := types.Slot(0); i < lastValidTestSlot; i++ {
+		b := testutil.NewBeaconBlock()
+		b.Block.Slot = i
+		b.Block.ParentRoot = parentRoot[:]
+		blks[i] = b
+		currentRoot, err := b.Block.HashTreeRoot()
+		require.NoError(t, err)
+		parentRoot = currentRoot
+
+		s, err := testutil.NewBeaconState()
+		require.NoError(t, err)
+		err = db.SaveState(ctx, s, currentRoot)
+		require.NoError(t, err)
+		err = bs.StateGen.SaveState(ctx, currentRoot, s)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, db.SaveBlocks(ctx, blks))
+
+
+
 	t.Run("should GetMinimalConsensusInfo", func(t *testing.T) {
 		ctx := context.Background()
+
+		hashTreeRoot, err := blks[1].HashTreeRoot()
+		require.NoError(t, err)
+
+		hasState, err := bs.StateGen.HasState(ctx, hashTreeRoot)
+		require.NoError(t, err)
+		require.DeepEqual(t,  true, hasState)
 
 		for epoch := types.Epoch(0); epoch < types.Epoch(validTestEpochs); epoch++ {
 			assignments, err := bs.GetMinimalConsensusInfo(ctx, epoch)
