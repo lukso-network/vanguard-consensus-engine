@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	types2 "github.com/gogo/protobuf/types"
 	"strconv"
 	"testing"
 	"time"
@@ -396,9 +397,31 @@ func TestServer_ListAssignments_CanFilterPubkeysIndices_WithPagination(t *testin
 }
 
 func TestServer_NextEpochProposerList(t *testing.T) {
-	helpers.ClearCache()
 	db := dbTest.SetupDB(t)
-	ctx := context.Background()
+	genTime := time.Now()
+	config := params.BeaconConfig().Copy()
+	oldConfig := config.Copy()
+	config.SlotsPerEpoch = 32
+	params.OverrideBeaconConfig(config)
+
+	defer func() {
+		params.OverrideBeaconConfig(oldConfig)
+	}()
+
+	bs := &Server{
+		BeaconDB: db,
+		FinalizationFetcher: &mock.ChainService{
+			Genesis: genTime,
+			FinalizedCheckPoint: &ethpb.Checkpoint{
+				Epoch: 0,
+			},
+		},
+		GenesisTimeFetcher: &mock.ChainService{
+			Genesis: genTime,
+		},
+		StateGen: stategen.New(db),
+	}
+
 	count := 10000
 	validators := make([]*ethpb.Validator, 0, count)
 	withdrawCred := make([]byte, 32)
@@ -413,16 +436,10 @@ func TestServer_NextEpochProposerList(t *testing.T) {
 		validators = append(validators, val)
 	}
 
-	config := params.BeaconConfig().Copy()
-	oldConfig := config.Copy()
-	config.SlotsPerEpoch = 32
-	params.OverrideBeaconConfig(config)
-
-	defer func() {
-		params.OverrideBeaconConfig(oldConfig)
-	}()
-
+	ctx := context.Background()
 	blk := testutil.NewBeaconBlock().Block
+	parentRoot := [32]byte{1, 2, 3}
+	blk.ParentRoot = parentRoot[:]
 	blockRoot, err := blk.HashTreeRoot()
 	require.NoError(t, err)
 	s, err := testutil.NewBeaconState()
@@ -431,65 +448,15 @@ func TestServer_NextEpochProposerList(t *testing.T) {
 	require.NoError(t, db.SaveState(ctx, s, blockRoot))
 	require.NoError(t, db.SaveGenesisBlockRoot(ctx, blockRoot))
 
-	bs := &Server{
-		BeaconDB: db,
-		FinalizationFetcher: &mock.ChainService{
-			FinalizedCheckPoint: &ethpb.Checkpoint{
-				Epoch: 0,
-			},
-		},
-		GenesisTimeFetcher: &mock.ChainService{},
-		StateGen:           stategen.New(db),
-	}
-
-	t.Run("should return 32 proposers for epoch 0", func(t *testing.T) {
-		ctx := context.Background()
-		assignments, err := bs.GetProposerListForEpoch(ctx, types.Epoch(0))
-		require.NoError(t, err)
-		assert.Equal(t, types.Epoch(0), assignments.Epoch)
-		// This is genesis epoch, so there will be 31 slots instead of 32
-		require.Equal(t, int(config.SlotsPerEpoch)-1, len(assignments.Assignments))
-	})
-
-	t.Run("should return 32 proposer for each epoch", func(t *testing.T) {
-		maxEpochs := 4
-		// Go through 4 epochs
-		count := types.Slot(maxEpochs) * config.SlotsPerEpoch
-		// Should return the proper genesis block if it exists.
-		parentRoot := [32]byte{1, 2, 3}
-		blk := testutil.NewBeaconBlock()
-		blk.Block.ParentRoot = parentRoot[:]
-		root, err := blk.Block.HashTreeRoot()
-		require.NoError(t, err)
-		require.NoError(t, db.SaveBlock(ctx, blk))
-		require.NoError(t, db.SaveGenesisBlockRoot(ctx, root))
-
-		parentRoot = root
-
-		blks := make([]*ethpb.SignedBeaconBlock, count)
-		for i := types.Slot(0); i < count; i++ {
-			b := testutil.NewBeaconBlock()
-			b.Block.Slot = i
-			b.Block.ParentRoot = parentRoot[:]
-			blks[i] = b
-			currentRoot, err := b.Block.HashTreeRoot()
-			require.NoError(t, err)
-			parentRoot = currentRoot
-		}
-		require.NoError(t, db.SaveBlocks(ctx, blks))
-		ctx := context.Background()
-
-		// Start from epoch 1
-		for index := 1; index < maxEpochs; index++ {
-			assignments, err := bs.GetProposerListForEpoch(ctx, types.Epoch(index))
-			require.NoError(t, err)
-			assert.Equal(t, types.Epoch(index), assignments.Epoch)
-			require.Equal(t, config.SlotsPerEpoch, len(assignments.Assignments))
-		}
-	})
+	parentRoot = blockRoot
+	assignments, err := bs.NextEpochProposerList(ctx, &types2.Empty{})
+	require.NoError(t, err)
+	assert.Equal(t, types.Epoch(0), assignments.Epoch)
+	// For epoch 0 we get SlotsPerEpoch - 1
+	require.Equal(t, int(config.SlotsPerEpoch-1), len(assignments.Assignments))
 }
 
-func TestServer_GetMinimalConsensusInfo(t *testing.T) {
+func TestServer_MinimalConsensusSuite(t *testing.T) {
 	helpers.ClearCache()
 	db := dbTest.SetupDB(t)
 	ctx := context.Background()
