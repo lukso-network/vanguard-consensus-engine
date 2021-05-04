@@ -7,6 +7,8 @@ import (
 	ptypes "github.com/gogo/protobuf/types"
 	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/subscriber/api/events"
 	"github.com/prysmaticlabs/prysm/shared/params"
+	"github.com/sirupsen/logrus"
+	"os"
 	"strconv"
 	"time"
 
@@ -242,12 +244,19 @@ func (bs *Server) GetMinimalConsensusInfo(
 	ctx context.Context,
 	curEpoch types.Epoch,
 ) (minConsensusInfo *events.MinimalEpochConsensusInfo, err error) {
+	newLogger := logrus.New()
+	newLogger.WithField("prefix", "GetMinimalConsensusInfo")
+	file, err := os.OpenFile("./vanguard_rpc.log", os.O_WRONLY | os.O_CREATE, 0755)
+	if err != nil {
+		newLogger.Errorf("[VAN_SUB] Logger file err = %s", err.Error())
+		return nil, err
+	}
+	defer file.Close()
+	logrus.SetOutput(file)
+
 	curSlot := bs.GenesisTimeFetcher.CurrentSlot()
 	curEpoch = helpers.SlotToEpoch(curSlot)
 	assignments, err := bs.GetProposerListForEpoch(ctx, curEpoch)
-	if err != nil {
-		return nil, err
-	}
 
 	assignmentsString := make([]string, 32)
 	for _, assigment := range assignments.Assignments {
@@ -257,6 +266,7 @@ func (bs *Server) GetMinimalConsensusInfo(
 	genesisTime := bs.GenesisTimeFetcher.GenesisTime()
 	epochStartTime, err := helpers.SlotToTime(uint64(genesisTime.Unix()), curSlot)
 	if nil != err {
+		newLogger.Errorf("[VAN_SUB] SlotToTime err = %s", err.Error())
 		return nil, err
 	}
 
@@ -266,6 +276,8 @@ func (bs *Server) GetMinimalConsensusInfo(
 		EpochStartTime:   uint64(epochStartTime.Unix()),
 		SlotTimeDuration: time.Duration(params.BeaconConfig().SecondsPerSlot),
 	}
+
+	newLogger.Infof("[VAN_SUB] currEpoch = %#v", uint64(curEpoch))
 
 	return minConsensusInfo, nil
 }
