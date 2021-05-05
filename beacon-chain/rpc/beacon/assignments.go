@@ -9,7 +9,6 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/state"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/sirupsen/logrus"
-	"os"
 	"strconv"
 	"time"
 
@@ -203,16 +202,6 @@ func (bs *Server) GetMinimalConsensusInfo(
 ) (minConsensusInfo *events.MinimalEpochConsensusInfo, err error) {
 	newLogger := logrus.New()
 	newLogger.WithField("prefix", "GetMinimalConsensusInfo")
-	file, err := os.OpenFile("./vanguard_rpc.log", os.O_WRONLY|os.O_CREATE, 0755)
-	if err != nil {
-		newLogger.Errorf("[VAN_SUB] Logger file err = %s", err.Error())
-		return nil, err
-	}
-	defer func() {
-		err := file.Close()
-		log.Error(err)
-	}()
-	logrus.SetOutput(file)
 
 	assignments, err := bs.getProposerListForEpoch(ctx, curEpoch)
 	if nil != err {
