@@ -10,12 +10,15 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
 	dbTest "github.com/prysmaticlabs/prysm/beacon-chain/db/testing"
 	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/beacon"
+	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/subscriber/api/events"
 	"github.com/prysmaticlabs/prysm/beacon-chain/state/stategen"
+	"github.com/prysmaticlabs/prysm/shared/event"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/shared/testutil"
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
 	"github.com/stretchr/testify/assert"
 	"net"
+	"sync"
 	"testing"
 	"time"
 )
@@ -121,10 +124,65 @@ func TestAPIBackend_GetMinimalConsensusInfo(t *testing.T) {
 
 	require.NoError(t, db.SaveBlocks(ctx, blks))
 
-	t.Run("Should notify about MinimalConsensusInfo", func(t *testing.T) {
+	t.Run("Test subscription for n subscribers", func(t *testing.T) {
+		// Number of subscribers
+		const n = 1
 
+		var feed event.Feed
+		var done, subscribed sync.WaitGroup
+
+		consensusInfo := make([]*events.MinimalEpochConsensusInfo, 0)
+
+		subscriber := func(i interface{}) {
+			defer done.Done()
+
+			subchan := make(chan *events.MinimalEpochConsensusInfo)
+			sub := feed.Subscribe(subchan)
+			timeout := time.NewTimer(5 * time.Second)
+			subscribed.Done()
+
+			select {
+			case v := <-subchan:
+				if v == nil {
+					t.Errorf("%#v: received  nil value %#v", i, v)
+				}
+
+				consensusInfo = append(consensusInfo, v)
+			case <-timeout.C:
+				t.Errorf("%#v: receive timeout", i)
+			}
+
+			sub.Unsubscribe()
+			select {
+			case _, ok := <-sub.Err():
+				if ok {
+					t.Errorf("%d: error channel not closed after unsubscribe", i)
+				}
+			case <-timeout.C:
+				t.Errorf("%d: unsubscribe timeout", i)
+			}
+		}
+
+		done.Add(n)
+		subscribed.Add(n)
+		for i := 0; i < n; i++ {
+			go subscriber(i)
+		}
+		subscribed.Wait()
+		minConsensusInfo, err := bs.GetMinimalConsensusInfo(ctx, types.Epoch(0))
+		if nil != err {
+			t.Errorf("GetMinimalConsensusInfo error = %s", err.Error())
+		}
+		if nsent := feed.Send(minConsensusInfo); nsent != n {
+			t.Errorf("first send delivered %d times, want %d", nsent, n)
+		}
+		if nsent := feed.Send(minConsensusInfo); nsent != 0 {
+			t.Errorf("second send delivered %d times, want 0", nsent)
+		}
+		done.Wait()
+
+		assert.Equal(t, 1, len(consensusInfo))
 	})
-
 }
 
 func makeOrchestratorServer(
