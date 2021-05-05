@@ -65,22 +65,17 @@ func TestAPIBackend_SubscribeNewEpochEvent(t *testing.T) {
 		GenesisTimeFetcher: &mock.ChainService{
 			Genesis: testStartTime,
 		},
-		StateGen: stategen.New(db),
+		StateGen:      stategen.New(db),
 		StateNotifier: stateNotifier,
 		HeadFetcher: &mock.ChainService{
 			State: state,
 		},
 	}
 
-	minimalConsensusEvent := &feed.Event{
-		Type: statefeed.BlockProcessed,
-		Data: nil,
-	}
-
 	stateFeed := stateNotifier.StateFeed()
 
 	apiBackend := APIBackend{
-		BeaconChain:       *bs,
+		BeaconChain: *bs,
 	}
 
 	apiBackend.SubscribeNewEpochEvent(ctx, types.Epoch(0), consensusChannel)
@@ -96,20 +91,37 @@ func TestAPIBackend_SubscribeNewEpochEvent(t *testing.T) {
 
 			if nil != consensusInfo {
 				received = append(received, consensusInfo.(*events.MinimalEpochConsensusInfo))
+				sendWaitGroup.Done()
 			}
 		}
 	}()
 
-	sentTo := stateFeed.Send(minimalConsensusEvent)
-	sendWaitGroup.Wait()
-	assert.Equal(t, 1, sentTo)
+	ticker := time.NewTicker(time.Second * 5)
+	sent := 0
+	sendUntilTimeout := func() {
+		for sent == 0 {
+			select {
+			case <-ticker.C:
+				t.FailNow()
+			default:
+				sent = stateFeed.Send(&feed.Event{
+					Type: statefeed.BlockProcessed,
+					Data: &statefeed.BlockProcessedData{},
+				})
+			}
+		}
+	}
+
+	// Should not send because epoch not increased
+	sendUntilTimeout()
+	assert.Equal(t, 1, sent)
 	assert.Equal(t, 0, len(received))
 
-	sendWaitGroup.Add(shouldGather)
+	// Should send because epoch increased
 	require.NoError(t, state.SetSlot(params.BeaconConfig().SlotsPerEpoch))
-	sentTo = stateFeed.Send(minimalConsensusEvent)
+	sendUntilTimeout()
 	sendWaitGroup.Wait()
-	assert.Equal(t, 1, sentTo)
+	assert.Equal(t, 1, sent)
 	assert.Equal(t, shouldGather, len(received))
 }
 
@@ -286,4 +298,3 @@ func makeOrchestratorServer(
 
 	return
 }
-
