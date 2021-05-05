@@ -3,21 +3,15 @@ package events
 import (
 	"context"
 	"fmt"
-	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/rpc"
 	eth2Types "github.com/prysmaticlabs/eth2-types"
 	eth "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
-	"github.com/prysmaticlabs/prysm/beacon-chain/blockchain"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed"
-	statefeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/state"
 	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/beacon"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state"
-	"github.com/prysmaticlabs/prysm/shared/params"
 	"time"
 )
 
 type Backend interface {
-	SubscribeNewEpochEvent(chan<- *MinimalEpochConsensusInfo) event.Subscription
+	SubscribeNewEpochEvent(ctx context.Context, epoch eth2Types.Epoch, consensusChannel chan interface{})
 	GetProposerListForEpoch(context.Context, eth2Types.Epoch) (*eth.ValidatorAssignments, error)
 	GetMinimalConsensusInfo(context.Context, eth2Types.Epoch) (*MinimalEpochConsensusInfo, error)
 	GetMinimalConsensusInfoRange(context.Context, eth2Types.Epoch) ([]*MinimalEpochConsensusInfo, error)
@@ -57,13 +51,12 @@ func (api *PublicFilterAPI) MinimalConsensusInfo(ctx context.Context, epoch uint
 
 	if !ok {
 		err := fmt.Errorf("could not create notifier")
-		log.WithField("context", "GetMinimalConsensusInfoRange").
+		log.WithField("context", "MinimalConsensusInfo").
 			WithField("requestedEpoch", epoch).Error(err.Error())
 
 		return nil, err
 	}
 
-	events := api.events
 	backend := api.backend
 
 	go sendMinimalConsensusRange(
@@ -74,31 +67,32 @@ func (api *PublicFilterAPI) MinimalConsensusInfo(ctx context.Context, epoch uint
 		rpcSub,
 	)
 
-	consensusInfoSub := events.consensusInfoSub
-	beaconChain := backend.GetBeaconChain()
-	headFetcher := beaconChain.HeadFetcher
-	headState, err := headFetcher.HeadState(ctx)
+	subscriptionChannel := make(chan interface{})
+	backend.SubscribeNewEpochEvent(ctx, eth2Types.Epoch(epoch), subscriptionChannel)
 
-	if err != nil {
-		log.Warn("Could not access head state for infostream")
-		return nil, err
-	}
+	go func() {
+		for {
+			information := <-subscriptionChannel
+			consensusInfo, isConsensusInfo := information.(*MinimalEpochConsensusInfo)
 
-	if headState == nil {
-		err := fmt.Errorf("we are not ready to serve information")
-		log.WithField("fromEpoch", epoch).Error(err.Error())
-		return nil, err
-	}
+			if !isConsensusInfo {
+				log.WithField("context", "MinimalConsensusInfo").
+					WithField("requestedEpoch", epoch).Error("received invalid type on channel")
+				continue
+			}
 
-	go handleMinimalConsensusSubscription(
-		ctx,
-		headFetcher,
-		headState,
-		backend,
-		notifier,
-		rpcSub,
-		consensusInfoSub,
-	)
+			currentErr := notifier.Notify(rpcSub.ID, consensusInfo)
+
+			if nil != currentErr {
+				log.WithField("context", "MinimalConsensusInfo").
+					WithField("requestedEpoch", epoch).
+					WithField("err", currentErr).
+					Error("could not send notification")
+
+				return
+			}
+		}
+	}()
 
 	return rpcSub, nil
 }
@@ -127,79 +121,6 @@ func sendMinimalConsensusRange(
 		if nil != err {
 			log.WithField("err", err.Error()).WithField("epoch", epoch).Error("invalid notification")
 
-			return
-		}
-	}
-}
-
-func handleMinimalConsensusSubscription(
-	ctx context.Context,
-	headFetcher blockchain.HeadFetcher,
-	headState *state.BeaconState,
-	backend Backend,
-	notifier *rpc.Notifier,
-	rpcSub *rpc.Subscription,
-	consensusInfoSub event.Subscription,
-) {
-	subscriptionStartEpoch := eth2Types.Epoch(headState.Slot() / params.BeaconConfig().SlotsPerEpoch)
-	stateChannel := make(chan *feed.Event, params.BeaconConfig().SlotsPerEpoch)
-	beaconChain := backend.GetBeaconChain()
-	stateNotifier := beaconChain.StateNotifier
-	stateFeed := stateNotifier.StateFeed()
-	stateSubscription := stateFeed.Subscribe(stateChannel)
-
-	defer stateSubscription.Unsubscribe()
-
-	if nil == headState {
-		panic("head state cannot be nil")
-	}
-
-	log.WithField("fromEpoch", subscriptionStartEpoch).Info("registered new subscriber for consensus info")
-
-	for {
-		select {
-		case stateEvent := <-stateChannel:
-			if statefeed.BlockProcessed != stateEvent.Type {
-				continue
-			}
-
-			currentHeadState, currentErr := headFetcher.HeadState(ctx)
-
-			if nil != currentErr {
-				log.Error("could not fetch state during minimalConsensusInfoCheck")
-				continue
-			}
-
-			blockEpoch := eth2Types.Epoch(currentHeadState.Slot() / params.BeaconConfig().SlotsPerEpoch)
-
-			// Epoch did not progress
-			if blockEpoch == subscriptionStartEpoch {
-				continue
-			}
-
-			subscriptionStartEpoch = blockEpoch
-			consensusInfo, currentErr := beaconChain.GetMinimalConsensusInfo(ctx, blockEpoch)
-
-			if nil != currentErr {
-				log.WithField("currentEpoch", blockEpoch).WithField("err", currentErr).
-					Error("could not retrieve epoch in subscription")
-			}
-
-			log.WithField("epoch", blockEpoch).Info("sending consensus info to subscriber")
-			currentErr = notifier.Notify(rpcSub.ID, consensusInfo)
-
-			if nil != currentErr {
-				log.WithField("err", currentErr).Error("subscriber notify error")
-
-				continue
-			}
-		case <-rpcSub.Err():
-			log.Info("unsubscribing registered subscriber")
-			consensusInfoSub.Unsubscribe()
-			return
-		case <-notifier.Closed():
-			log.Info("unsubscribing registered subscriber")
-			consensusInfoSub.Unsubscribe()
 			return
 		}
 	}

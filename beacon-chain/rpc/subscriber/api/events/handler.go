@@ -3,7 +3,6 @@ package events
 import (
 	"context"
 	"github.com/ethereum/go-ethereum/event"
-	ethLog "github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	eth2Types "github.com/prysmaticlabs/eth2-types"
 	"sync"
@@ -68,12 +67,12 @@ func NewEventSystem(backend Backend) *EventSystem {
 	}
 
 	// Subscribe events
-	m.consensusInfoSub = m.backend.SubscribeNewEpochEvent(m.consensusInfoCh)
+	//m.consensusInfoSub = m.backend.SubscribeNewEpochEvent(m.consensusInfoCh)
 
 	// Make sure none of the subscriptions are empty
-	if m.consensusInfoSub == nil {
-		ethLog.Crit("Subscribe for event system failed")
-	}
+	//if m.consensusInfoSub == nil {
+	//	ethLog.Crit("Subscribe for event system failed")
+	//}
 
 	go m.eventLoop()
 	return m

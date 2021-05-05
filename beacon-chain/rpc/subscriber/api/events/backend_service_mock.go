@@ -1,6 +1,7 @@
 package events
 
 import (
+	"context"
 	"github.com/ethereum/go-ethereum/event"
 	types "github.com/prysmaticlabs/eth2-types"
 	"time"
@@ -33,6 +34,10 @@ func (backend *MockBackend) ConsensusInfoByEpochRange(fromEpoch, toEpoch types.E
 	return consensusInfoMapping
 }
 
-func (b *MockBackend) SubscribeNewEpochEvent(ch chan<- *MinimalEpochConsensusInfo) event.Subscription {
-	return b.ConsensusInfoFeed.Subscribe(ch)
+func (b *MockBackend) SubscribeNewEpochEventSubscribeNewEpochEvent(
+	ctx context.Context,
+	epoch types.Epoch,
+	consensusChannel chan interface{},
+) {
+	return
 }
