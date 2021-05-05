@@ -47,12 +47,8 @@ type Service struct {
 }
 
 func NewService(ctx context.Context, cfg *Config, server beacon.Server) (*Service, error) {
-	ctx, cancel := context.WithCancel(ctx)
-	_ = cancel // govet fix for lost cancel. Cancel is handled in service.Stop()
-
 	service := &Service{
 		ctx:           ctx,
-		cancel:        cancel,
 		config:        cfg,
 		inprocHandler: rpc.NewServer(),
 		backend: &api.APIBackend{
