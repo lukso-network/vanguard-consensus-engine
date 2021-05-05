@@ -33,3 +33,7 @@ func (backend *APIBackend) GetMinimalConsensusInfoRange(
 ) ([]*events.MinimalEpochConsensusInfo, error) {
 	return backend.BeaconChain.GetMinimalConsensusInfoRange(ctx, epoch)
 }
+
+func (backend *APIBackend) GetBeaconChain() (beaconChain beacon.Server) {
+	return backend.BeaconChain
+}
