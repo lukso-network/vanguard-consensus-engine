@@ -2,6 +2,7 @@ package subscriber
 
 import (
 	"context"
+	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/beacon"
 	"github.com/prysmaticlabs/prysm/shared/cmd"
 	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
@@ -28,7 +29,9 @@ func TestServerStart_Success(t *testing.T) {
 	config, err := setup()
 	assert.NoError(t, err)
 
-	rpcService, err := NewService(ctx, config)
+	beaconServer := beacon.Server{}
+
+	rpcService, err := NewService(ctx, config, beaconServer)
 	if err != nil {
 		t.Fatalf("failed to create protocol stack: %v", err)
 	}
