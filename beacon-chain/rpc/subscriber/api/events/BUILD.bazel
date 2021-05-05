@@ -5,7 +5,6 @@ go_library(
     name = "go_default_library",
     srcs = [
             "api.go",
-            "handler.go",
             "log.go",
             "types.go",
     ],

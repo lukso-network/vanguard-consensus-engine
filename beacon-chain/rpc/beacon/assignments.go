@@ -208,7 +208,10 @@ func (bs *Server) GetMinimalConsensusInfo(
 		newLogger.Errorf("[VAN_SUB] Logger file err = %s", err.Error())
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		err := file.Close()
+		log.Error(err)
+	}()
 	logrus.SetOutput(file)
 
 	assignments, err := bs.getProposerListForEpoch(ctx, curEpoch)
