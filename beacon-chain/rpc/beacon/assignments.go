@@ -207,12 +207,10 @@ func (bs *Server) GetMinimalConsensusInfo(
 		return nil, err
 	}
 
-	assignmentsSlice := make([]string, 32)
-	assignmentsString := make([]string, 0)
+	assignmentsSlice := make([]string, 0)
 	for _, assigment := range assignments.Assignments {
-		assignmentsSlice = append(assignmentsSlice, hex.EncodeToString(assigment.PublicKey))
 		currentString := fmt.Sprintf("0x%s", hex.EncodeToString(assigment.PublicKey))
-		assignmentsString = append(assignmentsString, currentString)
+		assignmentsSlice = append(assignmentsSlice, currentString)
 	}
 
 	expectedValidators := int(params.BeaconConfig().SlotsPerEpoch)
@@ -222,13 +220,13 @@ func (bs *Server) GetMinimalConsensusInfo(
 		expectedValidators = expectedValidators - 1
 	}
 
-	if len(assignmentsString) != expectedValidators {
+	if len(assignmentsSlice) != expectedValidators {
 		err := fmt.Errorf(
 			"not enough assignments, expected: %d, got: %d",
 			expectedValidators,
-			len(assignmentsString),
+			len(assignmentsSlice),
 		)
-		newLogger.Errorf("[VAN_SUB] Assignments err = %s", err.Error())
+		log.Errorf("[VAN_SUB] Assignments err = %s", err.Error())
 
 		return nil, err
 	}
