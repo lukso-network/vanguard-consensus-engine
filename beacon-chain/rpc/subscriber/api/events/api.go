@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/rpc"
 	eth2Types "github.com/prysmaticlabs/eth2-types"
-	eth "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	"time"
 )
 
 type Backend interface {
 	SubscribeNewEpochEvent(ctx context.Context, epoch eth2Types.Epoch, consensusChannel chan interface{})
-	GetProposerListForEpoch(context.Context, eth2Types.Epoch) (*eth.ValidatorAssignments, error)
 	GetMinimalConsensusInfo(context.Context, eth2Types.Epoch) (*MinimalEpochConsensusInfo, error)
 	GetMinimalConsensusInfoRange(context.Context, eth2Types.Epoch) ([]*MinimalEpochConsensusInfo, error)
 }
