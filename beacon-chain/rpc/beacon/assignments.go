@@ -220,9 +220,28 @@ func (bs *Server) GetMinimalConsensusInfo(
 		return nil, err
 	}
 
-	assignmentsString := make([]string, 32)
+	assignmentsString := make([]string, 0)
 	for _, assigment := range assignments.Assignments {
-		assignmentsString = append(assignmentsString, hex.EncodeToString(assigment.PublicKey))
+		currentString := fmt.Sprintf("0x%s", hex.EncodeToString(assigment.PublicKey))
+		assignmentsString = append(assignmentsString, currentString)
+	}
+
+	expectedValidators := int(params.BeaconConfig().SlotsPerEpoch)
+
+	// For genesis epoch we have n - 1
+	if 0 == curEpoch {
+		expectedValidators = expectedValidators - 1
+	}
+
+	if len(assignmentsString) != expectedValidators {
+		err := fmt.Errorf(
+			"not enough assignments, expected: %d, got: %d",
+			expectedValidators,
+			len(assignmentsString),
+		)
+		newLogger.Errorf("[VAN_SUB] Assignments err = %s", err.Error())
+
+		return nil, err
 	}
 
 	genesisTime := bs.GenesisTimeFetcher.GenesisTime()
