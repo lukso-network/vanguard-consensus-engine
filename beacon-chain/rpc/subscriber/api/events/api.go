@@ -6,7 +6,6 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	eth2Types "github.com/prysmaticlabs/eth2-types"
 	eth "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
-	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/beacon"
 	"time"
 )
 
@@ -15,7 +14,6 @@ type Backend interface {
 	GetProposerListForEpoch(context.Context, eth2Types.Epoch) (*eth.ValidatorAssignments, error)
 	GetMinimalConsensusInfo(context.Context, eth2Types.Epoch) (*MinimalEpochConsensusInfo, error)
 	GetMinimalConsensusInfoRange(context.Context, eth2Types.Epoch) ([]*MinimalEpochConsensusInfo, error)
-	GetBeaconChain() beacon.Server
 }
 
 // PublicFilterAPI offers support to create and manage filters. This will allow external clients to retrieve various
