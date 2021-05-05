@@ -141,7 +141,112 @@ func (bs *Server) ListValidatorAssignments(
 	}, nil
 }
 
-func (bs *Server) GetProposerListForEpoch(
+// Deprecated: use GetMinimalConsensusInfoRange or GetMinimalConsensusInfo
+// NextEpochProposerList retrieves the validator assignments for a given epoch, [This api is specially used for Orchestrator client]
+// optional validator indices or public keys may be included to filter validator assignments.
+func (bs *Server) NextEpochProposerList(
+	ctx context.Context,
+	empty *ptypes.Empty,
+) (assignments *ethpb.ValidatorAssignments, err error) {
+	curEpoch := helpers.SlotToEpoch(bs.GenesisTimeFetcher.CurrentSlot())
+	assignments, err = bs.getProposerListForEpoch(ctx, curEpoch)
+
+	return
+}
+
+// GetMinimalConsensusInfoRange allows to subscribe into feed about minimalConsensusInformation from particular epoch
+// TODO: Serve it in chunks, if recent epoch will be a very high number flood of responses could kill the connection
+func (bs *Server) GetMinimalConsensusInfoRange(
+	ctx context.Context,
+	fromEpoch types.Epoch,
+) (consensusInfos []*events.MinimalEpochConsensusInfo, err error) {
+	consensusInfo, err := bs.GetMinimalConsensusInfo(ctx, fromEpoch)
+
+	if nil != err {
+		log.WithField("currentEpoch", "unknown").
+			WithField("requestedEpoch", fromEpoch).Error(err.Error())
+
+		return nil, err
+	}
+
+	consensusInfos = make([]*events.MinimalEpochConsensusInfo, 0)
+	consensusInfos = append(consensusInfos, consensusInfo)
+	tempEpochIndex := consensusInfo.Epoch
+
+	for {
+		tempEpochIndex++
+		minimalConsensusInfo, currentErr := bs.GetMinimalConsensusInfo(ctx, types.Epoch(tempEpochIndex))
+
+		if nil != currentErr {
+			log.WithField("currentEpoch", tempEpochIndex).
+				WithField("context", "epochNotFound").
+				WithField("requestedEpoch", fromEpoch).Error(currentErr.Error())
+
+			break
+		}
+
+		consensusInfos = append(consensusInfos, minimalConsensusInfo)
+	}
+
+	log.WithField("currentEpoch", tempEpochIndex).
+		WithField("gathered", len(consensusInfos)).
+		WithField("requestedEpoch", fromEpoch).Info("I should send epoch list")
+
+	return
+}
+
+// GetMinimalConsensusInfo will give simple information about particular epoch
+// If epoch is not present it will return an error
+func (bs *Server) GetMinimalConsensusInfo(
+	ctx context.Context,
+	curEpoch types.Epoch,
+) (minConsensusInfo *events.MinimalEpochConsensusInfo, err error) {
+	newLogger := logrus.New()
+	newLogger.WithField("prefix", "GetMinimalConsensusInfo")
+	file, err := os.OpenFile("./vanguard_rpc.log", os.O_WRONLY|os.O_CREATE, 0755)
+	if err != nil {
+		newLogger.Errorf("[VAN_SUB] Logger file err = %s", err.Error())
+		return nil, err
+	}
+	defer file.Close()
+	logrus.SetOutput(file)
+
+	assignments, err := bs.getProposerListForEpoch(ctx, curEpoch)
+	if nil != err {
+		newLogger.Errorf("[VAN_SUB] getProposerListForEpoch err = %s", err.Error())
+		return nil, err
+	}
+
+	assignmentsString := make([]string, 32)
+	for _, assigment := range assignments.Assignments {
+		assignmentsString = append(assignmentsString, hex.EncodeToString(assigment.PublicKey))
+	}
+
+	genesisTime := bs.GenesisTimeFetcher.GenesisTime()
+	startSlot, err := helpers.StartSlot(curEpoch)
+	if nil != err {
+		newLogger.Errorf("[VAN_SUB] StartSlot err = %s", err.Error())
+		return nil, err
+	}
+	epochStartTime, err := helpers.SlotToTime(uint64(genesisTime.Unix()), startSlot)
+	if nil != err {
+		newLogger.Errorf("[VAN_SUB] SlotToTime err = %s", err.Error())
+		return nil, err
+	}
+
+	minConsensusInfo = &events.MinimalEpochConsensusInfo{
+		Epoch:            uint64(curEpoch),
+		ValidatorList:    assignmentsString,
+		EpochStartTime:   uint64(epochStartTime.Unix()),
+		SlotTimeDuration: time.Duration(params.BeaconConfig().SecondsPerSlot),
+	}
+
+	newLogger.Infof("[VAN_SUB] currEpoch = %#v", uint64(curEpoch))
+
+	return minConsensusInfo, nil
+}
+
+func (bs *Server) getProposerListForEpoch(
 	ctx context.Context,
 	curEpoch types.Epoch,
 ) (*ethpb.ValidatorAssignments, error) {
@@ -215,109 +320,4 @@ func (bs *Server) GetProposerListForEpoch(
 		Epoch:       curEpoch,
 		Assignments: res,
 	}, nil
-}
-
-// Deprecated: use GetMinimalConsensusInfoRange or GetMinimalConsensusInfo
-// NextEpochProposerList retrieves the validator assignments for a given epoch, [This api is specially used for Orchestrator client]
-// optional validator indices or public keys may be included to filter validator assignments.
-func (bs *Server) NextEpochProposerList(
-	ctx context.Context,
-	empty *ptypes.Empty,
-) (assignments *ethpb.ValidatorAssignments, err error) {
-	curEpoch := helpers.SlotToEpoch(bs.GenesisTimeFetcher.CurrentSlot())
-	assignments, err = bs.GetProposerListForEpoch(ctx, curEpoch)
-
-	return
-}
-
-// GetMinimalConsensusInfoRange allows to subscribe into feed about minimalConsensusInformation from particular epoch
-// TODO: Serve it in chunks, if recent epoch will be a very high number flood of responses could kill the connection
-func (bs *Server) GetMinimalConsensusInfoRange(
-	ctx context.Context,
-	fromEpoch types.Epoch,
-) (consensusInfos []*events.MinimalEpochConsensusInfo, err error) {
-	consensusInfo, err := bs.GetMinimalConsensusInfo(ctx, fromEpoch)
-
-	if nil != err {
-		log.WithField("currentEpoch", "unknown").
-			WithField("requestedEpoch", fromEpoch).Error(err.Error())
-
-		return nil, err
-	}
-
-	consensusInfos = make([]*events.MinimalEpochConsensusInfo, 0)
-	consensusInfos = append(consensusInfos, consensusInfo)
-	tempEpochIndex := consensusInfo.Epoch
-
-	for {
-		tempEpochIndex++
-		minimalConsensusInfo, currentErr := bs.GetMinimalConsensusInfo(ctx, types.Epoch(tempEpochIndex))
-
-		if nil != currentErr {
-			log.WithField("currentEpoch", tempEpochIndex).
-				WithField("context", "epochNotFound").
-				WithField("requestedEpoch", fromEpoch).Error(currentErr.Error())
-
-			break
-		}
-
-		consensusInfos = append(consensusInfos, minimalConsensusInfo)
-	}
-
-	log.WithField("currentEpoch", tempEpochIndex).
-		WithField("gathered", len(consensusInfos)).
-		WithField("requestedEpoch", fromEpoch).Info("I should send epoch list")
-
-	return
-}
-
-// GetMinimalConsensusInfo will give simple information about particular epoch
-// If epoch is not present it will return an error
-func (bs *Server) GetMinimalConsensusInfo(
-	ctx context.Context,
-	curEpoch types.Epoch,
-) (minConsensusInfo *events.MinimalEpochConsensusInfo, err error) {
-	newLogger := logrus.New()
-	newLogger.WithField("prefix", "GetMinimalConsensusInfo")
-	file, err := os.OpenFile("./vanguard_rpc.log", os.O_WRONLY|os.O_CREATE, 0755)
-	if err != nil {
-		newLogger.Errorf("[VAN_SUB] Logger file err = %s", err.Error())
-		return nil, err
-	}
-	defer file.Close()
-	logrus.SetOutput(file)
-
-	assignments, err := bs.GetProposerListForEpoch(ctx, curEpoch)
-	if nil != err {
-		newLogger.Errorf("[VAN_SUB] GetProposerListForEpoch err = %s", err.Error())
-		return nil, err
-	}
-
-	assignmentsString := make([]string, 32)
-	for _, assigment := range assignments.Assignments {
-		assignmentsString = append(assignmentsString, hex.EncodeToString(assigment.PublicKey))
-	}
-
-	genesisTime := bs.GenesisTimeFetcher.GenesisTime()
-	startSlot, err := helpers.StartSlot(curEpoch)
-	if nil != err {
-		newLogger.Errorf("[VAN_SUB] StartSlot err = %s", err.Error())
-		return nil, err
-	}
-	epochStartTime, err := helpers.SlotToTime(uint64(genesisTime.Unix()), startSlot)
-	if nil != err {
-		newLogger.Errorf("[VAN_SUB] SlotToTime err = %s", err.Error())
-		return nil, err
-	}
-
-	minConsensusInfo = &events.MinimalEpochConsensusInfo{
-		Epoch:            uint64(curEpoch),
-		ValidatorList:    assignmentsString,
-		EpochStartTime:   uint64(epochStartTime.Unix()),
-		SlotTimeDuration: time.Duration(params.BeaconConfig().SecondsPerSlot),
-	}
-
-	newLogger.Infof("[VAN_SUB] currEpoch = %#v", uint64(curEpoch))
-
-	return minConsensusInfo, nil
 }

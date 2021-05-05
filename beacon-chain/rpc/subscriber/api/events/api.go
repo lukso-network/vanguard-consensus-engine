@@ -20,7 +20,6 @@ type Backend interface {
 // information related to the Ethereum protocol such als blocks, transactions and logs.
 type PublicFilterAPI struct {
 	backend Backend
-	events  *EventSystem
 	timeout time.Duration
 }
 
@@ -28,7 +27,6 @@ type PublicFilterAPI struct {
 func NewPublicFilterAPI(backend Backend, timeout time.Duration) *PublicFilterAPI {
 	api := &PublicFilterAPI{
 		backend: backend,
-		events:  NewEventSystem(backend),
 		timeout: timeout,
 	}
 
