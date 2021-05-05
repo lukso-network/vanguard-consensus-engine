@@ -8,8 +8,6 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/subscriber/api/events"
 	"github.com/prysmaticlabs/prysm/beacon-chain/state"
 	"github.com/prysmaticlabs/prysm/shared/params"
-	"github.com/sirupsen/logrus"
-	"os"
 	"strconv"
 	"time"
 
@@ -201,27 +199,18 @@ func (bs *Server) GetMinimalConsensusInfo(
 	ctx context.Context,
 	curEpoch types.Epoch,
 ) (minConsensusInfo *events.MinimalEpochConsensusInfo, err error) {
-	newLogger := logrus.New()
-	newLogger.WithField("prefix", "GetMinimalConsensusInfo")
-	file, err := os.OpenFile("./vanguard_rpc.log", os.O_WRONLY|os.O_CREATE, 0755)
-	if err != nil {
-		newLogger.Errorf("[VAN_SUB] Logger file err = %s", err.Error())
-		return nil, err
-	}
-	defer func() {
-		err := file.Close()
-		log.Error(err)
-	}()
-	logrus.SetOutput(file)
+	log.WithField("prefix", "GetMinimalConsensusInfo")
 
 	assignments, err := bs.getProposerListForEpoch(ctx, curEpoch)
 	if nil != err {
-		newLogger.Errorf("[VAN_SUB] getProposerListForEpoch err = %s", err.Error())
+		log.Errorf("[VAN_SUB] getProposerListForEpoch err = %s", err.Error())
 		return nil, err
 	}
 
+	assignmentsSlice := make([]string, 32)
 	assignmentsString := make([]string, 0)
 	for _, assigment := range assignments.Assignments {
+		assignmentsSlice = append(assignmentsSlice, hex.EncodeToString(assigment.PublicKey))
 		currentString := fmt.Sprintf("0x%s", hex.EncodeToString(assigment.PublicKey))
 		assignmentsString = append(assignmentsString, currentString)
 	}
@@ -247,23 +236,23 @@ func (bs *Server) GetMinimalConsensusInfo(
 	genesisTime := bs.GenesisTimeFetcher.GenesisTime()
 	startSlot, err := helpers.StartSlot(curEpoch)
 	if nil != err {
-		newLogger.Errorf("[VAN_SUB] StartSlot err = %s", err.Error())
+		log.Errorf("[VAN_SUB] StartSlot err = %s", err.Error())
 		return nil, err
 	}
 	epochStartTime, err := helpers.SlotToTime(uint64(genesisTime.Unix()), startSlot)
 	if nil != err {
-		newLogger.Errorf("[VAN_SUB] SlotToTime err = %s", err.Error())
+		log.Errorf("[VAN_SUB] SlotToTime err = %s", err.Error())
 		return nil, err
 	}
 
 	minConsensusInfo = &events.MinimalEpochConsensusInfo{
 		Epoch:            uint64(curEpoch),
-		ValidatorList:    assignmentsString,
+		ValidatorList:    assignmentsSlice,
 		EpochStartTime:   uint64(epochStartTime.Unix()),
 		SlotTimeDuration: time.Duration(params.BeaconConfig().SecondsPerSlot),
 	}
 
-	newLogger.Infof("[VAN_SUB] currEpoch = %#v", uint64(curEpoch))
+	log.Infof("[VAN_SUB] currEpoch = %#v", uint64(curEpoch))
 
 	return minConsensusInfo, nil
 }

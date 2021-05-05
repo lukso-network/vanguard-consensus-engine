@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/beacon"
 	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/subscriber"
 	"io/ioutil"
 	"os"
@@ -674,7 +675,64 @@ func (b *BeaconNode) registerSubscriberRPCService() error {
 		WSPort:     cmd.DefaultWSPort,
 	}
 
-	subscriberRpcService, err := subscriber.NewService(b.ctx, config)
+	var chainService *blockchain.Service
+	if err := b.services.FetchService(&chainService); err != nil {
+		return err
+	}
+
+	var web3Service *powchain.Service
+	if err := b.services.FetchService(&web3Service); err != nil {
+		return err
+	}
+
+	var syncService *initialsync.Service
+	if err := b.services.FetchService(&syncService); err != nil {
+		return err
+	}
+
+	genesisValidators := b.cliCtx.Uint64(flags.InteropNumValidatorsFlag.Name)
+	genesisStatePath := b.cliCtx.String(flags.InteropGenesisStateFlag.Name)
+	var depositFetcher depositcache.DepositFetcher
+	var chainStartFetcher powchain.ChainStartFetcher
+	if genesisValidators > 0 || genesisStatePath != "" {
+		var interopService *interopcoldstart.Service
+		if err := b.services.FetchService(&interopService); err != nil {
+			return err
+		}
+		depositFetcher = interopService
+		chainStartFetcher = interopService
+	} else {
+		depositFetcher = b.depositCache
+		chainStartFetcher = web3Service
+	}
+
+	p2pService := b.fetchP2P()
+
+	beaconServer := beacon.Server{
+		BeaconDB:                    b.db,
+		Ctx:                         b.ctx,
+		ChainStartFetcher:           chainStartFetcher,
+		HeadFetcher:                 chainService,
+		CanonicalFetcher:            chainService,
+		FinalizationFetcher:         chainService,
+		DepositFetcher:              depositFetcher,
+		BlockFetcher:                nil,
+		GenesisTimeFetcher:          chainService,
+		StateNotifier:               b,
+		BlockNotifier:               b,
+		AttestationNotifier:         b,
+		Broadcaster:                 p2pService,
+		AttestationsPool:            b.attestationPool,
+		SlashingsPool:               b.slashingsPool,
+		CanonicalStateChan:          nil,
+		ChainStartChan:              nil,
+		ReceivedAttestationsBuffer:  nil,
+		CollectedAttestationsBuffer: nil,
+		StateGen:                    b.stateGen,
+		SyncChecker:                 nil,
+	}
+
+	subscriberRpcService, err := subscriber.NewService(b.ctx, config, beaconServer)
 	if err != nil {
 		return err
 	}

@@ -46,7 +46,7 @@ type Service struct {
 	inprocHandler *rpc.Server // In-process RPC request handler to process the API requests
 }
 
-func NewService(ctx context.Context, cfg *Config) (*Service, error) {
+func NewService(ctx context.Context, cfg *Config, server beacon.Server) (*Service, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	_ = cancel // govet fix for lost cancel. Cancel is handled in service.Stop()
 
@@ -56,9 +56,10 @@ func NewService(ctx context.Context, cfg *Config) (*Service, error) {
 		config:        cfg,
 		inprocHandler: rpc.NewServer(),
 		backend: &api.APIBackend{
-			BeaconChain: beacon.Server{},
+			BeaconChain: server,
 		},
 	}
+
 	// Configure RPC servers.
 	service.rpcAPIs = service.APIs()
 	service.http = newHTTPServer(rpc.DefaultHTTPTimeouts)
