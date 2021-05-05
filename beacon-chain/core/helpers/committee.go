@@ -434,7 +434,6 @@ func ProposerAssignments(
 
 	for slot := startSlot; slot < rangeSlot; slot++ {
 		// Skip proposer assignment for genesis slot.
-		// TODO: This omits slot 0 so proposerIndexToSlots is 30 only - slot < rangeSlot means 31 < 32 for last iteration
 		if slot == 0 {
 			continue
 		}

@@ -313,7 +313,7 @@ func (bs *Server) getProposerListForEpoch(
 	}
 
 	if len(res) != int(maxValidators) {
-		return nil, fmt.Errorf("invalid validators len, expected: %d, got: %d", maxValidators, len(res))
+		return nil, fmt.Errorf("invalid validators len, expected: %d, got: %d, epoch: %#v", maxValidators, len(res), curEpoch)
 	}
 
 	return &ethpb.ValidatorAssignments{

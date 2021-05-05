@@ -397,6 +397,7 @@ func TestServer_ListAssignments_CanFilterPubkeysIndices_WithPagination(t *testin
 }
 
 func TestServer_NextEpochProposerList(t *testing.T) {
+	helpers.ClearCache()
 	db := dbTest.SetupDB(t)
 	genTime := time.Now()
 	config := params.BeaconConfig().Copy()
