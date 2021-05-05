@@ -8,7 +8,6 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/subscriber/api/events"
 	"github.com/prysmaticlabs/prysm/beacon-chain/state"
 	"github.com/prysmaticlabs/prysm/shared/params"
-	"github.com/sirupsen/logrus"
 	"strconv"
 	"time"
 
@@ -200,40 +199,39 @@ func (bs *Server) GetMinimalConsensusInfo(
 	ctx context.Context,
 	curEpoch types.Epoch,
 ) (minConsensusInfo *events.MinimalEpochConsensusInfo, err error) {
-	newLogger := logrus.New()
-	newLogger.WithField("prefix", "GetMinimalConsensusInfo")
+	log.WithField("prefix", "GetMinimalConsensusInfo")
 
 	assignments, err := bs.getProposerListForEpoch(ctx, curEpoch)
 	if nil != err {
-		newLogger.Errorf("[VAN_SUB] getProposerListForEpoch err = %s", err.Error())
+		log.Errorf("[VAN_SUB] getProposerListForEpoch err = %s", err.Error())
 		return nil, err
 	}
 
-	assignmentsString := make([]string, 32)
+	assignmentsSlice := make([]string, 32)
 	for _, assigment := range assignments.Assignments {
-		assignmentsString = append(assignmentsString, hex.EncodeToString(assigment.PublicKey))
+		assignmentsSlice = append(assignmentsSlice, hex.EncodeToString(assigment.PublicKey))
 	}
 
 	genesisTime := bs.GenesisTimeFetcher.GenesisTime()
 	startSlot, err := helpers.StartSlot(curEpoch)
 	if nil != err {
-		newLogger.Errorf("[VAN_SUB] StartSlot err = %s", err.Error())
+		log.Errorf("[VAN_SUB] StartSlot err = %s", err.Error())
 		return nil, err
 	}
 	epochStartTime, err := helpers.SlotToTime(uint64(genesisTime.Unix()), startSlot)
 	if nil != err {
-		newLogger.Errorf("[VAN_SUB] SlotToTime err = %s", err.Error())
+		log.Errorf("[VAN_SUB] SlotToTime err = %s", err.Error())
 		return nil, err
 	}
 
 	minConsensusInfo = &events.MinimalEpochConsensusInfo{
 		Epoch:            uint64(curEpoch),
-		ValidatorList:    assignmentsString,
+		ValidatorList:    assignmentsSlice,
 		EpochStartTime:   uint64(epochStartTime.Unix()),
 		SlotTimeDuration: time.Duration(params.BeaconConfig().SecondsPerSlot),
 	}
 
-	newLogger.Infof("[VAN_SUB] currEpoch = %#v", uint64(curEpoch))
+	log.Infof("[VAN_SUB] currEpoch = %#v", uint64(curEpoch))
 
 	return minConsensusInfo, nil
 }
