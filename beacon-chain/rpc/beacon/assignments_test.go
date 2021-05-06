@@ -505,6 +505,7 @@ func TestServer_MinimalConsensusSuite(t *testing.T) {
 	parentRoot = blockRoot
 
 	bs := &Server{
+		Ctx: ctx,
 		BeaconDB: db,
 		FinalizationFetcher: &mock.ChainService{
 			Genesis: time.Unix(genTime, 0),
