@@ -279,8 +279,9 @@ func (bs *Server) getProposerListForEpoch(
 
 	states, err := bs.BeaconDB.HighestSlotStatesBelow(bs.Ctx, endSlot)
 
-	log.Infof("[VAN_SUB] getProposerListForEpoch ctx err = %s", ctx.Err().Error())
-	log.Infof("[VAN_SUB] getProposerListForEpoch bs.ctx err = %s", bs.Ctx.Err().Error())
+	if nil != bs.Ctx.Err() {
+		log.Infof("[VAN_SUB] getProposerListForEpoch bs.ctx err = %s", bs.Ctx.Err().Error())
+	}
 
 	if err != nil {
 		return nil, status.Errorf(
