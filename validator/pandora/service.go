@@ -188,8 +188,8 @@ func (s *Service) GetShardBlockHeader(ctx context.Context) (*eth1Types.Header, c
 	}
 	log.WithField("header", header).WithField(
 		"generatedHeaderHash", header.Hash()).WithField(
-			"headerHash", response.HeaderHash).WithField(
-				"extraData", extraData).Debug("Got header info from pandora")
+		"headerHash", response.HeaderHash).WithField(
+		"extraData", extraData).Debug("Got header info from pandora")
 	return header, response.HeaderHash, &extraData, nil
 }
 

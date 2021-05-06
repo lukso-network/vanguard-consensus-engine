@@ -462,6 +462,7 @@ func (b *BeaconNode) registerBlockchainService() error {
 		P2p:               b.fetchP2P(),
 		MaxRoutines:       maxRoutines,
 		StateNotifier:     b,
+		BlockNotifier:     b,
 		ForkChoiceStore:   b.forkChoiceStore,
 		OpsService:        opsService,
 		StateGen:          b.stateGen,

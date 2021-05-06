@@ -180,7 +180,7 @@ func (bs *Server) NextEpochProposerList(
 
 // prepareProposerList
 func prepareProposerAssignments(curEpochState, nextEpochState *stateTrie.BeaconState,
-	curEpoch, nextEpoch types.Epoch)  ([]*ethpb.ValidatorAssignments_CommitteeAssignment, error) {
+	curEpoch, nextEpoch types.Epoch) ([]*ethpb.ValidatorAssignments_CommitteeAssignment, error) {
 
 	var res []*ethpb.ValidatorAssignments_CommitteeAssignment
 	// Initialize all committee related data.

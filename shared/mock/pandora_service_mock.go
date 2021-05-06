@@ -109,4 +109,3 @@ func (mr *MockRPCClientMockRecorder) Call(result, method interface{}, args ...in
 	varargs := append([]interface{}{result, method}, args...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Call", reflect.TypeOf((*MockRPCClient)(nil).Call), varargs...)
 }
-
