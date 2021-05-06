@@ -411,6 +411,7 @@ func TestServer_NextEpochProposerList(t *testing.T) {
 	}()
 
 	bs := &Server{
+		Ctx: context.Background(),
 		BeaconDB: db,
 		FinalizationFetcher: &mock.ChainService{
 			Genesis: genTime,
@@ -438,7 +439,6 @@ func TestServer_NextEpochProposerList(t *testing.T) {
 		validators = append(validators, val)
 	}
 
-	ctx := context.Background()
 	blk := testutil.NewBeaconBlock().Block
 	parentRoot := [32]byte{1, 2, 3}
 	blk.ParentRoot = parentRoot[:]
@@ -447,11 +447,11 @@ func TestServer_NextEpochProposerList(t *testing.T) {
 	s, err := testutil.NewBeaconState()
 	require.NoError(t, err)
 	require.NoError(t, s.SetValidators(validators))
-	require.NoError(t, db.SaveState(ctx, s, blockRoot))
-	require.NoError(t, db.SaveGenesisBlockRoot(ctx, blockRoot))
+	require.NoError(t, db.SaveState(bs.Ctx, s, blockRoot))
+	require.NoError(t, db.SaveGenesisBlockRoot(bs.Ctx, blockRoot))
 
 	parentRoot = blockRoot
-	assignments, err := bs.NextEpochProposerList(ctx, &types2.Empty{})
+	assignments, err := bs.NextEpochProposerList(bs.Ctx, &types2.Empty{})
 	require.NoError(t, err)
 	assert.Equal(t, types.Epoch(0), assignments.Epoch)
 	// For epoch 0 we get SlotsPerEpoch - 1
@@ -506,6 +506,7 @@ func TestServer_MinimalConsensusSuite(t *testing.T) {
 	parentRoot = blockRoot
 
 	bs := &Server{
+		Ctx: ctx,
 		BeaconDB: db,
 		FinalizationFetcher: &mock.ChainService{
 			Genesis: time.Unix(genTime, 0),
