@@ -430,7 +430,7 @@ func ProposerAssignments(
 	}
 
 	sliceRange := int(params.BeaconConfig().SlotsPerEpoch)
-	if epoch == 0 {
+	if types.Epoch(0) == epoch {
 		sliceRange = int(params.BeaconConfig().SlotsPerEpoch) - 1
 	}
 	proposerIndexToSlots := make(map[types.ValidatorIndex][]types.Slot, sliceRange)
