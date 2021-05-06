@@ -291,6 +291,8 @@ func (bs *Server) getProposerListForEpoch(
 			codes.Internal, "Could not retrieve archived state for epoch %d: %v", curEpoch, err)
 	}
 
+	log.Debugf("[VAN_SUB] HighestSlotStatesBelow states len = %v", len(states))
+
 	// Any state should return same proposer assignments so I pick first in slice
 	for _, currentState := range states {
 		if currentState.Slot() >= startSlot && currentState.Slot() <= endSlot {
@@ -302,7 +304,7 @@ func (bs *Server) getProposerListForEpoch(
 
 	if nil == latestState {
 		return nil, status.Errorf(
-			codes.Internal, "Could not retrieve any state for epoch %d: %v", curEpoch, err)
+			codes.Internal, "Could not retrieve any state for epoch %d", curEpoch)
 	}
 
 	// Initialize all committee related data.
