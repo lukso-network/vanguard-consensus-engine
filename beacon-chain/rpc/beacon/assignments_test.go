@@ -559,7 +559,7 @@ func TestServer_MinimalConsensusSuite(t *testing.T) {
 	})
 
 	t.Run("should GetMinimalConsensusInfo for future epoch", func(t *testing.T) {
-		epoch := types.Epoch(validTestEpochs) + 1
+		epoch := types.Epoch(validTestEpochs + 1)
 		assignments, err := bs.GetMinimalConsensusInfo(ctx, epoch)
 		require.NoError(t, err)
 		assert.Equal(t, epoch, types.Epoch(assignments.Epoch))
@@ -574,7 +574,7 @@ func TestServer_MinimalConsensusSuite(t *testing.T) {
 
 	t.Run("should fail GetMinimalConsensusInfoRange", func(t *testing.T) {
 		ctx := context.Background()
-		consensusInformation, err := bs.GetMinimalConsensusInfoRange(ctx, types.Epoch(validTestEpochs+1))
+		consensusInformation, err := bs.GetMinimalConsensusInfoRange(ctx, types.Epoch(validTestEpochs + 1))
 		require.NotNil(t, err)
 		require.DeepEqual(t, 0, len(consensusInformation))
 	})

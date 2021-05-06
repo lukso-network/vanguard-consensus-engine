@@ -305,7 +305,13 @@ func (bs *Server) getProposerListForEpoch(
 	// Allow to fetch n + 1 state
 	// You must generate it
 	if nil == latestState && curEpoch > 0 {
-		latestState, err = bs.StateGen.StateBySlot(ctx, startSlot)
+		// Only for debug - this not solves issue of the next epoch assignments
+		slot, err := bs.BeaconDB.LastArchivedSlot(bs.Ctx)
+		if nil != err {
+			return nil, status.Errorf(
+				codes.Internal, "Could not retrieve last archived slot for state by slot, err: %s", err.Error())
+		}
+		latestState, err = bs.StateGen.StateBySlot(bs.Ctx, slot)
 	}
 
 	if nil == latestState || nil != err {
