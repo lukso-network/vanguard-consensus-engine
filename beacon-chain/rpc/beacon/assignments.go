@@ -208,17 +208,20 @@ func (bs *Server) GetMinimalConsensusInfo(
 	}
 
 	assignmentsSlice := make([]string, 0)
+
+	// Slot 0 was never signed by anybody
+	if 0 == curEpoch {
+		publicKeyBytes := make([]byte, params.BeaconConfig().BLSPubkeyLength)
+		currentString := fmt.Sprintf("0x%s", hex.EncodeToString(publicKeyBytes))
+		assignmentsSlice = append(assignmentsSlice, currentString)
+	}
+
 	for _, assigment := range assignments.Assignments {
 		currentString := fmt.Sprintf("0x%s", hex.EncodeToString(assigment.PublicKey))
 		assignmentsSlice = append(assignmentsSlice, currentString)
 	}
 
 	expectedValidators := int(params.BeaconConfig().SlotsPerEpoch)
-
-	// For genesis epoch we have n - 1
-	if 0 == curEpoch {
-		expectedValidators = expectedValidators - 1
-	}
 
 	if len(assignmentsSlice) != expectedValidators {
 		err := fmt.Errorf(

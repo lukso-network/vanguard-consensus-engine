@@ -3,6 +3,7 @@ package beacon
 import (
 	"context"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	types2 "github.com/gogo/protobuf/types"
 	"strconv"
@@ -547,6 +548,12 @@ func TestServer_MinimalConsensusSuite(t *testing.T) {
 			assignments, err := bs.GetMinimalConsensusInfo(ctx, epoch)
 			require.NoError(t, err)
 			assert.Equal(t, epoch, types.Epoch(assignments.Epoch))
+
+			if types.Epoch(0) == epoch {
+				publicKeyBytes := make([]byte, params.BeaconConfig().BLSPubkeyLength)
+				currentString := fmt.Sprintf("0x%s", hex.EncodeToString(publicKeyBytes))
+				assert.Equal(t, currentString, assignments.ValidatorList[0])
+			}
 		}
 	})
 
