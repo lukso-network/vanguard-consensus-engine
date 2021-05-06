@@ -72,7 +72,7 @@ func handleMinimalConsensusSubscription(
 	beaconChain beacon.Server,
 	consensusInfoChannel chan interface{},
 ) {
-	subscriptionStartEpoch := eth2Types.Epoch(headState.Slot() / params.BeaconConfig().SlotsPerEpoch)
+	subscriptionStartEpoch := eth2Types.Epoch(headState.Slot()/params.BeaconConfig().SlotsPerEpoch - 1)
 	stateChannel := make(chan *feed.Event, params.BeaconConfig().SlotsPerEpoch)
 	stateNotifier := beaconChain.StateNotifier
 	stateFeed := stateNotifier.StateFeed()

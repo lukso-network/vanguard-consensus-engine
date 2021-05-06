@@ -411,7 +411,7 @@ func TestServer_NextEpochProposerList(t *testing.T) {
 	}()
 
 	bs := &Server{
-		Ctx: context.Background(),
+		Ctx:      context.Background(),
 		BeaconDB: db,
 		FinalizationFetcher: &mock.ChainService{
 			Genesis: genTime,
@@ -506,7 +506,7 @@ func TestServer_MinimalConsensusSuite(t *testing.T) {
 	parentRoot = blockRoot
 
 	bs := &Server{
-		Ctx: ctx,
+		Ctx:      ctx,
 		BeaconDB: db,
 		FinalizationFetcher: &mock.ChainService{
 			Genesis: time.Unix(genTime, 0),
@@ -556,6 +556,13 @@ func TestServer_MinimalConsensusSuite(t *testing.T) {
 				assert.Equal(t, currentString, assignments.ValidatorList[0])
 			}
 		}
+	})
+
+	t.Run("should GetMinimalConsensusInfo for future epoch", func(t *testing.T) {
+		epoch := types.Epoch(validTestEpochs) + 1
+		assignments, err := bs.GetMinimalConsensusInfo(ctx, epoch)
+		require.NoError(t, err)
+		assert.Equal(t, epoch, types.Epoch(assignments.Epoch))
 	})
 
 	t.Run("should GetMinimalConsensusInfoRange", func(t *testing.T) {

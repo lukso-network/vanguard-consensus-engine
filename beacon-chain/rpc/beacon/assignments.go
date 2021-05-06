@@ -300,7 +300,13 @@ func (bs *Server) getProposerListForEpoch(
 		}
 	}
 
-	if nil == latestState {
+	// Allow to fetch n + 1 state
+	// You must generate it
+	if nil == latestState && curEpoch > 0 {
+		latestState, err = bs.StateGen.StateBySlot(ctx, startSlot)
+	}
+
+	if nil == latestState || nil != err {
 		return nil, status.Errorf(
 			codes.Internal, "Could not retrieve any state for epoch %d: %v", curEpoch, err)
 	}
