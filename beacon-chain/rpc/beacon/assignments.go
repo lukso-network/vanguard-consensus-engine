@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	ptypes "github.com/gogo/protobuf/types"
 	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/subscriber/api/events"
 	"github.com/prysmaticlabs/prysm/beacon-chain/state"
 	"github.com/prysmaticlabs/prysm/shared/params"
@@ -142,7 +141,6 @@ func (bs *Server) ListValidatorAssignments(
 // NextEpochProposerList retrieves the validator assignments for future epoch (n + 1)
 func (bs *Server) NextEpochProposerList(
 	ctx context.Context,
-	empty *ptypes.Empty,
 ) (minimalConsensusInfo *events.MinimalEpochConsensusInfo, err error) {
 	currentSlot := bs.GenesisTimeFetcher.CurrentSlot()
 	// Add logic for epoch + 1
@@ -262,19 +260,6 @@ func (bs *Server) GetMinimalConsensusInfoRange(
 
 		consensusInfos = append(consensusInfos, minimalConsensusInfo)
 	}
-
-	// Retrieve future epoch
-	minimalConsensusInfo, err := bs.NextEpochProposerList(bs.Ctx, &ptypes.Empty{})
-
-	if nil != err {
-		log.WithField("currentEpoch", tempEpochIndex).
-			WithField("context", "invalidFutureEpoch").
-			WithField("requestedEpoch", fromEpoch).Error(err.Error())
-
-		return
-	}
-
-	consensusInfos = append(consensusInfos, minimalConsensusInfo)
 
 	log.WithField("currentEpoch", tempEpochIndex).
 		WithField("gathered", len(consensusInfos)).

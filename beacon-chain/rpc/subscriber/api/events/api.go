@@ -12,6 +12,7 @@ type Backend interface {
 	SubscribeNewEpochEvent(ctx context.Context, epoch eth2Types.Epoch, consensusChannel chan interface{})
 	GetMinimalConsensusInfo(context.Context, eth2Types.Epoch) (*MinimalEpochConsensusInfo, error)
 	GetMinimalConsensusInfoRange(context.Context, eth2Types.Epoch) ([]*MinimalEpochConsensusInfo, error)
+	NextEpochProposerList(context.Context) (*MinimalEpochConsensusInfo, error)
 }
 
 // PublicFilterAPI offers support to create and manage filters. This will allow external clients to retrieve various
@@ -91,6 +92,7 @@ func (api *PublicFilterAPI) MinimalConsensusInfo(ctx context.Context, epoch uint
 	return rpcSub, nil
 }
 
+// It should send range from requested epoch to future (now + 1)
 func sendMinimalConsensusRange(
 	ctx context.Context,
 	epoch eth2Types.Epoch,
@@ -107,6 +109,10 @@ func sendMinimalConsensusRange(
 	}
 
 	log.WithField("range", len(minimalInfos)).Info("I will be sending epochs range")
+
+	// Retrieve future epoch
+	minimalConsensusInfo, err := backend.NextEpochProposerList(ctx)
+	minimalInfos = append(minimalInfos, minimalConsensusInfo)
 
 	for _, consensusInfo := range minimalInfos {
 		log.WithField("epoch", consensusInfo.Epoch).Info("sending consensus range to subscriber")

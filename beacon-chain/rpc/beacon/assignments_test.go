@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	types2 "github.com/gogo/protobuf/types"
+	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/subscriber/api/events"
 	"strconv"
 	"testing"
 	"time"
@@ -451,10 +451,10 @@ func TestServer_NextEpochProposerList(t *testing.T) {
 	require.NoError(t, db.SaveGenesisBlockRoot(bs.Ctx, blockRoot))
 
 	parentRoot = blockRoot
-	assignments, err := bs.NextEpochProposerList(bs.Ctx, &types2.Empty{})
+	minimalConsensusInfo, err := bs.NextEpochProposerList(bs.Ctx)
 	require.NoError(t, err)
-	// For epoch 0 we get SlotsPerEpoch - 1
-	require.Equal(t, int(config.SlotsPerEpoch), len(assignments))
+	// We should get epoch 1
+	require.Equal(t, int(config.SlotsPerEpoch), len(minimalConsensusInfo.ValidatorList))
 }
 
 func TestServer_MinimalConsensusSuite(t *testing.T) {
@@ -557,11 +557,12 @@ func TestServer_MinimalConsensusSuite(t *testing.T) {
 		}
 	})
 
-	t.Run("should GetMinimalConsensusInfo for future epoch", func(t *testing.T) {
+	t.Run("should not GetMinimalConsensusInfo for future epoch", func(t *testing.T) {
+		ctx := context.Background()
 		epoch := types.Epoch(validTestEpochs + 1)
-		assignments, err := bs.GetMinimalConsensusInfo(ctx, epoch)
-		require.NoError(t, err)
-		assert.Equal(t, epoch, types.Epoch(assignments.Epoch))
+		minimalConsensusInfo, err := bs.GetMinimalConsensusInfo(ctx, epoch)
+		assert.NotNil(t, err)
+		assert.DeepEqual(t, (*events.MinimalEpochConsensusInfo)(nil), minimalConsensusInfo)
 	})
 
 	t.Run("should GetMinimalConsensusInfoRange", func(t *testing.T) {

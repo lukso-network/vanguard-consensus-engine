@@ -65,6 +65,10 @@ func (backend *APIBackend) GetMinimalConsensusInfoRange(
 	return backend.BeaconChain.GetMinimalConsensusInfoRange(ctx, epoch)
 }
 
+func (backend *APIBackend) NextEpochProposerList(ctx context.Context) (*events.MinimalEpochConsensusInfo, error) {
+	return backend.BeaconChain.NextEpochProposerList(ctx)
+}
+
 func handleMinimalConsensusSubscription(
 	ctx context.Context,
 	headFetcher blockchain.HeadFetcher,
