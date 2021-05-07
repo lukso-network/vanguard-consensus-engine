@@ -143,7 +143,7 @@ func (bs *Server) ListValidatorAssignments(
 func (bs *Server) NextEpochProposerList(
 	ctx context.Context,
 	empty *ptypes.Empty,
-) (assignments []string, err error) {
+) (minimalConsensusInfo *events.MinimalEpochConsensusInfo, err error) {
 	currentSlot := bs.GenesisTimeFetcher.CurrentSlot()
 	// Add logic for epoch + 1
 	recentState, err := bs.StateGen.StateBySlot(ctx, currentSlot)
@@ -210,7 +210,21 @@ func (bs *Server) NextEpochProposerList(
 		publicKeyList = make([]string, 0)
 	}
 
-	assignments = publicKeyList
+	genesisTimeFetcher := bs.GenesisTimeFetcher
+	genesisTime := genesisTimeFetcher.GenesisTime()
+
+	futureEpochSlotStartTime, err := helpers.SlotToTime(uint64(genesisTime.Unix()), futureEpochSlotStart)
+
+	if nil != err {
+		return
+	}
+
+	minimalConsensusInfo = &events.MinimalEpochConsensusInfo{
+		Epoch:            uint64(nextEpoch),
+		ValidatorList:    publicKeyList,
+		EpochStartTime:   uint64(futureEpochSlotStartTime.Unix()),
+		SlotTimeDuration: time.Duration(params.BeaconConfig().SecondsPerSlot),
+	}
 
 	return
 }
@@ -248,6 +262,19 @@ func (bs *Server) GetMinimalConsensusInfoRange(
 
 		consensusInfos = append(consensusInfos, minimalConsensusInfo)
 	}
+
+	// Retrieve future epoch
+	minimalConsensusInfo, err := bs.NextEpochProposerList(bs.Ctx, &ptypes.Empty{})
+
+	if nil != err {
+		log.WithField("currentEpoch", tempEpochIndex).
+			WithField("context", "invalidFutureEpoch").
+			WithField("requestedEpoch", fromEpoch).Error(err.Error())
+
+		return
+	}
+
+	consensusInfos = append(consensusInfos, minimalConsensusInfo)
 
 	log.WithField("currentEpoch", tempEpochIndex).
 		WithField("gathered", len(consensusInfos)).
