@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	ptypes "github.com/gogo/protobuf/types"
 	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/subscriber/api/events"
 	"github.com/prysmaticlabs/prysm/beacon-chain/state"
 	"github.com/prysmaticlabs/prysm/shared/params"
@@ -138,8 +139,17 @@ func (bs *Server) ListValidatorAssignments(
 	}, nil
 }
 
-// NextEpochProposerList retrieves the validator assignments for future epoch (n + 1)
+// Deprecated: use GetMinimalConsensusInfoRange or FutureEpochProposerList
+// TODO: remove this after protobufs will be updated for Server
 func (bs *Server) NextEpochProposerList(
+	ctx context.Context,
+	empty *ptypes.Empty,
+) (assignments *ethpb.ValidatorAssignments, err error) {
+	return
+}
+
+// FutureEpochProposerList retrieves the validator assignments for future epoch (n + 1)
+func (bs *Server) FutureEpochProposerList(
 	ctx context.Context,
 ) (minimalConsensusInfo *events.MinimalEpochConsensusInfo, err error) {
 	currentSlot := bs.GenesisTimeFetcher.CurrentSlot()
@@ -355,7 +365,7 @@ func (bs *Server) getProposerListForEpoch(
 			codes.Internal, "Could not retrieve endSlot for epoch %d: %v", requestedEpoch, err)
 	}
 
-	states, err := bs.BeaconDB.HighestSlotStatesBelow(bs.Ctx, endSlot)
+	states, err := bs.BeaconDB.HighestSlotStatesBelow(bs.Ctx, startSlot)
 
 	if nil != bs.Ctx.Err() {
 		log.Infof("[VAN_SUB] getProposerListForEpoch bs.ctx err = %s", bs.Ctx.Err().Error())

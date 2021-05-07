@@ -44,6 +44,7 @@ func TestAPIBackend_SubscribeNewEpochEvent(t *testing.T) {
 
 	bs := &beacon.Server{
 		BeaconDB: db,
+		Ctx:      context.Background(),
 		FinalizationFetcher: &mock.ChainService{
 			Genesis: testStartTime,
 			FinalizedCheckPoint: &ethpb.Checkpoint{

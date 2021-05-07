@@ -451,7 +451,7 @@ func TestServer_NextEpochProposerList(t *testing.T) {
 	require.NoError(t, db.SaveGenesisBlockRoot(bs.Ctx, blockRoot))
 
 	parentRoot = blockRoot
-	minimalConsensusInfo, err := bs.NextEpochProposerList(bs.Ctx)
+	minimalConsensusInfo, err := bs.FutureEpochProposerList(bs.Ctx)
 	require.NoError(t, err)
 	// We should get epoch 1
 	require.Equal(t, int(config.SlotsPerEpoch), len(minimalConsensusInfo.ValidatorList))
