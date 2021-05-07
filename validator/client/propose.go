@@ -42,7 +42,7 @@ var (
 
 type signingFunc func(context.Context, *validatorpb.SignRequest) (bls.Signature, error)
 
-const domainDataErr = "could not get domain data"
+const domainDataErr = "could not getverify domain data"
 const signingRootErr = "could not get signing root"
 const signExitErr = "could not sign voluntary exit proposal"
 
@@ -420,7 +420,10 @@ func (v *validator) verifyPandoraShardHeader(beaconBlk *ethpb.BeaconBlock, slot 
 	}
 	// verify slot number
 	if extraData.Slot != uint64(slot) {
-		log.WithError(errInvalidSlot).Error("invalid slot from pandora chain")
+		log.WithError(errInvalidSlot).
+			WithField("slot", slot).
+			WithField("extraDataSlot", extraData.Slot).
+			Error("invalid slot from pandora chain")
 		return errInvalidSlot
 	}
 	// verify epoch number
