@@ -81,6 +81,9 @@ type Service struct {
 	wsEpoch               types.Epoch
 	wsRoot                []byte
 	wsVerified            bool
+
+	// Vanguard: unconfirmed blocks need to store in cache for waiting final confirmation from orchestrator
+	pendingBlockCache *cache.PendingBlocksCache
 }
 
 // Config options for the service.
@@ -129,6 +132,8 @@ func NewService(ctx context.Context, cfg *Config) (*Service, error) {
 		justifiedBalances:    make([]uint64, 0),
 		wsEpoch:              cfg.WspEpoch,
 		wsRoot:               cfg.WspBlockRoot,
+
+		pendingBlockCache: cache.NewPendingBlocksCache(), // Vanguard: Initialize pending block cache
 	}, nil
 }
 

@@ -3,7 +3,6 @@ package blockchain
 import (
 	"context"
 	"fmt"
-	blockfeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/block"
 	"time"
 
 	"github.com/pkg/errors"
@@ -108,11 +107,6 @@ func (s *Service) onBlock(ctx context.Context, signed *ethpb.SignedBeaconBlock, 
 	}
 
 	// TODO-Will wait for final confirmation from orchestrator
-	log.WithField("blockRoot", fmt.Sprintf("%#x", blockRoot)).Debug("Unconfirmed block sends for publishing")
-	s.blockNotifier.BlockFeed().Send(&feed.Event{
-		Type: blockfeed.UnConfirmedBlock,
-		Data: &blockfeed.UnConfirmedBlockData{Block: signed.Block},
-	})
 
 	if err := s.savePostStateInfo(ctx, blockRoot, signed, postState, false /* reg sync */); err != nil {
 		return err
@@ -253,6 +247,9 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []*ethpb.SignedBeaconBl
 	if !verify {
 		return nil, nil, errors.New("batch block signature verification failed")
 	}
+
+	// TODO-Will wait for final confirmation from orchestrator
+
 	for r, st := range boundaries {
 		if err := s.stateGen.SaveState(ctx, r, st); err != nil {
 			return nil, nil, err
