@@ -286,7 +286,7 @@ func (bs *Server) GetMinimalConsensusInfo(
 ) (minConsensusInfo *events.MinimalEpochConsensusInfo, err error) {
 	log.WithField("prefix", "GetMinimalConsensusInfo")
 
-	assignments, err := bs.getProposerListForEpoch(ctx, curEpoch)
+	assignments, err := bs.getProposerListForEpoch(curEpoch)
 	if nil != err {
 		log.Errorf("[VAN_SUB] getProposerListForEpoch err = %s", err.Error())
 		return nil, err
@@ -344,7 +344,6 @@ func (bs *Server) GetMinimalConsensusInfo(
 }
 
 func (bs *Server) getProposerListForEpoch(
-	ctx context.Context,
 	requestedEpoch types.Epoch,
 ) (*ethpb.ValidatorAssignments, error) {
 	var (
