@@ -139,13 +139,11 @@ func (bs *Server) ListValidatorAssignments(
 	}, nil
 }
 
-// Deprecated: use GetMinimalConsensusInfoRange or GetMinimalConsensusInfo
-// NextEpochProposerList retrieves the validator assignments for a given epoch, [This api is specially used for Orchestrator client]
-// optional validator indices or public keys may be included to filter validator assignments.
+// NextEpochProposerList retrieves the validator assignments for future epoch (n + 1)
 func (bs *Server) NextEpochProposerList(
 	ctx context.Context,
 	empty *ptypes.Empty,
-) (assignments *ethpb.ValidatorAssignments, err error) {
+) (assignments []string, err error) {
 	currentSlot := bs.GenesisTimeFetcher.CurrentSlot()
 	// Add logic for epoch + 1
 	recentState, err := bs.StateGen.StateBySlot(ctx, currentSlot)
@@ -155,7 +153,20 @@ func (bs *Server) NextEpochProposerList(
 	}
 
 	nextEpoch := helpers.NextEpoch(recentState)
-	_, proposerToSlot, err := helpers.CommitteeAssignments(recentState, nextEpoch)
+	futureEpochState := recentState.Copy()
+	futureEpochSlotStart, err := helpers.StartSlot(nextEpoch)
+
+	if nil != err {
+		return
+	}
+
+	err = futureEpochState.SetSlot(futureEpochSlotStart)
+
+	if nil != err {
+		return
+	}
+
+	_, proposerToSlot, err := helpers.CommitteeAssignments(futureEpochState, nextEpoch)
 
 	if nil != err {
 		return
@@ -198,6 +209,8 @@ func (bs *Server) NextEpochProposerList(
 		// Do not return any if they are invalid
 		publicKeyList = make([]string, 0)
 	}
+
+	assignments = publicKeyList
 
 	return
 }

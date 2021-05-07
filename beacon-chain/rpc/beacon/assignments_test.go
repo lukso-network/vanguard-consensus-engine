@@ -453,9 +453,8 @@ func TestServer_NextEpochProposerList(t *testing.T) {
 	parentRoot = blockRoot
 	assignments, err := bs.NextEpochProposerList(bs.Ctx, &types2.Empty{})
 	require.NoError(t, err)
-	assert.Equal(t, types.Epoch(0), assignments.Epoch)
 	// For epoch 0 we get SlotsPerEpoch - 1
-	require.Equal(t, int(config.SlotsPerEpoch-1), len(assignments.Assignments))
+	require.Equal(t, int(config.SlotsPerEpoch), len(assignments))
 }
 
 func TestServer_MinimalConsensusSuite(t *testing.T) {
@@ -574,7 +573,7 @@ func TestServer_MinimalConsensusSuite(t *testing.T) {
 
 	t.Run("should fail GetMinimalConsensusInfoRange", func(t *testing.T) {
 		ctx := context.Background()
-		consensusInformation, err := bs.GetMinimalConsensusInfoRange(ctx, types.Epoch(validTestEpochs + 1))
+		consensusInformation, err := bs.GetMinimalConsensusInfoRange(ctx, types.Epoch(validTestEpochs+1))
 		require.NotNil(t, err)
 		require.DeepEqual(t, 0, len(consensusInformation))
 	})
