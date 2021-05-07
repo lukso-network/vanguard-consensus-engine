@@ -365,7 +365,7 @@ func (bs *Server) getProposerListForEpoch(
 			codes.Internal, "Could not retrieve endSlot for epoch %d: %v", requestedEpoch, err)
 	}
 
-	states, err := bs.BeaconDB.HighestSlotStatesBelow(bs.Ctx, startSlot)
+	states, err := bs.BeaconDB.HighestSlotStatesBelow(bs.Ctx, endSlot)
 
 	if nil != bs.Ctx.Err() {
 		log.Infof("[VAN_SUB] getProposerListForEpoch bs.ctx err = %s", bs.Ctx.Err().Error())
