@@ -146,8 +146,58 @@ func (bs *Server) NextEpochProposerList(
 	ctx context.Context,
 	empty *ptypes.Empty,
 ) (assignments *ethpb.ValidatorAssignments, err error) {
-	curEpoch := helpers.SlotToEpoch(bs.GenesisTimeFetcher.CurrentSlot())
-	assignments, err = bs.getProposerListForEpoch(ctx, curEpoch)
+	currentSlot := bs.GenesisTimeFetcher.CurrentSlot()
+	// Add logic for epoch + 1
+	recentState, err := bs.StateGen.StateBySlot(ctx, currentSlot)
+
+	if nil != err {
+		return
+	}
+
+	nextEpoch := helpers.NextEpoch(recentState)
+	_, proposerToSlot, err := helpers.CommitteeAssignments(recentState, nextEpoch)
+
+	if nil != err {
+		return
+	}
+
+	startSlot, err := helpers.StartSlot(nextEpoch)
+
+	if nil != err {
+		return
+	}
+
+	endSlot, err := helpers.EndSlot(nextEpoch)
+
+	if nil != err {
+		return
+	}
+
+	publicKeyList := make([]string, 0)
+
+	for validatorIndex, slots := range proposerToSlot {
+		pubKey := recentState.PubkeyAtIndex(validatorIndex)
+		pubKeyString := fmt.Sprintf("0x%s", hex.EncodeToString(pubKey[:]))
+
+		for _, slot := range slots {
+			if slot >= startSlot && slot <= endSlot {
+				publicKeyList = append(publicKeyList, pubKeyString)
+			}
+		}
+	}
+
+	// It should never reach epoch 0 so no fallback on slot0 needed
+	if len(publicKeyList) != int(params.BeaconConfig().SlotsPerEpoch) {
+		err = fmt.Errorf(
+			"invalid prpopser list len for epoch: %d, wanted: %d, got: %d",
+			nextEpoch,
+			int(params.BeaconConfig().SlotsPerEpoch),
+			len(publicKeyList),
+		)
+
+		// Do not return any if they are invalid
+		publicKeyList = make([]string, 0)
+	}
 
 	return
 }
@@ -260,24 +310,24 @@ func (bs *Server) GetMinimalConsensusInfo(
 
 func (bs *Server) getProposerListForEpoch(
 	ctx context.Context,
-	curEpoch types.Epoch,
+	requestedEpoch types.Epoch,
 ) (*ethpb.ValidatorAssignments, error) {
 	var (
 		res         []*ethpb.ValidatorAssignments_CommitteeAssignment
 		latestState *state.BeaconState
 	)
-	startSlot, err := helpers.StartSlot(curEpoch)
+	startSlot, err := helpers.StartSlot(requestedEpoch)
 
 	if err != nil {
 		return nil, status.Errorf(
-			codes.Internal, "Could not retrieve startSlot for epoch %d: %v", curEpoch, err)
+			codes.Internal, "Could not retrieve startSlot for epoch %d: %v", requestedEpoch, err)
 	}
 
-	endSlot, err := helpers.EndSlot(curEpoch)
+	endSlot, err := helpers.EndSlot(requestedEpoch)
 
 	if nil != err {
 		return nil, status.Errorf(
-			codes.Internal, "Could not retrieve endSlot for epoch %d: %v", curEpoch, err)
+			codes.Internal, "Could not retrieve endSlot for epoch %d: %v", requestedEpoch, err)
 	}
 
 	states, err := bs.BeaconDB.HighestSlotStatesBelow(bs.Ctx, endSlot)
@@ -288,7 +338,7 @@ func (bs *Server) getProposerListForEpoch(
 
 	if err != nil {
 		return nil, status.Errorf(
-			codes.Internal, "Could not retrieve archived state for epoch %d: %v", curEpoch, err)
+			codes.Internal, "Could not retrieve archived state for epoch %d: %v", requestedEpoch, err)
 	}
 
 	log.Debugf("[VAN_SUB] HighestSlotStatesBelow states len = %v", len(states))
@@ -302,19 +352,13 @@ func (bs *Server) getProposerListForEpoch(
 		}
 	}
 
-	// Allow to fetch n + 1 state
-	// You must generate it
-	if nil == latestState && curEpoch > 0 {
-		latestState, err = bs.StateGen.StateBySlot(ctx, startSlot)
-	}
-
-	if nil == latestState || nil != err {
+	if nil == latestState {
 		return nil, status.Errorf(
-			codes.Internal, "Could not retrieve any state for epoch %d", curEpoch)
+			codes.Internal, "Could not retrieve any state for epoch %d", requestedEpoch)
 	}
 
 	// Initialize all committee related data.
-	proposerIndexToSlots, err := helpers.ProposerAssignments(latestState, curEpoch)
+	proposerIndexToSlots, err := helpers.ProposerAssignments(latestState, requestedEpoch)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not compute committee assignments: %v", err)
 	}
@@ -332,16 +376,16 @@ func (bs *Server) getProposerListForEpoch(
 	maxValidators := params.BeaconConfig().SlotsPerEpoch
 
 	// We omit the genesis slot
-	if curEpoch == 0 {
+	if requestedEpoch == 0 {
 		maxValidators = maxValidators - 1
 	}
 
 	if len(res) != int(maxValidators) {
-		return nil, fmt.Errorf("invalid validators len, expected: %d, got: %d, epoch: %#v", maxValidators, len(res), curEpoch)
+		return nil, fmt.Errorf("invalid validators len, expected: %d, got: %d, epoch: %#v", maxValidators, len(res), requestedEpoch)
 	}
 
 	return &ethpb.ValidatorAssignments{
-		Epoch:       curEpoch,
+		Epoch:       requestedEpoch,
 		Assignments: res,
 	}, nil
 }
