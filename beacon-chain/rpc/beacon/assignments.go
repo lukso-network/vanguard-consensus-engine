@@ -301,9 +301,11 @@ func (bs *Server) GetMinimalConsensusInfo(
 		assignmentsSlice = append(assignmentsSlice, currentString)
 	}
 
-	for _, assigment := range assignments.Assignments {
-		currentString := fmt.Sprintf("0x%s", hex.EncodeToString(assigment.PublicKey))
-		assignmentsSlice = append(assignmentsSlice, currentString)
+	for _, assignment := range assignments.Assignments {
+		for range assignment.ProposerSlots {
+			currentString := fmt.Sprintf("0x%s", hex.EncodeToString(assignment.PublicKey))
+			assignmentsSlice = append(assignmentsSlice, currentString)
+		}
 	}
 
 	expectedValidators := int(params.BeaconConfig().SlotsPerEpoch)
