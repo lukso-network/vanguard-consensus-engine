@@ -30,22 +30,22 @@ func (s *Service) publishAndStorePendingBlock(ctx context.Context, pendingBlk *e
 }
 
 // publishAndStorePendingBlockBatch method publishes and stores the batch of pending block for final confirmation check
-func (s *Service) publishAndStorePendingBlockBatch(ctx context.Context, pendingBlkBatch []*ethpb.BeaconBlock) error {
+func (s *Service) publishAndStorePendingBlockBatch(ctx context.Context, pendingBlkBatch []*ethpb.SignedBeaconBlock) error {
 	ctx, span := trace.StartSpan(ctx, "blockChain.publishAndStorePendingBlockBatch")
 	defer span.End()
 
 	for _, b := range pendingBlkBatch {
 
 		// Sending pending block feed to streaming api
-		log.WithField("slot", b.Slot).Debug("Unconfirmed block batch sends for publishing")
+		log.WithField("slot", b.Block.Slot).Debug("Unconfirmed block batch sends for publishing")
 		s.blockNotifier.BlockFeed().Send(&feed.Event{
 			Type: blockfeed.UnConfirmedBlock,
-			Data: &blockfeed.UnConfirmedBlockData{Block: b},
+			Data: &blockfeed.UnConfirmedBlockData{Block: b.Block},
 		})
 
 		// Storing pending block into pendingBlockCache
-		if err := s.pendingBlockCache.AddPendingBlock(b); err != nil {
-			return errors.Wrapf(err, "could not cache block of slot %d", b.Slot)
+		if err := s.pendingBlockCache.AddPendingBlock(b.Block); err != nil {
+			return errors.Wrapf(err, "could not cache block of slot %d", b.Block.Slot)
 		}
 	}
 

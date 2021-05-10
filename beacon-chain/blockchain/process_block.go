@@ -107,6 +107,9 @@ func (s *Service) onBlock(ctx context.Context, signed *ethpb.SignedBeaconBlock, 
 	}
 
 	// TODO-Will wait for final confirmation from orchestrator
+	if err := s.publishAndStorePendingBlock(ctx, b); err != nil {
+		return errors.Wrap(err, "could not publish un-confirmed block and cache it")
+	}
 
 	if err := s.savePostStateInfo(ctx, blockRoot, signed, postState, false /* reg sync */); err != nil {
 		return err
@@ -249,6 +252,9 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []*ethpb.SignedBeaconBl
 	}
 
 	// TODO-Will wait for final confirmation from orchestrator
+	if err := s.publishAndStorePendingBlockBatch(ctx, blks); err != nil {
+		return nil, nil, errors.Wrap(err, "could not publish un-confirmed block batch and cache it")
+	}
 
 	for r, st := range boundaries {
 		if err := s.stateGen.SaveState(ctx, r, st); err != nil {
