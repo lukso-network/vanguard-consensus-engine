@@ -13,6 +13,7 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/state"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	log "github.com/sirupsen/logrus"
+	"time"
 )
 
 type APIBackend struct {
@@ -81,6 +82,7 @@ func handleMinimalConsensusSubscription(
 	stateNotifier := beaconChain.StateNotifier
 	stateFeed := stateNotifier.StateFeed()
 	stateSubscription := stateFeed.Subscribe(stateChannel)
+	lastSentEpoch := subscriptionStartEpoch
 
 	defer stateSubscription.Unsubscribe()
 
@@ -90,28 +92,21 @@ func handleMinimalConsensusSubscription(
 
 	log.WithField("fromEpoch", subscriptionStartEpoch).Info("registered new subscriber for consensus info")
 
-	for {
-		stateEvent := <-stateChannel
-
-		if statefeed.BlockProcessed != stateEvent.Type {
-			continue
-		}
-
+	sendConsensusInfo := func()(err error) {
 		currentHeadState, currentErr := headFetcher.HeadState(ctx)
 
 		if nil != currentErr {
-			log.Error("could not fetch state during minimalConsensusInfoCheck")
-			continue
+			return currentErr
 		}
 
 		blockEpoch := eth2Types.Epoch(currentHeadState.Slot() / params.BeaconConfig().SlotsPerEpoch)
 
 		// Epoch did not progress
-		if blockEpoch == subscriptionStartEpoch {
-			continue
+		if blockEpoch == lastSentEpoch {
+			return
 		}
 
-		subscriptionStartEpoch = blockEpoch
+		lastSentEpoch = blockEpoch
 		consensusInfo, currentErr := beaconChain.GetMinimalConsensusInfo(ctx, blockEpoch)
 
 		if nil != currentErr {
@@ -120,5 +115,32 @@ func handleMinimalConsensusSubscription(
 		}
 
 		consensusInfoChannel <- consensusInfo
+
+		return
+	}
+
+	tickerDuration := time.Duration(params.BeaconConfig().SecondsPerSlot)
+	ticker := time.NewTicker(tickerDuration)
+
+	for {
+		select {
+		case stateEvent := <-stateChannel:
+			if statefeed.BlockProcessed != stateEvent.Type {
+				continue
+			}
+
+			ticker.Reset(tickerDuration)
+			currentErr := sendConsensusInfo()
+
+			if nil != currentErr {
+				log.WithField("err", currentErr).Error("could not fetch state during minimalConsensusInfoCheck")
+			}
+		case <-ticker.C:
+			currentErr := sendConsensusInfo()
+
+			if nil != currentErr {
+				log.WithField("err", currentErr).Error("could not fetch state during minimalConsensusInfoCheck")
+			}
+		}
 	}
 }
