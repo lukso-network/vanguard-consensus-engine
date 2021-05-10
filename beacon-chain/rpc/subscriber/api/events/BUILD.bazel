@@ -11,6 +11,7 @@ go_library(
     importpath = "github.com/prysmaticlabs/prysm/beacon-chain/rpc/subscriber/api/events",
     visibility = ["//beacon-chain:__subpackages__"],
     deps = [
+        "//shared/params:go_default_library",
         "@com_github_ethereum_go_ethereum//rpc:go_default_library",
         "@com_github_ethereum_go_ethereum//event:go_default_library",
         "@com_github_ethereum_go_ethereum//log:go_default_library",
@@ -28,6 +29,7 @@ go_test(
         "//beacon-chain/rpc/beacon:go_default_library",
         "//beacon-chain/rpc/subscriber/api:go_default_library",
         "//beacon-chain/rpc/subscriber/api/event:go_default_library",
+        "//shared/params:go_default_library",
         "@com_github_ethereum_go_ethereum//rpc:go_default_library",
         "@com_github_ethereum_go_ethereum//event:go_default_library",
         "@com_github_ethereum_go_ethereum//log:go_default_library",
