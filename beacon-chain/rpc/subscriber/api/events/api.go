@@ -124,6 +124,12 @@ func sendMinimalConsensusRange(
 	minimalInfos = append(minimalInfos, minimalConsensusInfo)
 
 	for _, consensusInfo := range minimalInfos {
+		if nil == consensusInfo {
+			log.WithField("skip", "I am skipping empty consensusInfo").Error("invalid payload")
+
+			continue
+		}
+
 		log.WithField("epoch", consensusInfo.Epoch).Info("sending consensus range to subscriber")
 		err = notifier.Notify(rpcSub.ID, consensusInfo)
 
