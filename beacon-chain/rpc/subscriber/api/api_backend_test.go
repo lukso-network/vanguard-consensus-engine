@@ -129,15 +129,30 @@ func TestAPIBackend_SubscribeNewEpochEvent(t *testing.T) {
 		}
 	}
 
-	// Should not send because epoch not increased
-	sendUntilTimeout(true)
-	assert.Equal(t, 1, sent)
-	assert.Equal(t, 0, len(received))
+	t.Run("Should not send because epoch not increased", func(t *testing.T) {
+		sendUntilTimeout(true)
+		assert.Equal(t, 1, sent)
+		assert.Equal(t, 0, len(received))
+	})
 
-	// Should send because epoch increased
-	require.NoError(t, state.SetSlot(params.BeaconConfig().SlotsPerEpoch))
-	sendUntilTimeout(true)
-	sendWaitGroup.Wait()
-	assert.Equal(t, 1, sent)
-	assert.Equal(t, shouldGather, len(received))
+	t.Run("Should send because epoch increased", func(t *testing.T) {
+		require.NoError(t, state.SetSlot(params.BeaconConfig().SlotsPerEpoch))
+		sendUntilTimeout(true)
+		sendWaitGroup.Wait()
+		assert.Equal(t, 1, sent)
+		assert.Equal(t, shouldGather, len(received))
+	})
+
+	t.Run("Should not send because of period elapsed", func(t *testing.T) {
+		sendUntilTimeout(false)
+		assert.Equal(t, 0, sent)
+		assert.Equal(t, 0, len(received))
+
+		// TODO: new state here
+		require.NoError(t, state.SetSlot(params.BeaconConfig().SlotsPerEpoch))
+		sendUntilTimeout(true)
+		sendWaitGroup.Wait()
+		assert.Equal(t, 1, sent)
+		assert.Equal(t, shouldGather, len(received))
+	})
 }

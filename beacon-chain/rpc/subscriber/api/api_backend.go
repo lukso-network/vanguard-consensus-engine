@@ -93,7 +93,7 @@ func handleMinimalConsensusSubscription(
 	log.WithField("fromEpoch", subscriptionStartEpoch).Info("registered new subscriber for consensus info")
 
 	sendConsensusInfo := func()(err error) {
-		consensusInfo, currentErr := beaconChain.FutureEpochProposerList(ctx)
+		consensusInfo, currentErr := beaconChain.FutureEpochProposerList(beaconChain.Ctx)
 
 		if nil != currentErr {
 			log.WithField("currentEpoch", consensusInfo).WithField("err", currentErr).
