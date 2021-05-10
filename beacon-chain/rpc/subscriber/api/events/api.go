@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/rpc"
 	eth2Types "github.com/prysmaticlabs/eth2-types"
+	"github.com/prysmaticlabs/prysm/shared/params"
 	"time"
 )
 
@@ -110,18 +111,34 @@ func sendMinimalConsensusRange(
 
 	log.WithField("range", len(minimalInfos)).Info("I will be sending epochs range")
 
-	// Retrieve future epoch.
-	// There is known edge race condition in orchestrator
-	// IMHO orchestrator should re-subscribe after failure and vanguard should early return
-	minimalConsensusInfo, err := backend.FutureMinimalConsensusInfo(ctx)
+	// Try to send future epoch when available
+	go func() {
+		ticker := time.NewTicker(time.Duration(params.BeaconConfig().SecondsPerSlot))
+		maxRetries := int(params.BeaconConfig().SlotsPerEpoch)
 
-	if nil != err {
-		log.WithField("err", err.Error()).Error("could not fetch future epoch")
+		for index := 0; index <= maxRetries; index++ {
+			<-ticker.C
+			minimalConsensusInfo, currentErr := backend.FutureMinimalConsensusInfo(ctx)
 
-		return
-	}
+			if nil != currentErr {
+				log.WithField("err", currentErr.Error()).Error("could not fetch future epoch")
 
-	minimalInfos = append(minimalInfos, minimalConsensusInfo)
+				continue
+			}
+
+			currentErr = notifier.Notify(rpcSub.ID, minimalConsensusInfo)
+
+			if nil != currentErr {
+				log.WithField("err", currentErr.Error()).Error("could not fetch future epoch")
+
+				continue
+			}
+
+			return
+		}
+
+		log.WithField("requestedEpoch", epoch).Error("could not send future epoch in any slot")
+	}()
 
 	for _, consensusInfo := range minimalInfos {
 		if nil == consensusInfo {
