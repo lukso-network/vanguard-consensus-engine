@@ -110,8 +110,17 @@ func sendMinimalConsensusRange(
 
 	log.WithField("range", len(minimalInfos)).Info("I will be sending epochs range")
 
-	// Retrieve future epoch
+	// Retrieve future epoch.
+	// There is known edge race condition in orchestrator
+	// IMHO orchestrator should re-subscribe after failure and vanguard should early return
 	minimalConsensusInfo, err := backend.FutureMinimalConsensusInfo(ctx)
+
+	if nil != err {
+		log.WithField("err", err.Error()).Error("could not fetch future epoch")
+
+		return
+	}
+
 	minimalInfos = append(minimalInfos, minimalConsensusInfo)
 
 	for _, consensusInfo := range minimalInfos {
