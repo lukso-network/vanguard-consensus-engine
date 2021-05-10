@@ -112,12 +112,15 @@ func TestAPIBackend_SubscribeNewEpochEvent(t *testing.T) {
 
 	ticker := time.NewTicker(time.Second * 5)
 	sent := 0
-	sendUntilTimeout := func() {
+	sendUntilTimeout := func(shouldSend bool) {
 		for sent == 0 {
 			select {
 			case <-ticker.C:
 				t.FailNow()
 			default:
+				if !shouldSend {
+					return
+				}
 				sent = stateFeed.Send(&feed.Event{
 					Type: statefeed.BlockProcessed,
 					Data: &statefeed.BlockProcessedData{},
@@ -127,13 +130,13 @@ func TestAPIBackend_SubscribeNewEpochEvent(t *testing.T) {
 	}
 
 	// Should not send because epoch not increased
-	sendUntilTimeout()
+	sendUntilTimeout(true)
 	assert.Equal(t, 1, sent)
 	assert.Equal(t, 0, len(received))
 
 	// Should send because epoch increased
 	require.NoError(t, state.SetSlot(params.BeaconConfig().SlotsPerEpoch))
-	sendUntilTimeout()
+	sendUntilTimeout(true)
 	sendWaitGroup.Wait()
 	assert.Equal(t, 1, sent)
 	assert.Equal(t, shouldGather, len(received))
