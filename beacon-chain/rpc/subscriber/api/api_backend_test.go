@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/binary"
 	types "github.com/prysmaticlabs/eth2-types"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	mock "github.com/prysmaticlabs/prysm/beacon-chain/blockchain/testing"
@@ -38,6 +39,26 @@ func TestAPIBackend_SubscribeNewEpochEvent(t *testing.T) {
 	testStartTime := time.Now()
 
 	stateNotifier := new(mock.ChainService).StateNotifier()
+
+	count := 10000
+	validators := make([]*ethpb.Validator, 0, count)
+	withdrawCred := make([]byte, 32)
+	for i := 0; i < count; i++ {
+		pubKey := make([]byte, params.BeaconConfig().BLSPubkeyLength)
+		binary.LittleEndian.PutUint64(pubKey, uint64(i))
+		val := &ethpb.Validator{
+			PublicKey:             pubKey,
+			WithdrawalCredentials: withdrawCred,
+			ExitEpoch:             params.BeaconConfig().FarFutureEpoch,
+		}
+		validators = append(validators, val)
+	}
+
+	blk := testutil.NewBeaconBlock().Block
+	parentRoot := [32]byte{1, 2, 3}
+	blk.ParentRoot = parentRoot[:]
+	blockRoot, err := blk.HashTreeRoot()
+	require.NoError(t, err)
 	state, err := testutil.NewBeaconState()
 	require.NoError(t, err)
 	require.NoError(t, state.SetSlot(0))
@@ -60,6 +81,10 @@ func TestAPIBackend_SubscribeNewEpochEvent(t *testing.T) {
 			State: state,
 		},
 	}
+
+	require.NoError(t, state.SetValidators(validators))
+	require.NoError(t, db.SaveState(bs.Ctx, state, blockRoot))
+	require.NoError(t, db.SaveGenesisBlockRoot(bs.Ctx, blockRoot))
 
 	stateFeed := stateNotifier.StateFeed()
 

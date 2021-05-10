@@ -93,33 +93,31 @@ func handleMinimalConsensusSubscription(
 	log.WithField("fromEpoch", subscriptionStartEpoch).Info("registered new subscriber for consensus info")
 
 	sendConsensusInfo := func()(err error) {
-		currentHeadState, currentErr := headFetcher.HeadState(ctx)
+		consensusInfo, currentErr := beaconChain.FutureEpochProposerList(ctx)
 
 		if nil != currentErr {
-			return currentErr
+			log.WithField("currentEpoch", consensusInfo).WithField("err", currentErr).
+				Error("could not retrieve epoch in subscription")
 		}
 
-		blockEpoch := eth2Types.Epoch(currentHeadState.Slot() / params.BeaconConfig().SlotsPerEpoch)
+		if nil == consensusInfo {
+			return
+		}
+
+		blockEpoch := eth2Types.Epoch(consensusInfo.Epoch)
 
 		// Epoch did not progress
 		if blockEpoch == lastSentEpoch {
 			return
 		}
 
-		lastSentEpoch = blockEpoch
-		consensusInfo, currentErr := beaconChain.GetMinimalConsensusInfo(ctx, blockEpoch)
-
-		if nil != currentErr {
-			log.WithField("currentEpoch", blockEpoch).WithField("err", currentErr).
-				Error("could not retrieve epoch in subscription")
-		}
-
 		consensusInfoChannel <- consensusInfo
+		lastSentEpoch = eth2Types.Epoch(consensusInfo.Epoch)
 
 		return
 	}
 
-	tickerDuration := time.Duration(params.BeaconConfig().SecondsPerSlot)
+	tickerDuration := time.Duration(params.BeaconConfig().SecondsPerSlot) * time.Second
 	ticker := time.NewTicker(tickerDuration)
 
 	for {
