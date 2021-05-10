@@ -142,17 +142,4 @@ func TestAPIBackend_SubscribeNewEpochEvent(t *testing.T) {
 		assert.Equal(t, 1, sent)
 		assert.Equal(t, shouldGather, len(received))
 	})
-
-	t.Run("Should not send because of period elapsed", func(t *testing.T) {
-		sendUntilTimeout(false)
-		assert.Equal(t, 0, sent)
-		assert.Equal(t, 0, len(received))
-
-		// TODO: new state here
-		require.NoError(t, state.SetSlot(params.BeaconConfig().SlotsPerEpoch))
-		sendUntilTimeout(true)
-		sendWaitGroup.Wait()
-		assert.Equal(t, 1, sent)
-		assert.Equal(t, shouldGather, len(received))
-	})
 }
