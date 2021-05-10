@@ -8,6 +8,7 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/subscriber/api/events"
 	"github.com/prysmaticlabs/prysm/beacon-chain/state"
 	"github.com/prysmaticlabs/prysm/shared/params"
+	"sort"
 	"strconv"
 	"time"
 
@@ -292,20 +293,31 @@ func (bs *Server) GetMinimalConsensusInfo(
 		return nil, err
 	}
 
+	// Assignments are unsorted by slot, so we need to do it on the fly
 	assignmentsSlice := make([]string, 0)
+	slotToPubKey := make(map[types.Slot]string)
+	sortedSlotSlice := make([]float64, 0)
 
 	// Slot 0 was never signed by anybody
 	if 0 == curEpoch {
 		publicKeyBytes := make([]byte, params.BeaconConfig().BLSPubkeyLength)
 		currentString := fmt.Sprintf("0x%s", hex.EncodeToString(publicKeyBytes))
 		assignmentsSlice = append(assignmentsSlice, currentString)
+		slotToPubKey[0] = currentString
 	}
 
 	for _, assignment := range assignments.Assignments {
-		for range assignment.ProposerSlots {
-			currentString := fmt.Sprintf("0x%s", hex.EncodeToString(assignment.PublicKey))
-			assignmentsSlice = append(assignmentsSlice, currentString)
+		for _, slot := range assignment.ProposerSlots {
+			pubKeyString := fmt.Sprintf("0x%s", hex.EncodeToString(assignment.PublicKey))
+			slotToPubKey[slot] = pubKeyString
+			sortedSlotSlice = append(sortedSlotSlice, float64(slot))
 		}
+	}
+
+	sort.Float64s(sortedSlotSlice)
+
+	for _, slot := range sortedSlotSlice {
+		assignmentsSlice = append(assignmentsSlice, slotToPubKey[types.Slot(slot)])
 	}
 
 	expectedValidators := int(params.BeaconConfig().SlotsPerEpoch)
