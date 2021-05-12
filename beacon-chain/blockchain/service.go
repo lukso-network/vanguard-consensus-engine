@@ -337,6 +337,8 @@ func (s *Service) initializeBeaconChain(
 		return nil, err
 	}
 
+	// TODO: trigger helpers.PastConsensusInfo() here
+
 	s.opsService.SetGenesisTime(genesisState.GenesisTime())
 
 	return genesisState, nil
