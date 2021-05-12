@@ -760,12 +760,8 @@ github.com/lightstep/lightstep-tracer-common/golang/gogo v0.0.0-20190605223551-b
 github.com/lightstep/lightstep-tracer-go v0.18.1/go.mod h1:jlF1pusYV4pidLvZ+XD0UBX0ZE6WURAspgAczcDHrL4=
 github.com/logrusorgru/aurora v2.0.3+incompatible h1:tOpm7WcpBTn4fjmVfgpQq0EfczGlG91VSDkswnjF5A8=
 github.com/logrusorgru/aurora v2.0.3+incompatible/go.mod h1:7rIyQOR62GCctdiQpZ/zOJlFyk6y+94wXzv6RNZgaR4=
-github.com/lukso-network/vanguard-apis v0.0.0-20210331083856-a569864eb9aa h1:rDNUyoCvw9DzB2fLV2U9MkR1GEqrJNXGK16I+wKp0io=
-github.com/lukso-network/vanguard-apis v0.0.0-20210331083856-a569864eb9aa/go.mod h1:F9YaSp95tvq5wfh3p8VJ9h5RJkpI7XaasoY8tKm2VmI=
-github.com/lukso-network/vanguard-apis v0.0.0-20210401140126-ee8ec3c2f19e h1:qY884LqxThy8DLy4QhQ/vY0zaHNu1NIazm3aTCbNrqM=
-github.com/lukso-network/vanguard-apis v0.0.0-20210401140126-ee8ec3c2f19e/go.mod h1:YS3iOCGE+iVDE007GHWtj+UoPK9hyYA7Fo4mSDNTtiY=
-github.com/lukso-network/vanguard-apis v0.0.0-20210506184759-c857a4b244df h1:3YdyJvGgqp/uEhp+/0I1sfWMOTK4ISnTOYnVVHh4LFQ=
-github.com/lukso-network/vanguard-apis v0.0.0-20210506184759-c857a4b244df/go.mod h1:YS3iOCGE+iVDE007GHWtj+UoPK9hyYA7Fo4mSDNTtiY=
+github.com/lukso-network/vanguard-apis v0.0.0-20210511094517-7ef8f431075a h1:jfWZrs9b8RWunmOIT2XvQ3rpF/TOrFBFdH/f8T8NV9g=
+github.com/lukso-network/vanguard-apis v0.0.0-20210511094517-7ef8f431075a/go.mod h1:YS3iOCGE+iVDE007GHWtj+UoPK9hyYA7Fo4mSDNTtiY=
 github.com/lunixbochs/vtclean v0.0.0-20180621232353-2d01aacdc34a/go.mod h1:pHhQNgMf3btfWnGBVipUOjRYhoOsdGqdm/+2c2E2WMI=
 github.com/lunixbochs/vtclean v1.0.0 h1:xu2sLAri4lGiovBDQKxl5mrXyESr3gUr5m5SM5+LVb8=
 github.com/lunixbochs/vtclean v1.0.0/go.mod h1:pHhQNgMf3btfWnGBVipUOjRYhoOsdGqdm/+2c2E2WMI=
@@ -1032,8 +1028,6 @@ github.com/prysmaticlabs/bazel-go-ethereum v0.0.0-20210222122116-71d15f72c132/go
 github.com/prysmaticlabs/eth2-types v0.0.0-20210127031309-22cbe426eba6/go.mod h1:kOmQ/zdobQf7HUohDTifDNFEZfNaSCIY5fkONPL+dWU=
 github.com/prysmaticlabs/eth2-types v0.0.0-20210219172114-1da477c09a06 h1:b4WxLSz1KzkEdF/DPcog9gIKN9d9YAFgbZO1hqjNrW0=
 github.com/prysmaticlabs/eth2-types v0.0.0-20210219172114-1da477c09a06/go.mod h1:kOmQ/zdobQf7HUohDTifDNFEZfNaSCIY5fkONPL+dWU=
-github.com/prysmaticlabs/ethereumapis v0.0.0-20210303155523-663cc605c7d9 h1:WbNiB9+NFslsXtM8mjOEjcsSbedl+06eGBkW7zvSynE=
-github.com/prysmaticlabs/ethereumapis v0.0.0-20210303155523-663cc605c7d9/go.mod h1:YS3iOCGE+iVDE007GHWtj+UoPK9hyYA7Fo4mSDNTtiY=
 github.com/prysmaticlabs/go-bitfield v0.0.0-20200322041314-62c2aee71669/go.mod h1:hCwmef+4qXWjv0jLDbQdWnL0Ol7cS7/lCSS26WR+u6s=
 github.com/prysmaticlabs/go-bitfield v0.0.0-20210202205921-7fcea7c45dc8 h1:18+Qqobq3HAUY0hgIhPGSqmLFnaLLocemmU7+Sj2aYQ=
 github.com/prysmaticlabs/go-bitfield v0.0.0-20210202205921-7fcea7c45dc8/go.mod h1:hCwmef+4qXWjv0jLDbQdWnL0Ol7cS7/lCSS26WR+u6s=

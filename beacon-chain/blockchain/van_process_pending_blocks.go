@@ -9,6 +9,11 @@ import (
 	"go.opencensus.io/trace"
 )
 
+// PendingBlocksFetcher retrieves the cached un-confirmed beacon blocks from cache
+type PendingBlocksFetcher interface {
+	UnConfirmedBlocksFromCache() ([]*ethpb.BeaconBlock, error)
+}
+
 // publishAndStorePendingBlock method publishes and stores the pending block for final confirmation check
 func (s *Service) publishAndStorePendingBlock(ctx context.Context, pendingBlk *ethpb.BeaconBlock) error {
 	ctx, span := trace.StartSpan(ctx, "blockChain.publishAndStorePendingBlock")
@@ -50,4 +55,13 @@ func (s *Service) publishAndStorePendingBlockBatch(ctx context.Context, pendingB
 	}
 
 	return nil
+}
+
+// UnConfirmedBlocksFromCache retrieves all the cached blocks from cache and send it back to event api
+func (s *Service) UnConfirmedBlocksFromCache() ([]*ethpb.BeaconBlock, error) {
+	blks, err := s.pendingBlockCache.PendingBlocks()
+	if err != nil {
+		return nil, errors.Wrap(err, "Could not retrieve cached unconfirmed blocks from cache")
+	}
+	return blks, nil
 }

@@ -381,3 +381,8 @@ func (s *ChainService) VerifyFinalizedConsistency(_ context.Context, r []byte) e
 	}
 	return nil
 }
+
+// Vanguard: UnConfirmedBlocksFromCache mocks UnConfirmedBlocksFromCache method and send it nil
+func (s *ChainService) UnConfirmedBlocksFromCache() ([]*ethpb.BeaconBlock, error) {
+	return nil, nil
+}

@@ -655,6 +655,9 @@ func (b *BeaconNode) registerRPCService() error {
 		StateGen:                b.stateGen,
 		EnableDebugRPCEndpoints: enableDebugRPCEndpoints,
 		MaxMsgSize:              maxMsgSize,
+
+		// Vanguard: un-confirmed cached block fetcher
+		UnconfirmedBlockFetcher: chainService,
 	})
 
 	return b.services.RegisterService(rpcService)
