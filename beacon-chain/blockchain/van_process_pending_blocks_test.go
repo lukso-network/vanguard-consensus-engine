@@ -5,6 +5,7 @@ import (
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	blockchainTesting "github.com/prysmaticlabs/prysm/beacon-chain/blockchain/testing"
 	"github.com/prysmaticlabs/prysm/shared/testutil"
+	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
 	"testing"
 )
@@ -20,9 +21,9 @@ func TestService_PublishAndStorePendingBlock(t *testing.T) {
 
 	b := testutil.NewBeaconBlock()
 	require.NoError(t, s.publishAndStorePendingBlock(ctx, b.Block))
-	_, err = s.pendingBlockCache.PendingBlock(b.Block.GetSlot())
+	cachedBlock, err := s.pendingBlockCache.PendingBlock(b.Block.GetSlot())
 	require.NoError(t, err)
-	//assert.DeepEqual(t, b, cachedBlock)
+	assert.DeepEqual(t, b.Block, cachedBlock)
 }
 
 // TestService_PublishAndStorePendingBlockBatch checks PublishAndStorePendingBlockBatch method
@@ -42,10 +43,9 @@ func TestService_PublishAndStorePendingBlockBatch(t *testing.T) {
 
 	require.NoError(t, s.publishAndStorePendingBlockBatch(ctx, blks))
 	require.NoError(t, err)
-	//assert.DeepEqual(t, b, cachedBlock)
-}
-
-// TestService_UnConfirmedBlocksFromCache checks UnConfirmedBlocksFromCache method
-func TestService_UnConfirmedBlocksFromCache(t *testing.T) {
-
+	for _, blk := range blks {
+		cachedBlock, err := s.pendingBlockCache.PendingBlock(blk.Block.GetSlot())
+		require.NoError(t, err)
+		assert.DeepEqual(t, blk.Block, cachedBlock)
+	}
 }
