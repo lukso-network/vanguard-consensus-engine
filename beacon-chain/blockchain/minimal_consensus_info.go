@@ -20,11 +20,10 @@ type MinimalEpochConsensusInfo struct {
 	SlotTimeDuration time.Duration `json:"slotTimeDuration"`
 }
 
-func (s *Service) MinimalConsensusInfo() (minConsensusInfo *ethpb.MinimalConsensusInfo, err error) {
-	log.WithField("prefix", "GetPastMinimalConsensusInfo")
+func (s *Service) MinimalConsensusInfo(epoch types.Epoch) (minConsensusInfo *ethpb.MinimalConsensusInfo, err error) {
+	log.WithField("prefix", "GetPastMinimalConsensusInfo").WithField("epoch", uint64(epoch))
 
-	currentEpoch := helpers.SlotToEpoch(s.CurrentSlot())
-	assignments, err := s.getPastProposerListForEpoch(currentEpoch)
+	assignments, err := s.getPastProposerListForEpoch(epoch)
 	if nil != err {
 		log.Errorf("[VAN_SUB] getProposerListForEpoch err = %s", err.Error())
 		return nil, err
@@ -33,7 +32,7 @@ func (s *Service) MinimalConsensusInfo() (minConsensusInfo *ethpb.MinimalConsens
 	assignmentsSlice := make([]string, 0)
 
 	// Slot 0 was never signed by anybody
-	if 0 == currentEpoch {
+	if 0 == epoch {
 		publicKeyBytes := make([]byte, params.BeaconConfig().BLSPubkeyLength)
 		currentString := fmt.Sprintf("0x%s", hex.EncodeToString(publicKeyBytes))
 		assignmentsSlice = append(assignmentsSlice, currentString)
@@ -58,7 +57,7 @@ func (s *Service) MinimalConsensusInfo() (minConsensusInfo *ethpb.MinimalConsens
 	}
 
 	genesisTime := s.genesisTime
-	startSlot, err := helpers.StartSlot(currentEpoch)
+	startSlot, err := helpers.StartSlot(epoch)
 	if nil != err {
 		log.Errorf("[VAN_SUB] StartSlot err = %s", err.Error())
 		return nil, err
@@ -70,15 +69,53 @@ func (s *Service) MinimalConsensusInfo() (minConsensusInfo *ethpb.MinimalConsens
 	}
 
 	minConsensusInfo = &ethpb.MinimalConsensusInfo{
-		Epoch:            currentEpoch,
+		Epoch:            epoch,
 		Value:            assignmentsSlice,
 		EpochTimeStart:   uint64(epochStartTime.Unix()),
 		SlotTimeDuration: uint64(time.Duration(params.BeaconConfig().SecondsPerSlot)),
 	}
 
-	log.Infof("[VAN_SUB] currEpoch = %#v", uint64(currentEpoch))
+	log.Infof("[VAN_SUB] currEpoch = %#v", uint64(epoch))
 
 	return minConsensusInfo, nil
+}
+
+func (s *Service) MinimalConsensusInfoRange(
+	fromEpoch types.Epoch,
+) (consensusInfos []*ethpb.MinimalConsensusInfo, err error) {
+	consensusInfo, err := s.MinimalConsensusInfo(fromEpoch)
+
+	if nil != err {
+		log.WithField("currentEpoch", "unknown").
+			WithField("requestedEpoch", fromEpoch).Error(err.Error())
+
+		return nil, err
+	}
+
+	consensusInfos = make([]*ethpb.MinimalConsensusInfo, 0)
+	consensusInfos = append(consensusInfos, consensusInfo)
+	tempEpochIndex := consensusInfo.Epoch
+
+	for {
+		tempEpochIndex++
+		minimalConsensusInfo, currentErr := s.MinimalConsensusInfo(types.Epoch(tempEpochIndex))
+
+		if nil != currentErr {
+			log.WithField("currentEpoch", tempEpochIndex).
+				WithField("context", "epochNotFound").
+				WithField("requestedEpoch", fromEpoch).Error(currentErr.Error())
+
+			break
+		}
+
+		consensusInfos = append(consensusInfos, minimalConsensusInfo)
+	}
+
+	log.WithField("currentEpoch", tempEpochIndex).
+		WithField("gathered", len(consensusInfos)).
+		WithField("requestedEpoch", fromEpoch).Info("I should send epoch list")
+
+	return
 }
 
 func (s *Service) getPastProposerListForEpoch(currentEpoch types.Epoch) (*ethpb.ValidatorAssignments, error) {
