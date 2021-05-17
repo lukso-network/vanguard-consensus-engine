@@ -5,6 +5,7 @@ package beacon
 
 import (
 	"context"
+	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed/consensus"
 	"time"
 
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
@@ -38,6 +39,7 @@ type Server struct {
 	GenesisTimeFetcher          blockchain.TimeFetcher
 	StateNotifier               statefeed.Notifier
 	BlockNotifier               blockfeed.Notifier
+	ConsensusNotifier           consensus.Notifier
 	AttestationNotifier         operation.Notifier
 	Broadcaster                 p2p.Broadcaster
 	AttestationsPool            attestations.Pool
@@ -51,4 +53,6 @@ type Server struct {
 
 	// Vanguard un-confirmed cached block fetcher
 	UnconfirmedBlockFetcher blockchain.PendingBlocksFetcher
+	// Vanguard minimalConsensusInfo fetcher
+	MinimalConsensusInfoFetcher blockchain.MinimalConsensusInfoFetcher
 }

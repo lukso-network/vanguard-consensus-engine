@@ -13,13 +13,13 @@ import (
 	"time"
 )
 
-type MinimalEpochConsensusInfo struct {
-	Epoch            uint64        `json:"epoch"`
-	ValidatorList    []string      `json:"validatorList"`
-	EpochStartTime   uint64        `json:"epochTimeStart"`
-	SlotTimeDuration time.Duration `json:"slotTimeDuration"`
+// MinimalConsensusInfoFetcher retrieves the minimal consensus info for provided epoch from blockchain service
+type MinimalConsensusInfoFetcher interface {
+	MinimalConsensusInfo(types.Epoch) (*ethpb.MinimalConsensusInfo, error)
+	MinimalConsensusInfoRange(types.Epoch) ([]*ethpb.MinimalConsensusInfo, error)
 }
 
+//MinimalConsensusInfo provides minimalConsensusInfo for one epoch provided as an argument
 func (s *Service) MinimalConsensusInfo(epoch types.Epoch) (minConsensusInfo *ethpb.MinimalConsensusInfo, err error) {
 	log.WithField("prefix", "GetPastMinimalConsensusInfo").WithField("epoch", uint64(epoch))
 
@@ -80,6 +80,7 @@ func (s *Service) MinimalConsensusInfo(epoch types.Epoch) (minConsensusInfo *eth
 	return minConsensusInfo, nil
 }
 
+//MinimalConsensusInfoRange provides minimalConsensusInfo for all epochs from epoch provided as an argument
 func (s *Service) MinimalConsensusInfoRange(
 	fromEpoch types.Epoch,
 ) (consensusInfos []*ethpb.MinimalConsensusInfo, err error) {
@@ -118,6 +119,7 @@ func (s *Service) MinimalConsensusInfoRange(
 	return
 }
 
+//getPastProposerListForEpoch private func to get pas proposer list for epoch
 func (s *Service) getPastProposerListForEpoch(currentEpoch types.Epoch) (*ethpb.ValidatorAssignments, error) {
 	var (
 		res         []*ethpb.ValidatorAssignments_CommitteeAssignment
