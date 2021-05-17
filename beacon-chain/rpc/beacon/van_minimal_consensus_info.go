@@ -23,8 +23,8 @@ func (bs *Server) StreamMinimalConsensusInfo(
 	if err != nil {
 		return status.Errorf(codes.Unavailable, "Could not send minimalConsensusInfo over stream: %v", err)
 	}
-	for _, blk := range minimalConsensusInfoRange {
-		if err := stream.Send(blk); err != nil {
+	for _, minimalConsensusInfo := range minimalConsensusInfoRange {
+		if err := stream.Send(minimalConsensusInfo); err != nil {
 			return status.Errorf(codes.Unavailable, "Could not send minimalConsensusInfo over stream: %v", err)
 		}
 	}
@@ -32,15 +32,15 @@ func (bs *Server) StreamMinimalConsensusInfo(
 	for {
 		select {
 		case minConsensusEvent := <-minimalConsensusChannel:
-			epoch, ok := minConsensusEvent.Data.(*types.Epoch)
-			if !ok || epoch == nil {
+			epoch, ok := minConsensusEvent.Data.(types.Epoch)
+			if !ok {
 				continue
 			}
-			minimalConsensusInfoRange, err = bs.MinimalConsensusInfoFetcher.MinimalConsensusInfoRange(*epoch)
+			minimalConsensusInfo, err := bs.MinimalConsensusInfoFetcher.MinimalConsensusInfo(epoch)
 			if err != nil {
 				return status.Errorf(codes.Unavailable, "Could not send minimalConsensusInfo over stream: %v", err)
 			}
-			if err := stream.Send(minimalConsensusInfoRange); err != nil {
+			if err := stream.Send(minimalConsensusInfo); err != nil {
 				return status.Errorf(codes.Unavailable, "Could not send minimalConsensusInfo over stream: %v", err)
 			}
 			log.WithField("epoch", epoch).Debug(

@@ -3,9 +3,11 @@
 // exits, and slashings.
 package consensus
 
-import types "github.com/prysmaticlabs/eth2-types"
+import (
+	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
+)
 
-// ReceivedMinimalConsensusData is the data sent with ReceivedConsensusData events.
-type ReceivedMinimalConsensusData struct {
-	epoch types.Epoch
+// MinimalConsensusData is the data sent with ReceivedConsensusData events.
+type MinimalConsensusData struct {
+	MinimalConsensusInfo []*ethpb.MinimalConsensusInfo
 }

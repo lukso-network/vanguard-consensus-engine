@@ -763,8 +763,8 @@ github.com/lightstep/lightstep-tracer-common/golang/gogo v0.0.0-20190605223551-b
 github.com/lightstep/lightstep-tracer-go v0.18.1/go.mod h1:jlF1pusYV4pidLvZ+XD0UBX0ZE6WURAspgAczcDHrL4=
 github.com/logrusorgru/aurora v2.0.3+incompatible h1:tOpm7WcpBTn4fjmVfgpQq0EfczGlG91VSDkswnjF5A8=
 github.com/logrusorgru/aurora v2.0.3+incompatible/go.mod h1:7rIyQOR62GCctdiQpZ/zOJlFyk6y+94wXzv6RNZgaR4=
-github.com/lukso-network/vanguard-apis v0.0.0-20210517154601-90fd045d6b69 h1:hSLKdpMFyQD0h/oUGv/iN8tXN2zHkLWmygwcj9gnBQo=
-github.com/lukso-network/vanguard-apis v0.0.0-20210517154601-90fd045d6b69/go.mod h1:YS3iOCGE+iVDE007GHWtj+UoPK9hyYA7Fo4mSDNTtiY=
+github.com/lukso-network/vanguard-apis v0.0.0-20210517173116-0d15f1f58084 h1:plt/Fj/mQOce/oxp5q0tBlrZcpBcVd+u8yl6pOR47Wk=
+github.com/lukso-network/vanguard-apis v0.0.0-20210517173116-0d15f1f58084/go.mod h1:YS3iOCGE+iVDE007GHWtj+UoPK9hyYA7Fo4mSDNTtiY=
 github.com/lunixbochs/vtclean v0.0.0-20180621232353-2d01aacdc34a/go.mod h1:pHhQNgMf3btfWnGBVipUOjRYhoOsdGqdm/+2c2E2WMI=
 github.com/lunixbochs/vtclean v1.0.0 h1:xu2sLAri4lGiovBDQKxl5mrXyESr3gUr5m5SM5+LVb8=
 github.com/lunixbochs/vtclean v1.0.0/go.mod h1:pHhQNgMf3btfWnGBVipUOjRYhoOsdGqdm/+2c2E2WMI=
