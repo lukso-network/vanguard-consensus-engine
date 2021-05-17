@@ -3,6 +3,7 @@ package blockchain
 import (
 	"context"
 	"fmt"
+	blockchainTesting "github.com/prysmaticlabs/prysm/beacon-chain/blockchain/testing"
 	"math/big"
 	"strconv"
 	"testing"
@@ -37,6 +38,7 @@ func TestStore_OnBlock(t *testing.T) {
 		BeaconDB:        beaconDB,
 		StateGen:        stategen.New(beaconDB),
 		ForkChoiceStore: protoarray.New(0, 0, [32]byte{}),
+		BlockNotifier:   &blockchainTesting.MockBlockNotifier{},
 	}
 	service, err := NewService(ctx, cfg)
 	require.NoError(t, err)
@@ -130,8 +132,9 @@ func TestStore_OnBlockBatch(t *testing.T) {
 	beaconDB := testDB.SetupDB(t)
 
 	cfg := &Config{
-		BeaconDB: beaconDB,
-		StateGen: stategen.New(beaconDB),
+		BeaconDB:      beaconDB,
+		StateGen:      stategen.New(beaconDB),
+		BlockNotifier: &blockchainTesting.MockBlockNotifier{},
 	}
 	service, err := NewService(ctx, cfg)
 	require.NoError(t, err)
@@ -925,6 +928,7 @@ func TestOnBlock_CanFinalize(t *testing.T) {
 		StateGen:        stategen.New(beaconDB),
 		ForkChoiceStore: protoarray.New(0, 0, [32]byte{}),
 		DepositCache:    depositCache,
+		BlockNotifier:   &blockchainTesting.MockBlockNotifier{},
 	}
 	service, err := NewService(ctx, cfg)
 	require.NoError(t, err)
