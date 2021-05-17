@@ -413,7 +413,6 @@ func precomputeProposerIndices(state *stateTrie.BeaconState, activeIndices []typ
 	return proposerIndices, nil
 }
 
-
 // ProposerAssignments returns a map of proposer validator indices to corresponding slots for the next epoch.
 // This method is especially implemented for Orchestrator.
 func ProposerAssignments(

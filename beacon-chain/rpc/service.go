@@ -97,6 +97,9 @@ type Service struct {
 	connectedRPCClients     map[net.Addr]bool
 	clientConnectionLock    sync.Mutex
 	maxMsgSize              int
+
+	// Vanguard un-confirmed cached block fetcher
+	unconfirmedBlockFetcher blockchain.PendingBlocksFetcher
 }
 
 // Config options for the beacon node RPC server.
@@ -136,6 +139,9 @@ type Config struct {
 	OperationNotifier       opfeed.Notifier
 	StateGen                *stategen.State
 	MaxMsgSize              int
+
+	// Vanguard un-confirmed cached block fetcher
+	UnconfirmedBlockFetcher blockchain.PendingBlocksFetcher
 }
 
 // NewService instantiates a new RPC service instance that will
@@ -183,6 +189,9 @@ func NewService(ctx context.Context, cfg *Config) *Service {
 		enableDebugRPCEndpoints: cfg.EnableDebugRPCEndpoints,
 		connectedRPCClients:     make(map[net.Addr]bool),
 		maxMsgSize:              cfg.MaxMsgSize,
+
+		// Vanguard: un-confirmed cached block fetcher
+		unconfirmedBlockFetcher: cfg.UnconfirmedBlockFetcher,
 	}
 }
 
@@ -303,6 +312,9 @@ func (s *Service) Start() {
 		SyncChecker:                 s.syncService,
 		ReceivedAttestationsBuffer:  make(chan *ethpb.Attestation, attestationBufferSize),
 		CollectedAttestationsBuffer: make(chan []*ethpb.Attestation, attestationBufferSize),
+
+		// Vanguard: un-confirmed cached block fetcher
+		UnconfirmedBlockFetcher: s.unconfirmedBlockFetcher,
 	}
 	beaconChainServerV1 := &beaconv1.Server{
 		Ctx:                 s.ctx,
