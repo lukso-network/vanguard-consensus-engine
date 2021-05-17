@@ -5,7 +5,7 @@
 
 mock_path="shared/van_mock"
 mocks=(
-      "$mock_path/van_beacon_chain_service_mock.go BeaconChain_StreamChainHeadServer,BeaconChain_StreamAttestationsServer,BeaconChain_StreamBlocksServer,BeaconChain_StreamValidatorsInfoServer,BeaconChain_StreamIndexedAttestationsServer,BeaconChain_StreamNewPendingBlocksServer"
+      "$mock_path/van_beacon_chain_service_mock.go BeaconChain_StreamChainHeadServer,BeaconChain_StreamAttestationsServer,BeaconChain_StreamBlocksServer,BeaconChain_StreamValidatorsInfoServer,BeaconChain_StreamIndexedAttestationsServer,BeaconChain_StreamNewPendingBlocksServer,BeaconChain_StreamMinimalConsensusInfoServer"
 )
 
 for ((i = 0; i < ${#mocks[@]}; i++)); do

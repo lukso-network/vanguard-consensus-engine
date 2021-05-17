@@ -6,7 +6,6 @@ import (
 	types "github.com/prysmaticlabs/eth2-types"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
-	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/subscriber/api/events"
 	"github.com/prysmaticlabs/prysm/beacon-chain/state"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"google.golang.org/grpc/codes"
@@ -21,7 +20,7 @@ type MinimalEpochConsensusInfo struct {
 	SlotTimeDuration time.Duration `json:"slotTimeDuration"`
 }
 
-func (s *Service) MinimalConsensusInfo() (minConsensusInfo []*ethpb.MinimalEpochConsensusInfo, err error) {
+func (s *Service) MinimalConsensusInfo() (minConsensusInfo *ethpb.MinimalConsensusInfo, err error) {
 	log.WithField("prefix", "GetPastMinimalConsensusInfo")
 
 	currentEpoch := helpers.SlotToEpoch(s.CurrentSlot())
@@ -70,14 +69,14 @@ func (s *Service) MinimalConsensusInfo() (minConsensusInfo []*ethpb.MinimalEpoch
 		return nil, err
 	}
 
-	minConsensusInfo = &events.MinimalEpochConsensusInfo{
-		Epoch:            uint64(currentEpoch),
-		ValidatorList:    assignmentsSlice,
-		EpochStartTime:   uint64(epochStartTime.Unix()),
-		SlotTimeDuration: time.Duration(params.BeaconConfig().SecondsPerSlot),
+	minConsensusInfo = &ethpb.MinimalConsensusInfo{
+		Epoch:            currentEpoch,
+		Value:            assignmentsSlice,
+		EpochTimeStart:   uint64(epochStartTime.Unix()),
+		SlotTimeDuration: uint64(time.Duration(params.BeaconConfig().SecondsPerSlot)),
 	}
 
-	log.Infof("[VAN_SUB] currEpoch = %#v", uint64(toEpoch))
+	log.Infof("[VAN_SUB] currEpoch = %#v", uint64(currentEpoch))
 
 	return minConsensusInfo, nil
 }
