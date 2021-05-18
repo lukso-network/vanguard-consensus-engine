@@ -19,6 +19,7 @@ go_library(
         "service.go",
         "weak_subjectivity_checks.go",
         "van_process_pending_blocks.go",
+        "van_minimal_consensus_info.go",
     ],
     importpath = "github.com/prysmaticlabs/prysm/beacon-chain/blockchain",
     visibility = [
@@ -94,6 +95,7 @@ go_test(
         "service_test.go",
         "weak_subjectivity_checks_test.go",
         "van_process_pending_blocks_test.go",
+        "van_minimal_consensus_info.go",
     ],
     embed = [":go_default_library"],
     gotags = ["develop"],
@@ -136,6 +138,7 @@ go_test(
         "receive_block_test.go",
         "service_norace_test.go",
         "van_process_pending_blocks_test.go",
+        "van_minimal_consensus_info.go",
     ],
     embed = [":go_default_library"],
     gc_goopts = [
