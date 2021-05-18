@@ -9,5 +9,5 @@ import (
 
 // MinimalConsensusData is the data sent with ReceivedConsensusData events.
 type MinimalConsensusData struct {
-	MinimalConsensusInfo []*ethpb.MinimalConsensusInfo
+	MinimalConsensusInfo *ethpb.MinimalConsensusInfo
 }

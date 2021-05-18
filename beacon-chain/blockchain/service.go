@@ -101,6 +101,7 @@ type Config struct {
 	MaxRoutines       int
 	StateNotifier     statefeed.Notifier
 	BlockNotifier     blockfeed.Notifier
+	ConsensusNotifier consensusfeed.Notifier
 	ForkChoiceStore   f.ForkChoicer
 	OpsService        *attestations.Service
 	StateGen          *stategen.State
