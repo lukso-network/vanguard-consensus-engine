@@ -100,6 +100,9 @@ type Service struct {
 
 	// Vanguard un-confirmed cached block fetcher
 	unconfirmedBlockFetcher blockchain.PendingBlocksFetcher
+
+	// Vanguard minimalConsensusFetcher fetcher
+	minimalConsensusFetcher blockchain.MinimalConsensusInfoFetcher
 }
 
 // Config options for the beacon node RPC server.
@@ -142,6 +145,9 @@ type Config struct {
 
 	// Vanguard un-confirmed cached block fetcher
 	UnconfirmedBlockFetcher blockchain.PendingBlocksFetcher
+
+	// Vanguard un-confirmed cached block fetcher
+	MinimalConsensusFetcher blockchain.MinimalConsensusInfoFetcher
 }
 
 // NewService instantiates a new RPC service instance that will
@@ -192,6 +198,9 @@ func NewService(ctx context.Context, cfg *Config) *Service {
 
 		// Vanguard: un-confirmed cached block fetcher
 		unconfirmedBlockFetcher: cfg.UnconfirmedBlockFetcher,
+
+		// Vanguard: un-confirmed cached block fetcher
+		minimalConsensusFetcher: cfg.MinimalConsensusFetcher,
 	}
 }
 
@@ -315,6 +324,9 @@ func (s *Service) Start() {
 
 		// Vanguard: un-confirmed cached block fetcher
 		UnconfirmedBlockFetcher: s.unconfirmedBlockFetcher,
+
+		// Vanguard: un-confirmed cached block fetcher
+		MinimalConsensusInfoFetcher: s.minimalConsensusFetcher,
 	}
 	beaconChainServerV1 := &beaconv1.Server{
 		Ctx:                 s.ctx,
