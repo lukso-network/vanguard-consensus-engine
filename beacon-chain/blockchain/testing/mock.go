@@ -14,7 +14,6 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/epoch/precompute"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed"
 	blockfeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/block"
-	consensusfeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/consensus"
 	opfeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/operation"
 	statefeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/state"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
@@ -45,7 +44,6 @@ type ChainService struct {
 	DB                          db.Database
 	stateNotifier               statefeed.Notifier
 	blockNotifier               blockfeed.Notifier
-	consensusNotifier           consensusfeed.Notifier
 	opNotifier                  opfeed.Notifier
 	ValidAttestation            bool
 	ForkChoiceStore             *protoarray.Store
@@ -67,26 +65,6 @@ func (s *ChainService) BlockNotifier() blockfeed.Notifier {
 		s.blockNotifier = &MockBlockNotifier{}
 	}
 	return s.blockNotifier
-}
-
-// ConsensusNotifier mocks the same method in the chain service.
-func (s *ChainService) ConsensusNotifier() consensusfeed.Notifier {
-	if s.consensusNotifier == nil {
-		s.consensusNotifier = &MockConsensusNotifier{}
-	}
-	return s.consensusNotifier
-}
-
-// MockConsensusNotifier mocks the consensus notifier.
-type MockConsensusNotifier struct {
-	feed *event.Feed
-}
-
-func (mcn MockConsensusNotifier) ConsensusFeed() *event.Feed {
-	if mcn.feed == nil {
-		mcn.feed = new(event.Feed)
-	}
-	return mcn.feed
 }
 
 // MockBlockNotifier mocks the block notifier.

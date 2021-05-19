@@ -18,7 +18,6 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/blocks"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed"
 	blockfeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/block"
-	consensusfeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/consensus"
 	statefeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/state"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/state"
@@ -63,7 +62,6 @@ type Service struct {
 	headLock              sync.RWMutex
 	stateNotifier         statefeed.Notifier
 	blockNotifier         blockfeed.Notifier
-	consensusNotifier     consensusfeed.Notifier
 	genesisRoot           [32]byte
 	forkChoiceStore       f.ForkChoicer
 	justifiedCheckpt      *ethpb.Checkpoint
@@ -101,7 +99,6 @@ type Config struct {
 	MaxRoutines       int
 	StateNotifier     statefeed.Notifier
 	BlockNotifier     blockfeed.Notifier
-	ConsensusNotifier consensusfeed.Notifier
 	ForkChoiceStore   f.ForkChoicer
 	OpsService        *attestations.Service
 	StateGen          *stategen.State
