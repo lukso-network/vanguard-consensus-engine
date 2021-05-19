@@ -2,7 +2,6 @@ package beacon
 
 import (
 	"context"
-	ptypes "github.com/gogo/protobuf/types"
 	"github.com/golang/mock/gomock"
 	types "github.com/prysmaticlabs/eth2-types"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
@@ -83,9 +82,9 @@ func TestServer_StreamMinimalConsensusInfo_ContextCanceled(t *testing.T) {
 		exitRoutine <- true
 	})
 	mockStream.EXPECT().Context().Return(ctx).AnyTimes()
-	epoch := types.Epoch(0)
+	minimalConsensusInfoRequest := &ethpb.MinimalConsensusInfoRequest{FromEpoch: types.Epoch(0)}
 	go func(tt *testing.T) {
-		assert.ErrorContains(t, "context canceled", server.StreamMinimalConsensusInfo(&ptypes.Empty{}, &epoch, mockStream))
+		assert.ErrorContains(t, "context canceled", server.StreamMinimalConsensusInfo(minimalConsensusInfoRequest, mockStream))
 	}(t)
 	<-exitRoutine
 	cancel()

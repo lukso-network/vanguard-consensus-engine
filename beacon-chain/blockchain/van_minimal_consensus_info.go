@@ -99,7 +99,7 @@ func (s *Service) MinimalConsensusInfoRange(
 
 	for {
 		tempEpochIndex++
-		minimalConsensusInfo, currentErr := s.MinimalConsensusInfo(types.Epoch(tempEpochIndex))
+		minimalConsensusInfo, currentErr := s.MinimalConsensusInfo(tempEpochIndex)
 
 		if nil != currentErr {
 			log.WithField("currentEpoch", tempEpochIndex).
