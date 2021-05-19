@@ -15,6 +15,7 @@ go_library(
         "validators.go",
         "validators_stream.go",
         "van_pending_blocks.go",
+        "van_minimal_consensus_info.go"
     ],
     importpath = "github.com/prysmaticlabs/prysm/beacon-chain/rpc/beacon",
     visibility = ["//beacon-chain:__subpackages__"],
@@ -76,7 +77,8 @@ go_test(
         "slashings_test.go",
         "validators_stream_test.go",
         "validators_test.go",
-        "van_pending_blocks_test.go"
+        "van_pending_blocks_test.go",
+        "van_minimal_consensus_info.go"
     ],
     embed = [":go_default_library"],
     shard_count = 4,
@@ -87,6 +89,7 @@ go_test(
         "//beacon-chain/core/feed/block:go_default_library",
         "//beacon-chain/core/feed/operation:go_default_library",
         "//beacon-chain/core/feed/state:go_default_library",
+        "//beacon-chain/core/feed/consensus:go_default_library",
         "//beacon-chain/core/helpers:go_default_library",
         "//beacon-chain/db:go_default_library",
         "//beacon-chain/db/testing:go_default_library",
