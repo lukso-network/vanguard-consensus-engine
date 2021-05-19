@@ -10,7 +10,6 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
 	testDB "github.com/prysmaticlabs/prysm/beacon-chain/db/testing"
 	"github.com/prysmaticlabs/prysm/beacon-chain/forkchoice/protoarray"
-	"github.com/prysmaticlabs/prysm/beacon-chain/rpc/subscriber/api/events"
 	"github.com/prysmaticlabs/prysm/beacon-chain/state/stategen"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/shared/testutil"
@@ -102,7 +101,7 @@ func TestServer_MinimalConsensusSuite(t *testing.T) {
 			if types.Epoch(0) == epoch {
 				publicKeyBytes := make([]byte, params.BeaconConfig().BLSPubkeyLength)
 				currentString := fmt.Sprintf("0x%s", hex.EncodeToString(publicKeyBytes))
-				assert.Equal(t, currentString, minConsensusInfo.Value)
+				assert.Equal(t, currentString, minConsensusInfo.Epoch)
 			}
 		}
 	})
@@ -112,7 +111,7 @@ func TestServer_MinimalConsensusSuite(t *testing.T) {
 		minimalConsensusInfo, err := service.MinimalConsensusInfo(epoch)
 
 		assert.NotNil(t, err)
-		assert.DeepEqual(t, (*events.MinimalEpochConsensusInfo)(nil), minimalConsensusInfo)
+		assert.DeepEqual(t, (*ethpb.MinimalConsensusInfo)(nil), minimalConsensusInfo)
 	})
 
 	t.Run("should GetMinimalConsensusInfoRange", func(t *testing.T) {

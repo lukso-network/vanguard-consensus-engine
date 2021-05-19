@@ -3,6 +3,7 @@ package blockchain
 import (
 	"encoding/hex"
 	"fmt"
+	types2 "github.com/gogo/protobuf/types"
 	types "github.com/prysmaticlabs/eth2-types"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
@@ -10,7 +11,6 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"time"
 )
 
 // MinimalConsensusInfoFetcher retrieves the minimal consensus info for provided epoch from blockchain service
@@ -70,9 +70,9 @@ func (s *Service) MinimalConsensusInfo(epoch types.Epoch) (minConsensusInfo *eth
 
 	minConsensusInfo = &ethpb.MinimalConsensusInfo{
 		Epoch:            epoch,
-		Value:            assignmentsSlice,
+		ValidatorList:    assignmentsSlice,
 		EpochTimeStart:   uint64(epochStartTime.Unix()),
-		SlotTimeDuration: uint64(time.Duration(params.BeaconConfig().SecondsPerSlot)),
+		SlotTimeDuration: &types2.Duration{Seconds: int64(params.BeaconConfig().SecondsPerSlot)},
 	}
 
 	log.Infof("[VAN_SUB] currEpoch = %#v", uint64(epoch))
