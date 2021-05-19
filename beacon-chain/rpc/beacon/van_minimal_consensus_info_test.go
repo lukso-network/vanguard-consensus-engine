@@ -12,7 +12,7 @@ import (
 	dbTest "github.com/prysmaticlabs/prysm/beacon-chain/db/testing"
 	"github.com/prysmaticlabs/prysm/shared/testutil"
 	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
-	"github.com/prysmaticlabs/prysm/shared/van_mock"
+	vmock "github.com/prysmaticlabs/prysm/shared/van_mock"
 	"testing"
 )
 
@@ -34,7 +34,7 @@ func TestServer_StreamMinimalConsensusInfo_ContextCanceled(t *testing.T) {
 	exitRoutine := make(chan bool)
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	mockStream := mock.NewMockBeaconChain_StreamMinimalConsensusInfoServer(ctrl)
+	mockStream := vmock.NewMockBeaconChain_StreamMinimalConsensusInfoServer(ctrl)
 	mockStream.EXPECT().Context().Return(ctx)
 	go func(tt *testing.T) {
 		assert.ErrorContains(tt, "Context canceled", server.StreamMinimalConsensusInfo(&ptypes.Empty{}, mockStream))
@@ -63,7 +63,7 @@ func TestServer_StreamMinimalConsensusInfo_OnNewConsensusInfo(t *testing.T) {
 	exitRoutine := make(chan bool)
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	mockStream := mock.NewMockBeaconChain_StreamMinimalConsensusInfoServer(ctrl)
+	mockStream := vmock.NewMockBeaconChain_StreamMinimalConsensusInfoServer(ctrl)
 	mockStream.EXPECT().Send(minConsensusInfo).Do(func(arg0 interface{}) {
 		exitRoutine <- true
 	})

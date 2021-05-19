@@ -107,6 +107,7 @@ go_test(
         "//shared/cmd:go_default_library",
         "//shared/featureconfig:go_default_library",
         "//shared/mock:go_default_library",
+        "//shared/van_mock:go_default_library",
         "//shared/params:go_default_library",
         "//shared/testutil:go_default_library",
         "//shared/testutil/assert:go_default_library",
