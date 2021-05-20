@@ -659,9 +659,6 @@ func (b *BeaconNode) registerRPCService() error {
 
 		// Vanguard: un-confirmed cached block fetcher
 		UnconfirmedBlockFetcher: chainService,
-
-		// Vanguard minimal consensus fetcher
-		MinimalConsensusFetcher: chainService,
 	})
 
 	return b.services.RegisterService(rpcService)

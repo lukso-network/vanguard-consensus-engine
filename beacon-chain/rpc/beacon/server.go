@@ -51,7 +51,4 @@ type Server struct {
 
 	// Vanguard un-confirmed cached block fetcher
 	UnconfirmedBlockFetcher blockchain.PendingBlocksFetcher
-
-	// Vanguard minimalConsensusInfo fetcher
-	MinimalConsensusInfoFetcher blockchain.MinimalConsensusInfoFetcher
 }
