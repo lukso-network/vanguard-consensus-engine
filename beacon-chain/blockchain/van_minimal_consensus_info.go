@@ -11,6 +11,7 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"sort"
 )
 
 // MinimalConsensusInfoFetcher retrieves the minimal consensus info for provided epoch from blockchain service
@@ -23,24 +24,36 @@ type MinimalConsensusInfoFetcher interface {
 func (s *Service) MinimalConsensusInfo(epoch types.Epoch) (minConsensusInfo *ethpb.MinimalConsensusInfo, err error) {
 	log.WithField("prefix", "GetPastMinimalConsensusInfo").WithField("epoch", uint64(epoch))
 
-	assignments, err := s.getPastProposerListForEpoch(epoch)
+	assignments, err := s.getProposerListForEpoch(epoch)
 	if nil != err {
 		log.Errorf("[VAN_SUB] getProposerListForEpoch err = %s", err.Error())
 		return nil, err
 	}
 
 	assignmentsSlice := make([]string, 0)
+	slotToPubKey := make(map[types.Slot]string)
+	sortedSlotSlice := make([]float64, 0)
 
 	// Slot 0 was never signed by anybody
 	if 0 == epoch {
 		publicKeyBytes := make([]byte, params.BeaconConfig().BLSPubkeyLength)
 		currentString := fmt.Sprintf("0x%s", hex.EncodeToString(publicKeyBytes))
 		assignmentsSlice = append(assignmentsSlice, currentString)
+		slotToPubKey[0] = currentString
 	}
 
 	for _, assigment := range assignments.Assignments {
-		currentString := fmt.Sprintf("0x%s", hex.EncodeToString(assigment.PublicKey))
-		assignmentsSlice = append(assignmentsSlice, currentString)
+		for _, slot := range assigment.ProposerSlots {
+			pubKeyString := fmt.Sprintf("0x%s", hex.EncodeToString(assigment.PublicKey))
+			slotToPubKey[slot] = pubKeyString
+			sortedSlotSlice = append(sortedSlotSlice, float64(slot))
+		}
+	}
+
+	sort.Float64s(sortedSlotSlice)
+
+	for _, slot := range sortedSlotSlice {
+		assignmentsSlice = append(assignmentsSlice, slotToPubKey[types.Slot(slot)])
 	}
 
 	expectedValidators := int(params.BeaconConfig().SlotsPerEpoch)
@@ -120,7 +133,7 @@ func (s *Service) MinimalConsensusInfoRange(
 }
 
 //getPastProposerListForEpoch private func to get pas proposer list for epoch
-func (s *Service) getPastProposerListForEpoch(currentEpoch types.Epoch) (*ethpb.ValidatorAssignments, error) {
+func (s *Service) getProposerListForEpoch(currentEpoch types.Epoch) (*ethpb.ValidatorAssignments, error) {
 	var (
 		res         []*ethpb.ValidatorAssignments_CommitteeAssignment
 		latestState *state.BeaconState
