@@ -114,13 +114,13 @@ func (bs *Server) FutureEpochProposerList(
 	return
 }
 
-// GetMinimalConsensusInfoRange allows to subscribe into feed about minimalConsensusInformation from particular epoch
+// MinimalConsensusInfoRange allows to subscribe into feed about minimalConsensusInformation from particular epoch
 // TODO: Serve it in chunks, if recent epoch will be a very high number flood of responses could kill the connection
-func (bs *Server) GetMinimalConsensusInfoRange(
+func (bs *Server) MinimalConsensusInfoRange(
 	ctx context.Context,
 	fromEpoch types.Epoch,
 ) (consensusInfos []*ethpb.MinimalConsensusInfo, err error) {
-	consensusInfo, err := bs.GetMinimalConsensusInfo(ctx, fromEpoch)
+	consensusInfo, err := bs.MinimalConsensusInfo(ctx, fromEpoch)
 
 	if nil != err {
 		log.WithField("currentEpoch", "unknown").
@@ -135,7 +135,7 @@ func (bs *Server) GetMinimalConsensusInfoRange(
 
 	for {
 		tempEpochIndex++
-		minimalConsensusInfo, currentErr := bs.GetMinimalConsensusInfo(ctx, types.Epoch(tempEpochIndex))
+		minimalConsensusInfo, currentErr := bs.MinimalConsensusInfo(ctx, types.Epoch(tempEpochIndex))
 
 		if nil != currentErr {
 			log.WithField("currentEpoch", tempEpochIndex).
@@ -155,13 +155,13 @@ func (bs *Server) GetMinimalConsensusInfoRange(
 	return
 }
 
-// GetMinimalConsensusInfo will give simple information about particular epoch
+// MinimalConsensusInfo will give simple information about particular epoch
 // If epoch is not present it will return an error
-func (bs *Server) GetMinimalConsensusInfo(
+func (bs *Server) MinimalConsensusInfo(
 	ctx context.Context,
 	curEpoch types.Epoch,
 ) (minConsensusInfo *ethpb.MinimalConsensusInfo, err error) {
-	log.WithField("prefix", "GetMinimalConsensusInfo")
+	log.WithField("prefix", "MinimalConsensusInfo")
 
 	assignments, err := bs.getProposerListForEpoch(curEpoch)
 	if nil != err {
@@ -329,10 +329,21 @@ func (bs *Server) StreamMinimalConsensusInfo(
 		return status.Error(codes.Unavailable, "genesis time is not set")
 	}
 
-	epoch := req.FromEpoch
-	minimalConsensusInfoRange, err := bs.GetMinimalConsensusInfoRange(bs.Ctx, epoch)
+	requestedFromEpoch := req.FromEpoch
+
+	currentEpoch := helpers.SlotToEpoch(bs.GenesisTimeFetcher.CurrentSlot())
+	if requestedFromEpoch > currentEpoch {
+		return status.Errorf(
+			codes.InvalidArgument,
+			errEpoch,
+			currentEpoch,
+			requestedFromEpoch,
+		)
+	}
+
+	minimalConsensusInfoRange, err := bs.MinimalConsensusInfoRange(bs.Ctx, requestedFromEpoch)
 	if err != nil {
-		return status.Errorf(codes.Unavailable, "Could not send minimalConsensusInfo over stream: %v", err)
+		return status.Errorf(codes.Unavailable, "Could not get MinimalConsensusInfoRange for a stream: %v", err)
 	}
 
 	for _, minimalConsensusInfo := range minimalConsensusInfoRange {
