@@ -15,6 +15,7 @@ go_library(
         "validators.go",
         "validators_stream.go",
         "van_pending_blocks.go",
+        "van_minimal_consensus_info.go"
     ],
     importpath = "github.com/prysmaticlabs/prysm/beacon-chain/rpc/beacon",
     visibility = ["//beacon-chain:__subpackages__"],
@@ -40,7 +41,6 @@ go_library(
         "//beacon-chain/state/interface:go_default_library",
         "//beacon-chain/state/stategen:go_default_library",
         "//beacon-chain/sync:go_default_library",
-        "//beacon-chain/rpc/subscriber/api/events:go_default_library",
         "//proto/beacon/p2p/v1:go_default_library",
         "//shared/aggregation/attestations:go_default_library",
         "//shared/attestationutil:go_default_library",
@@ -76,7 +76,8 @@ go_test(
         "slashings_test.go",
         "validators_stream_test.go",
         "validators_test.go",
-        "van_pending_blocks_test.go"
+        "van_pending_blocks_test.go",
+        "van_minimal_consensus_info_test.go"
     ],
     embed = [":go_default_library"],
     shard_count = 4,
@@ -104,6 +105,7 @@ go_test(
         "//shared/cmd:go_default_library",
         "//shared/featureconfig:go_default_library",
         "//shared/mock:go_default_library",
+        "//shared/van_mock:go_default_library",
         "//shared/params:go_default_library",
         "//shared/testutil:go_default_library",
         "//shared/testutil/assert:go_default_library",
