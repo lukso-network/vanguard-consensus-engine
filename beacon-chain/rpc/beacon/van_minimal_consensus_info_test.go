@@ -2,15 +2,15 @@ package beacon
 
 import (
 	"context"
+	"encoding/binary"
 	"github.com/golang/mock/gomock"
 	types "github.com/prysmaticlabs/eth2-types"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	chainMock "github.com/prysmaticlabs/prysm/beacon-chain/blockchain/testing"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/state"
 	dbTest "github.com/prysmaticlabs/prysm/beacon-chain/db/testing"
+	"github.com/prysmaticlabs/prysm/beacon-chain/state/stategen"
 	mockSync "github.com/prysmaticlabs/prysm/beacon-chain/sync/initial-sync/testing"
-	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/shared/testutil"
 	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
@@ -20,60 +20,74 @@ import (
 	"time"
 )
 
-// TestServer_StreamMinimalConsensusInfo_ContextCanceled
-func TestServer_StreamMinimalConsensusInfo_ContextCanceled(t *testing.T) {
+func TestServer_StreamMinimalConsensusInfo(t *testing.T) {
 	helpers.ClearCache()
 	db := dbTest.SetupDB(t)
+	ctx := context.Background()
 
-	genesis := testutil.NewBeaconBlock()
-	depChainStart := params.BeaconConfig().MinGenesisActiveValidatorCount
-	deposits, _, err := testutil.DeterministicDepositsAndKeys(depChainStart)
+	config := params.BeaconConfig().Copy()
+	oldConfig := config.Copy()
+	config.SlotsPerEpoch = 32
+
+	params.OverrideBeaconConfig(config)
+	defer func() {
+		params.OverrideBeaconConfig(oldConfig)
+	}()
+
+	testStartTime := time.Now()
+
+	stateNotifier := new(chainMock.ChainService).StateNotifier()
+
+	count := 10000
+	validators := make([]*ethpb.Validator, 0, count)
+	withdrawCred := make([]byte, 32)
+	for i := 0; i < count; i++ {
+		pubKey := make([]byte, params.BeaconConfig().BLSPubkeyLength)
+		binary.LittleEndian.PutUint64(pubKey, uint64(i))
+		val := &ethpb.Validator{
+			PublicKey:             pubKey,
+			WithdrawalCredentials: withdrawCred,
+			ExitEpoch:             params.BeaconConfig().FarFutureEpoch,
+		}
+		validators = append(validators, val)
+	}
+
+	blk := testutil.NewBeaconBlock().Block
+	parentRoot := [32]byte{1, 2, 3}
+	blk.ParentRoot = parentRoot[:]
+	blockRoot, err := blk.HashTreeRoot()
 	require.NoError(t, err)
-	eth1Data, err := testutil.DeterministicEth1Data(len(deposits))
+	beaconState, err := testutil.NewBeaconState()
 	require.NoError(t, err)
-	bs, err := state.GenesisBeaconState(deposits, 0, eth1Data)
-	require.NoError(t, err, "Could not setup genesis bs")
-	genesisRoot, err := genesis.Block.HashTreeRoot()
-	require.NoError(t, err, "Could not get signing root")
-
-	pubKeys := make([][]byte, len(deposits))
-	indices := make([]uint64, len(deposits))
-	for i := 0; i < len(deposits); i++ {
-		pubKeys[i] = deposits[i].Data.PublicKey
-		indices[i] = uint64(i)
-	}
-
-	pubkeysAs48ByteType := make([][48]byte, len(pubKeys))
-	for i, pk := range pubKeys {
-		pubkeysAs48ByteType[i] = bytesutil.ToBytes48(pk)
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	c := &chainMock.ChainService{
-		Genesis: time.Now(),
-	}
+	require.NoError(t, beaconState.SetSlot(0))
 
 	server := &Server{
-		Ctx:                ctx,
-		BeaconDB:           db,
-		HeadFetcher:        &chainMock.ChainService{State: bs, Root: genesisRoot[:]},
-		SyncChecker:        &mockSync.Sync{IsSyncing: false},
-		GenesisTimeFetcher: c,
-		StateNotifier:      &chainMock.MockStateNotifier{},
+		BeaconDB: db,
+		Ctx:      ctx,
+		FinalizationFetcher: &chainMock.ChainService{
+			Genesis: testStartTime,
+			FinalizedCheckPoint: &ethpb.Checkpoint{
+				Epoch: 0,
+			},
+		},
+		GenesisTimeFetcher: &chainMock.ChainService{
+			Genesis: testStartTime,
+		},
+		StateGen:      stategen.New(db),
+		StateNotifier: stateNotifier,
+		HeadFetcher: &chainMock.ChainService{
+			State: beaconState,
+		},
+		SyncChecker: &mockSync.Sync{IsSyncing: false},
 	}
 
-	wantedRes := &ethpb.MinimalConsensusInfo{
-		Epoch:            0,
-		ValidatorList:    nil,
-		EpochTimeStart:   0,
-		SlotTimeDuration: nil,
-	}
+	require.NoError(t, beaconState.SetValidators(validators))
+	require.NoError(t, db.SaveState(server.Ctx, beaconState, blockRoot))
+	require.NoError(t, db.SaveGenesisBlockRoot(server.Ctx, blockRoot))
 
-	// to check minimal output I must get it from blockchain
-	// 1. move from blockchain to helpers or to rpc
-	// 2. use like bs.ConsensusFetcher.MinimalConsino
-
+	wantedRes, err := server.MinimalConsensusInfoRange(server.Ctx, types.Epoch(0))
 	require.NoError(t, err)
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	exitRoutine := make(chan bool)
@@ -83,9 +97,10 @@ func TestServer_StreamMinimalConsensusInfo_ContextCanceled(t *testing.T) {
 	})
 	mockStream.EXPECT().Context().Return(ctx).AnyTimes()
 	minimalConsensusInfoRequest := &ethpb.MinimalConsensusInfoRequest{FromEpoch: types.Epoch(0)}
+
 	go func(tt *testing.T) {
-		assert.ErrorContains(t, "context canceled", server.StreamMinimalConsensusInfo(minimalConsensusInfoRequest, mockStream))
+		assert.NoError(t, server.StreamMinimalConsensusInfo(minimalConsensusInfoRequest, mockStream), "Could not call RPC method")
 	}(t)
+
 	<-exitRoutine
-	cancel()
 }
