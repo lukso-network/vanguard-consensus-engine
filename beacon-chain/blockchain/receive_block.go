@@ -44,6 +44,16 @@ func (s *Service) ReceiveBlock(ctx context.Context, block *ethpb.SignedBeaconBlo
 		return err
 	}
 
+	// We will send the acknowledge about the incoming block to orchestrator
+	if err := s.publishAndStorePendingBlock(ctx, blockCopy.Block); err != nil {
+		return errors.Wrap(err, "could not publish un-confirmed block and cache it")
+	}
+
+	// We should
+	// halt
+
+
+
 	// Update and save head block after fork choice.
 	if !featureconfig.Get().UpdateHeadTimely {
 		if err := s.updateHead(ctx, s.getJustifiedBalances()); err != nil {
@@ -98,6 +108,8 @@ func (s *Service) ReceiveBlockBatch(ctx context.Context, blocks []*ethpb.SignedB
 		traceutil.AnnotateError(span, err)
 		return err
 	}
+
+	// Publish and Halt
 
 	for i, b := range blocks {
 		blockCopy := stateTrie.CopySignedBeaconBlock(b)

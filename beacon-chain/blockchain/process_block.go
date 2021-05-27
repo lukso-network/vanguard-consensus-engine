@@ -105,12 +105,6 @@ func (s *Service) onBlock(ctx context.Context, signed *ethpb.SignedBeaconBlock, 
 	if !valid {
 		return errors.New("signature in block failed to verify")
 	}
-
-	// TODO-Will wait for final confirmation from orchestrator
-	if err := s.publishAndStorePendingBlock(ctx, b); err != nil {
-		return errors.Wrap(err, "could not publish un-confirmed block and cache it")
-	}
-
 	if err := s.savePostStateInfo(ctx, blockRoot, signed, postState, false /* reg sync */); err != nil {
 		return err
 	}
