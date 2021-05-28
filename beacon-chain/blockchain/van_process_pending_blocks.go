@@ -3,9 +3,11 @@ package blockchain
 import (
 	"context"
 	"github.com/pkg/errors"
+	types "github.com/prysmaticlabs/eth2-types"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed"
 	blockfeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/block"
+	"github.com/prysmaticlabs/prysm/shared/event"
 	vanTypes "github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/shared/slotutil"
 	"go.opencensus.io/trace"
@@ -17,7 +19,13 @@ type OrcClient interface {
 	ConfirmVanBlockHashes(ctx context.Context, request []*vanTypes.ConfirmationReqData) (response []*vanTypes.ConfirmationResData, err error)
 }
 
-var processPendingBlocksPeriod = slotutil.DivideSlotBy(3 /* times per slot */)
+var (
+	processPendingBlocksPeriod = slotutil.DivideSlotBy(3 /* times per slot */)
+	errInvalidBlock = errors.New("invalid block found, discarded block batch")
+	errPendingBlockCtxIsDone = errors.New("pending block confirmation context is done, reinitialize")
+)
+
+type blockRoot [32]byte
 
 // PendingBlocksFetcher retrieves the cached un-confirmed beacon blocks from cache
 type PendingBlocksFetcher interface {
@@ -84,7 +92,7 @@ func (s *Service) processOrcConfirmation(ctx context.Context) {
 			select {
 			case <-ticker.C:
 				log.WithField("function", "processOrcConfirmation").Trace("running")
-
+				s.fetchOrcConfirmations(ctx)
 			case <-ctx.Done():
 				log.WithField("function", "processOrcConfirmation").Debug("context is closed, exiting")
 				ticker.Stop()
@@ -94,30 +102,22 @@ func (s *Service) processOrcConfirmation(ctx context.Context) {
 	}()
 }
 
-// processPendingBlocks process confirmation for pending blocks
+// fetchOrcConfirmations process confirmation for pending blocks
 // -> After getting confirmation for a list of pending slots, it iterates through the list
 // -> If any slot gets invalid status then stop the iteration and start again from that slot
 // -> If any slot gets verified status then, publish the slots and block hashes to the blockchain service
 //    who actually waiting for confirmed blocks
 // -> If any slot gets un
-func (s *Service) processPendingBlocks(ctx context.Context) error {
+func (s *Service) fetchOrcConfirmations(ctx context.Context) error {
 	reqData, err := s.sortedPendingSlots()
 	if err != nil {
 		log.WithError(err).Error("got error when preparing sorted confirmation request data")
 		return err
 	}
-
 	resData, err := s.ConfirmVanBlockHashes(ctx, reqData)
 	for i := 0; i < len(resData); i++ {
 		log.WithField("slot", resData[i].Slot).WithField("status", resData[i].Status).Debug("got confirmation status from orchestrator")
 
-		//if resData[i].Status == vanTypes.Invalid {
-		//	log.WithField("Slot", resData[i]).WithField("status", resData[i].Status).Warn("Invalid confirmation!")
-		//	return nil
-		//}
-
-		// checking the block's confirmation status. If the block is being confirmed then add it to canonical blockchain
-		//if resData[i].Status == vanTypes.Verified {
 		s.blockNotifier.BlockFeed().Send(&feed.Event{
 			Type: blockfeed.ConfirmedBlock,
 			Data: &blockfeed.ConfirmedData{
@@ -126,15 +126,116 @@ func (s *Service) processPendingBlocks(ctx context.Context) error {
 				Status: resData[i].Status,
 			},
 		})
-		// deleting block from cache because it is already verified
-		//err := s.pendingBlockCache.DeleteConfirmedBlock(resData[i].Slot)
-		//if err != nil {
-		//	return err
-		//}
-		//}
 	}
 
 	return nil
+}
+
+// waitForConfirmationBlock
+func(s *Service) waitForConfirmationBlock(ctx context.Context, b *ethpb.SignedBeaconBlock) error {
+	confirmedblocksCh := make(chan *feed.Event, 1)
+	var confirmedblockSub event.Subscription
+
+	confirmedblockSub = s.blockNotifier.BlockFeed().Subscribe(confirmedblocksCh)
+	defer confirmedblockSub.Unsubscribe()
+
+	for {
+		select {
+		case statusData := <-confirmedblocksCh:
+			if statusData.Type == blockfeed.ConfirmedBlock {
+				data, ok := statusData.Data.(*blockfeed.ConfirmedData)
+				if !ok || data == nil {
+					continue
+				}
+				// Checks slot number with incoming confirmation data slot
+				if data.Slot == b.Block.Slot {
+					switch status := data.Status; status {
+					case vanTypes.Verified:
+						log.WithField("slot", data.Slot).WithField(
+							"blockHash", data.BlockRootHash).Debug("verified by orchestrator")
+						if err := s.pendingBlockCache.DeleteConfirmedBlock(b.Block.Slot); err != nil {
+							log.WithError(err).Error("couldn't delete the verified blocks from cache")
+							return err
+						}
+						return nil
+					case vanTypes.Invalid:
+						log.WithField("slot", data.Slot).WithField(
+							"blockHash", data.BlockRootHash).Debug("invalid by orchestrator, exiting goroutine")
+						return errInvalidBlock
+					default:
+						continue		// for pending status, we can not make instant decision so we are waiting for the confirmation
+					}
+				}
+			}
+		case err := <-confirmedblockSub.Err():
+			log.WithError(err).Error("Confirmation fetcher closed, exiting goroutine")
+			return err
+		case <-s.ctx.Done():
+			log.WithField("function", "waitForConfirmationBlock").Debug("context is closed, exiting")
+			return errPendingBlockCtxIsDone
+		}
+	}
+}
+
+// waitForConfirmationsBatch
+// responsibilities:
+// -> subscribe on ConfirmedBlock
+// -> when getting confirmation data from fetchOrcConfirmations
+// -> There are 3 status: Pending, Unknown/Invalid, Verified
+// -> When Verified: it increments the pointer
+// -> When Pending: it sets the pointer on the previous slot and keep waiting for new requested confirmation data
+// -> When Unknown/Invalid: it return error
+// -> At the end, if it runs successfully, then it deletes all the batch from cache and return nil
+func (s *Service) waitForConfirmationsBlockBatch(ctx context.Context, blocks []*ethpb.SignedBeaconBlock) error {
+	confirmedblocksCh := make(chan *feed.Event, 1)
+	var confirmedblockSub event.Subscription
+
+	confirmedblockSub = s.blockNotifier.BlockFeed().Subscribe(confirmedblocksCh)
+	defer confirmedblockSub.Unsubscribe()
+
+	lastVerifiedSlot := types.Slot(0)
+	lastSlot := blocks[len(blocks) - 1].Block.Slot
+
+	for {
+		select {
+		case statusData := <-confirmedblocksCh:
+			if statusData.Type == blockfeed.ConfirmedBlock {
+				data, ok := statusData.Data.(*blockfeed.ConfirmedData)
+				if !ok || data == nil {
+					continue
+				}
+
+				switch status := data.Status; status {
+				case vanTypes.Verified:
+					log.WithField("slot", data.Slot).WithField(
+						"blockHash", data.BlockRootHash).Debug("verified by orchestrator")
+					lastVerifiedSlot = data.Slot
+					if lastVerifiedSlot == lastSlot {
+						for _, b := range blocks {
+							if err := s.pendingBlockCache.DeleteConfirmedBlock(b.Block.Slot); err != nil {
+								log.WithError(err).Error("couldn't delete the verified blocks from cache")
+								return err
+							}
+						}
+						return nil
+					}
+					continue
+				case vanTypes.Invalid:
+					log.WithField("slot", data.Slot).WithField(
+						"blockHash", data.BlockRootHash).Debug("invalid by orchestrator, exiting goroutine")
+					return errInvalidBlock
+				default:
+					continue		// for pending status, we can not make instant decision so we are waiting for the confirmation
+				}
+			}
+		case err := <-confirmedblockSub.Err():
+			log.WithError(err).Error("Confirmation fetcher closed, exiting goroutine")
+			return err
+		case <-s.ctx.Done():
+			log.WithField("function", "waitForConfirmationsBlockBatch").Debug("context is closed, exiting")
+			return errPendingBlockCtxIsDone
+		}
+	}
 }
 
 // sortedPendingSlots retrieves pending blocks from pending block cache and prepare sorted request data
@@ -162,6 +263,7 @@ func (s *Service) sortedPendingSlots() ([]*vanTypes.ConfirmationReqData, error) 
 
 	return reqData, nil
 }
+
 
 // ConfirmVanBlockHashes is a dummy function
 // TODO- Will remove this function when orchestrator client will be ready
