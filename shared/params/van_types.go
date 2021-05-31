@@ -4,12 +4,13 @@ import (
 	types "github.com/prysmaticlabs/eth2-types"
 )
 
-type Status int
+type Status string
 
 const (
-	Pending Status = iota
-	Verified
-	Invalid
+	Pending  Status = "Pending"
+	Verified Status = "Verified"
+	Invalid  Status = "Invalid"
+	Skipped  Status = "Skipped"
 )
 
 // ConfirmationReqData is used as a request param for getting confirmation from orchestrator

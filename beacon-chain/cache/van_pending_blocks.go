@@ -48,7 +48,7 @@ func (c *PendingBlocksCache) AddPendingBlock(blk *ethpb.BeaconBlock) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	if err := c.PendingBlocksCache.AddIfNotPresent(blk); err != nil {
+	if err := c.PendingBlocksCache.Add(blk); err != nil {
 		return err
 	}
 	trim(c.PendingBlocksCache, maxPendingBlocksCacheSize)

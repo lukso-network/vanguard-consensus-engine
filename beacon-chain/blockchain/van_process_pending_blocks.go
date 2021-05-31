@@ -29,7 +29,7 @@ type blockRoot [32]byte
 
 // PendingBlocksFetcher retrieves the cached un-confirmed beacon blocks from cache
 type PendingBlocksFetcher interface {
-	UnConfirmedBlocksFromCache() ([]*ethpb.BeaconBlock, error)
+	SortedUnConfirmedBlocksFromCache() ([]*ethpb.BeaconBlock, error)
 }
 
 // publishAndStorePendingBlock method publishes and stores the pending block for final confirmation check
@@ -76,23 +76,30 @@ func (s *Service) publishAndStorePendingBlockBatch(ctx context.Context, pendingB
 }
 
 // UnConfirmedBlocksFromCache retrieves all the cached blocks from cache and send it back to event api
-func (s *Service) UnConfirmedBlocksFromCache() ([]*ethpb.BeaconBlock, error) {
+func (s *Service) SortedUnConfirmedBlocksFromCache() ([]*ethpb.BeaconBlock, error) {
 	blks, err := s.pendingBlockCache.PendingBlocks()
 	if err != nil {
 		return nil, errors.Wrap(err, "Could not retrieve cached unconfirmed blocks from cache")
 	}
+
+	sort.Slice(blks, func(i, j int) bool {
+		return blks[i].Slot < blks[j].Slot
+	})
+
 	return blks, nil
 }
 
 // processOrcConfirmation
-func (s *Service) processOrcConfirmation(ctx context.Context) {
+func (s *Service) processOrcConfirmationLoop(ctx context.Context) {
 	ticker := time.NewTicker(processPendingBlocksPeriod)
 	go func() {
 		for {
 			select {
 			case <-ticker.C:
 				log.WithField("function", "processOrcConfirmation").Trace("running")
-				s.fetchOrcConfirmations(ctx)
+				err := s.fetchOrcConfirmations(ctx)
+				log.WithError(err).Error("got error when calling fetchOrcConfirmations method. exiting!")
+				return
 			case <-ctx.Done():
 				log.WithField("function", "processOrcConfirmation").Debug("context is closed, exiting")
 				ticker.Stop()
@@ -114,9 +121,16 @@ func (s *Service) fetchOrcConfirmations(ctx context.Context) error {
 		log.WithError(err).Error("got error when preparing sorted confirmation request data")
 		return err
 	}
+
 	resData, err := s.ConfirmVanBlockHashes(ctx, reqData)
+	if err != nil {
+		log.WithError(err).Error("got error when fetching confirmations from orchestrator client")
+		return err
+	}
+
 	for i := 0; i < len(resData); i++ {
-		log.WithField("slot", resData[i].Slot).WithField("status", resData[i].Status).Debug("got confirmation status from orchestrator")
+		log.WithField("slot", resData[i].Slot).WithField(
+			"status", resData[i].Status).Debug("got confirmation status from orchestrator")
 
 		s.blockNotifier.BlockFeed().Send(&feed.Event{
 			Type: blockfeed.ConfirmedBlock,
@@ -272,11 +286,19 @@ func (s *Service) ConfirmVanBlockHashes(
 
 	resData := make([]*vanTypes.ConfirmationResData, 0, len(request))
 	for i := 0; i < len(request); i++ {
-		resData = append(resData, &vanTypes.ConfirmationResData{
-				request[i].Slot,
-				request[i].Hash,
-				vanTypes.Verified,
+		if i == 7 {
+			resData = append(resData, &vanTypes.ConfirmationResData{
+				Slot: request[i].Slot,
+				Hash: request[i].Hash,
+				Status: vanTypes.Invalid,
 			})
+			continue
+		}
+		resData = append(resData, &vanTypes.ConfirmationResData{
+			Slot: request[i].Slot,
+			Hash: request[i].Hash,
+			Status: vanTypes.Verified,
+		})
 	}
 	return resData, nil
 }
