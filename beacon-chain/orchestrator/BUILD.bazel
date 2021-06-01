@@ -25,5 +25,6 @@ go_test(
     ],
     embed = [":orchestrator"],
     deps = [
+        "//shared/testutil/assert:go_default_library",
     ],
 )

@@ -46,7 +46,7 @@ func (orcRpc *RPCClient) Close() {
 func (orcRpc *RPCClient) ConfirmVanBlockHashes(ctx context.Context, blockHashes []*BlockHash) ([]*BlockStatus, error) {
 	var blockStatuses []*BlockStatus
 
-	err := orcRpc.client.CallContext(ctx, blockStatuses, confirmVanBlockHashesMethod, blockHashes)
+	err := orcRpc.client.CallContext(ctx, &blockStatuses, confirmVanBlockHashesMethod, blockHashes)
 	if err != nil {
 		log.WithField("context", "ConfirmVanBlockHashes").
 			WithField("requestedBlockHashed", blockHashes)
