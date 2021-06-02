@@ -3,18 +3,20 @@ package orchestrator
 import (
 	"context"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
+	types "github.com/prysmaticlabs/eth2-types"
+	vanTypes "github.com/prysmaticlabs/prysm/shared/params"
 )
 
 const confirmVanBlockHashesMethod = "orc_confirmVanBlockHashes"
 
 type Client interface {
-	Dial(string) (*Client, error)
-	DialContext(context.Context, string) (*Client, error)
-	NewClient(*rpc.Client) *Client
-	Close()
-	ConfirmVanBlockHashes(context.Context, []*BlockHash) ([]*BlockStatus, error)
+	ConfirmVanBlockHashes(context.Context, []*vanTypes.ConfirmationReqData) ([]*vanTypes.ConfirmationResData, error)
 }
+
+// Assure that RPCClient struct will implement Client interface
+var _ Client = &RPCClient{}
 
 // RPCClient defines typed wrappers for the Ethereum RPC API.
 type RPCClient struct {
@@ -39,18 +41,39 @@ func NewClient(c *rpc.Client) *RPCClient {
 	return &RPCClient{c}
 }
 
-func (orcRpc *RPCClient) Close() {
-	orcRpc.client.Close()
+func (orc *RPCClient) Close() {
+	orc.client.Close()
 }
 
-func (orcRpc *RPCClient) ConfirmVanBlockHashes(ctx context.Context, blockHashes []*BlockHash) ([]*BlockStatus, error) {
-	var blockStatuses []*BlockStatus
+func (orc *RPCClient) ConfirmVanBlockHashes(ctx context.Context, blockHashes []*vanTypes.ConfirmationReqData) ([]*vanTypes.ConfirmationResData, error) {
+	var (
+		orcBlockStatuses []*BlockStatus
+		orcBlockHashes   []*BlockHash
+		blockStatuses    []*vanTypes.ConfirmationResData
+	)
 
-	err := orcRpc.client.CallContext(ctx, &blockStatuses, confirmVanBlockHashesMethod, blockHashes)
+	for _, blockHash := range blockHashes {
+		orcBlockHash := &BlockHash{
+			Slot: uint64(blockHash.Slot),
+			Hash: common.BytesToHash(blockHash.Hash[:]),
+		}
+		orcBlockHashes = append(orcBlockHashes, orcBlockHash)
+	}
+
+	err := orc.client.CallContext(ctx, &orcBlockStatuses, confirmVanBlockHashesMethod, orcBlockHashes)
 	if err != nil {
 		log.WithField("context", "ConfirmVanBlockHashes").
 			WithField("requestedBlockHashed", blockHashes)
 		return nil, fmt.Errorf("rpcClient call context error, error is: %s", err.Error())
+	}
+
+	for _, orcBlockStatus := range orcBlockStatuses {
+		blockStatus := &vanTypes.ConfirmationResData{
+			Slot:   types.Slot(orcBlockStatus.Slot),
+			Hash:   orcBlockStatus.Hash,
+			Status: vanTypes.Status(orcBlockStatus.Status),
+		}
+		blockStatuses = append(blockStatuses, blockStatus)
 	}
 
 	return blockStatuses, nil
