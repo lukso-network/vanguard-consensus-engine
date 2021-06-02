@@ -69,7 +69,7 @@ func (s *ChainService) BlockNotifier() blockfeed.Notifier {
 
 // MockBlockNotifier mocks the block notifier.
 type MockBlockNotifier struct {
-	feed *event.Feed
+	feed     *event.Feed
 	feedLock sync.Mutex
 
 	recv     []*feed.Event

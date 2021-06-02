@@ -105,6 +105,7 @@ func (s *Service) onBlock(ctx context.Context, signed *ethpb.SignedBeaconBlock, 
 	if !valid {
 		return errors.New("signature in block failed to verify")
 	}
+
 	if err := s.savePostStateInfo(ctx, blockRoot, signed, postState, false /* reg sync */); err != nil {
 		return err
 	}
@@ -244,12 +245,6 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []*ethpb.SignedBeaconBl
 	if !verify {
 		return nil, nil, errors.New("batch block signature verification failed")
 	}
-
-	// TODO-Will wait for final confirmation from orchestrator
-	if err := s.publishAndStorePendingBlockBatch(ctx, blks); err != nil {
-		return nil, nil, errors.Wrap(err, "could not publish un-confirmed block batch and cache it")
-	}
-
 	for r, st := range boundaries {
 		if err := s.stateGen.SaveState(ctx, r, st); err != nil {
 			return nil, nil, err
@@ -322,9 +317,6 @@ func (s *Service) handleEpochBoundary(ctx context.Context, postState *stateTrie.
 		if err := helpers.UpdateProposerIndicesInCache(copied); err != nil {
 			return err
 		}
-
-		// TODO: current process - trigger event feed here
-
 	} else if postState.Slot() >= s.nextEpochBoundarySlot {
 		if err := reportEpochMetrics(ctx, postState, s.head.state); err != nil {
 			return err

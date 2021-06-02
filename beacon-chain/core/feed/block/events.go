@@ -29,7 +29,7 @@ type UnConfirmedBlockData struct {
 
 // ConfirmedData is the data which is sent after getting confirmation from orchestrator
 type ConfirmedData struct {
-	Slot types.Slot
+	Slot          types.Slot
 	BlockRootHash [32]byte
-	Status vanTypes.Status
+	Status        vanTypes.Status
 }

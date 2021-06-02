@@ -44,15 +44,18 @@ func (s *Service) ReceiveBlock(ctx context.Context, block *ethpb.SignedBeaconBlo
 		return err
 	}
 
-	// We will send the acknowledge about the incoming block to orchestrator
-	if err := s.publishAndStorePendingBlock(ctx, blockCopy.Block); err != nil {
-		return errors.Wrap(err, "could not publish un-confirmed block and cache it")
+	if s.enableVanguardNode {
+		// Send the incoming block acknowledge to orchestrator and store the pending block to cache
+		if err := s.publishAndStorePendingBlock(ctx, blockCopy.Block); err != nil {
+			log.WithError(err).Warn("could not publish un-confirmed block or cache it")
+			return err
+		}
+
+		// Wait for final confirmation from orchestrator node
+		if err := s.waitForConfirmationBlock(ctx, blockCopy); err != nil {
+			return err
+		}
 	}
-
-	// We should
-	// halt
-
-
 
 	// Update and save head block after fork choice.
 	if !featureconfig.Get().UpdateHeadTimely {
@@ -109,7 +112,18 @@ func (s *Service) ReceiveBlockBatch(ctx context.Context, blocks []*ethpb.SignedB
 		return err
 	}
 
-	// Publish and Halt
+	if s.enableVanguardNode {
+		// Send the incoming block acknowledge to orchestrator and store the pending block to cache
+		if err := s.publishAndStorePendingBlockBatch(ctx, blocks); err != nil {
+			log.WithError(err).Warn("could not publish un-confirmed batch of block or cache it")
+			return err
+		}
+
+		// Wait for final confirmation from orchestrator node
+		if err := s.waitForConfirmationsBlockBatch(ctx, blocks); err != nil {
+			return err
+		}
+	}
 
 	for i, b := range blocks {
 		blockCopy := stateTrie.CopySignedBeaconBlock(b)
