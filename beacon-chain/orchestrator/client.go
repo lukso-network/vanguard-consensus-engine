@@ -78,12 +78,14 @@ func (orc *RPCClient) ConfirmVanBlockHashes(ctx context.Context, blockHashes []*
 
 	// It's for now until we unify orc-van communication flow
 	for _, orcBlockStatus := range orcBlockStatuses {
-		blockStatus := &vanTypes.ConfirmationResData{
-			Slot:   types.Slot(orcBlockStatus.Slot),
-			Hash:   orcBlockStatus.Hash,
-			Status: vanTypes.Status(orcBlockStatus.Status),
+		if orcBlockStatus != nil {
+			blockStatus := &vanTypes.ConfirmationResData{
+				Slot:   types.Slot(orcBlockStatus.Slot),
+				Hash:   orcBlockStatus.Hash,
+				Status: vanTypes.Status(orcBlockStatus.Status),
+			}
+			blockStatuses = append(blockStatuses, blockStatus)
 		}
-		blockStatuses = append(blockStatuses, blockStatus)
 	}
 
 	return blockStatuses, nil
