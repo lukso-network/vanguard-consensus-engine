@@ -71,16 +71,29 @@ func TestRPCClient_ConfirmVanBlockHashes(t *testing.T) {
 	defer orcRpcClient.Close()
 
 	// Perform tests
+	exampleHash := common.HexToHash("0xfe88c94d860f01a17f961bf4bdfb6e0c6cd10d3fda5cc861e805ca1240c58553")
+
+	// Request
 	blockHashes := make([]*vanTypes.ConfirmationReqData, 1)
 	blockHash := &vanTypes.ConfirmationReqData{
 		Slot: 0,
-		Hash: common.HexToHash("0xfe88c94d860f01a17f961bf4bdfb6e0c6cd10d3fda5cc861e805ca1240c58553"),
+		Hash: exampleHash,
 	}
 	blockHashes[0] = blockHash
+
+	// Response
+	expectedBlockStatuses := make([]*vanTypes.ConfirmationResData, 1)
+	expectedBlockStatus := &vanTypes.ConfirmationResData{
+		Slot:   0,
+		Hash:   exampleHash,
+		Status: "Verified",
+	}
+	expectedBlockStatuses[0] = expectedBlockStatus
 
 	t.Run("connection success and returned with 1 verified block", func(t *testing.T) {
 		blockStatuses, err := orcRpcClient.ConfirmVanBlockHashes(ctx, blockHashes)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(blockStatuses))
+		assert.DeepEqual(t, expectedBlockStatuses, blockStatuses)
 	})
 }
