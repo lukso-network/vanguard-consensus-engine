@@ -21,7 +21,7 @@ type ConfirmationReqData struct {
 
 // ConfirmationResData is used as a response param for getting confirmation from orchestrator
 type ConfirmationResData struct {
-	Slot types.Slot
-	Hash [32]byte
+	Slot   types.Slot
+	Hash   [32]byte
 	Status Status
 }
