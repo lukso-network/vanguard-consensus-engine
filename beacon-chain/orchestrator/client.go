@@ -24,12 +24,12 @@ type RPCClient struct {
 }
 
 // Dial connects a client to the given URL.
-func Dial(rawurl string) (*RPCClient, error) {
-	return DialContext(context.Background(), rawurl)
+func Dial(ctx context.Context, rawUrl string) (*RPCClient, error) {
+	return DialContext(ctx, rawUrl)
 }
 
-func DialContext(ctx context.Context, rawurl string) (*RPCClient, error) {
-	c, err := rpc.DialContext(ctx, rawurl)
+func DialContext(ctx context.Context, rawUrl string) (*RPCClient, error) {
+	c, err := rpc.DialContext(ctx, rawUrl)
 	if err != nil {
 		return nil, err
 	}
@@ -52,6 +52,7 @@ func (orc *RPCClient) ConfirmVanBlockHashes(ctx context.Context, blockHashes []*
 		blockStatuses    []*vanTypes.ConfirmationResData
 	)
 
+	// It's for now until we unify orc-van communication flow
 	for _, blockHash := range blockHashes {
 		orcBlockHash := &BlockHash{
 			Slot: uint64(blockHash.Slot),
@@ -67,6 +68,7 @@ func (orc *RPCClient) ConfirmVanBlockHashes(ctx context.Context, blockHashes []*
 		return nil, fmt.Errorf("rpcClient call context error, error is: %s", err.Error())
 	}
 
+	// It's for now until we unify orc-van communication flow
 	for _, orcBlockStatus := range orcBlockStatuses {
 		blockStatus := &vanTypes.ConfirmationResData{
 			Slot:   types.Slot(orcBlockStatus.Slot),
