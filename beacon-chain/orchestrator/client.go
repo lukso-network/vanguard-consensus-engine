@@ -24,8 +24,8 @@ type RPCClient struct {
 }
 
 // Dial connects a client to the given URL.
-func Dial(ctx context.Context, rawUrl string) (*RPCClient, error) {
-	return DialContext(ctx, rawUrl)
+func Dial(rawUrl string) (*RPCClient, error) {
+	return DialContext(context.Background(), rawUrl)
 }
 
 func DialContext(ctx context.Context, rawUrl string) (*RPCClient, error) {
@@ -33,6 +33,12 @@ func DialContext(ctx context.Context, rawUrl string) (*RPCClient, error) {
 	if err != nil {
 		return nil, err
 	}
+	return NewClient(c), nil
+}
+
+func DialInProc(server *rpc.Server) (*RPCClient, error) {
+	c := rpc.DialInProc(server)
+
 	return NewClient(c), nil
 }
 

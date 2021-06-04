@@ -10,27 +10,23 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
 	"net"
 	"testing"
-	"time"
 )
 
-type orchestratorTestService struct {
-	unsubscribed            chan string
-	gotHangSubscriptionReq  chan struct{}
-	unblockHangSubscription chan struct{}
-}
+type orchestratorTestService struct{}
 
-func (apiMock *orchestratorTestService) ConfirmVanBlockHashes(args []*vanTypes.ConfirmationReqData, reply []*vanTypes.ConfirmationResData) error {
-	for _, confirmationReq := range args {
-		exampleResp := &vanTypes.ConfirmationResData{
-			Slot:   confirmationReq.Slot,
-			// only for test purpose, for now
-			Hash:   confirmationReq.Hash,
+func (apiMock *orchestratorTestService) ConfirmVanBlockHashes(args []*orchestrator.BlockHash) (reply []*orchestrator.BlockStatus) {
+	for _, singleArg := range args {
+		exampleResp := &orchestrator.BlockStatus{
+			BlockHash: orchestrator.BlockHash{
+				Slot: singleArg.Slot,
+				Hash: singleArg.Hash,
+			},
 			Status: "Verified",
 		}
 		reply = append(reply, exampleResp)
 	}
 
-	return nil
+	return reply
 }
 
 func newTestServer() *rpc.Server {
@@ -68,59 +64,23 @@ func TestRPCClient_ConfirmVanBlockHashes(t *testing.T) {
 		}
 	}()
 
-	listenerAddr := "http://" + listener.Addr().String()
-
 	// Configure rpcClient
-	orcRpcClient, err := orchestrator.Dial(ctx, listenerAddr)
+	orcRpcClient, err := orchestrator.DialInProc(rpcServer)
 	assert.NoError(t, err)
 
 	defer orcRpcClient.Close()
 
+	// Perform tests
 	blockHashes := make([]*vanTypes.ConfirmationReqData, 1)
 	blockHash := &vanTypes.ConfirmationReqData{
 		Slot: 0,
-		Hash: common.Hash{},
+		Hash: common.HexToHash("0xfe88c94d860f01a17f961bf4bdfb6e0c6cd10d3fda5cc861e805ca1240c58553"),
 	}
 	blockHashes[0] = blockHash
 
-	t.Run("test request and response flow", func(t *testing.T) {
-		var (
-			request  = `{"jsonrpc":"1.0","id":1,"method":"orc_confirmVanBlockHashes","params":{"subtrahend": 23, "minuend": 42}}` + "\n"
-			wantResp = `{"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"non-array args"}}` + "\n"
-			deadline = time.Now().Add(10 * time.Second)
-		)
-
-		conn, err := net.Dial("tcp", listener.Addr().String())
-		if err != nil {
-			t.Fatal("can't dial:", err)
-		}
-
-		defer func(conn net.Conn) {
-			err := conn.Close()
-			if err != nil {
-				t.Error(err)
-			}
-		}(conn)
-
-		err = conn.SetDeadline(deadline)
-		if err != nil {
-			t.Error(err)
-		}
-		// Write the request, then half-close the connection so the server stops reading.
-		_, err = conn.Write([]byte(request))
-		if err != nil {
-			t.Error(err)
-		}
-		err = conn.(*net.TCPConn).CloseWrite()
-		if err != nil {
-			t.Error(err)
-		}
-		// Now try to get the response.
-		buf := make([]byte, 2000)
-		n, err := conn.Read(buf)
-		if err != nil {
-			t.Fatal("read error:", err)
-		}
-		assert.DeepEqual(t, buf[:n], []byte(wantResp))
+	t.Run("connection success and returned with 1 verified block", func(t *testing.T) {
+		blockStatuses, err := orcRpcClient.ConfirmVanBlockHashes(ctx, blockHashes)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(blockStatuses))
 	})
 }
