@@ -10,19 +10,8 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
 	"net"
 	"testing"
+	"time"
 )
-
-func listenTCP() (net.Listener, string) {
-	l, e := net.Listen("tcp", "127.0.0.1:8545") // any available address
-	if e != nil {
-		print(e.Error())
-	}
-	if l == nil {
-		panic("error: Listener is nil!")
-	}
-
-	return l, l.Addr().String()
-}
 
 type orchestratorTestService struct {
 	unsubscribed            chan string
@@ -54,6 +43,7 @@ func newTestServer() *rpc.Server {
 }
 
 func TestRPCClient_ConfirmVanBlockHashes(t *testing.T) {
+	// Configure mocked rpcServer
 	ctx := context.Background()
 	rpcServer := newTestServer()
 
@@ -80,6 +70,7 @@ func TestRPCClient_ConfirmVanBlockHashes(t *testing.T) {
 
 	listenerAddr := "http://" + listener.Addr().String()
 
+	// Configure rpcClient
 	orcRpcClient, err := orchestrator.Dial(ctx, listenerAddr)
 	assert.NoError(t, err)
 
@@ -92,83 +83,44 @@ func TestRPCClient_ConfirmVanBlockHashes(t *testing.T) {
 	}
 	blockHashes[0] = blockHash
 
-	t.Run("connection success", func(t *testing.T) {
-		blockStatuses, err := orcRpcClient.ConfirmVanBlockHashes(ctx, blockHashes)
-		assert.NoError(t, err)
-		assert.Equal(t, 0, len(blockStatuses))
+	t.Run("test request and response flow", func(t *testing.T) {
+		var (
+			request  = `{"jsonrpc":"1.0","id":1,"method":"orc_confirmVanBlockHashes","params":{"subtrahend": 23, "minuend": 42}}` + "\n"
+			wantResp = `{"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"non-array args"}}` + "\n"
+			deadline = time.Now().Add(10 * time.Second)
+		)
+
+		conn, err := net.Dial("tcp", listener.Addr().String())
+		if err != nil {
+			t.Fatal("can't dial:", err)
+		}
+
+		defer func(conn net.Conn) {
+			err := conn.Close()
+			if err != nil {
+				t.Error(err)
+			}
+		}(conn)
+
+		err = conn.SetDeadline(deadline)
+		if err != nil {
+			t.Error(err)
+		}
+		// Write the request, then half-close the connection so the server stops reading.
+		_, err = conn.Write([]byte(request))
+		if err != nil {
+			t.Error(err)
+		}
+		err = conn.(*net.TCPConn).CloseWrite()
+		if err != nil {
+			t.Error(err)
+		}
+		// Now try to get the response.
+		buf := make([]byte, 2000)
+		n, err := conn.Read(buf)
+		if err != nil {
+			t.Fatal("read error:", err)
+		}
+		assert.DeepEqual(t, buf[:n], []byte(wantResp))
 	})
-
-	//t.Run("test another rpc client flow", func(t *testing.T) {
-	//	client, err := orchestrator.Dial(ctx, listenerAddr)
-	//	if err != nil {
-	//		t.Fatalf("dialing error: %s", err.Error())
-	//	}
-	//
-	//	defer client.Close()
-	//
-	//	// Synchronous calls
-	//	args := &vanTypes.ConfirmationReqData{
-	//		Slot: 0,
-	//		Hash: [32]byte{},
-	//	}
-	//	var argsSlice []*vanTypes.ConfirmationReqData
-	//	argsSlice = append(argsSlice, args)
-	//
-	//	hashes, err := client.ConfirmVanBlockHashes(ctx, argsSlice)
-	//	if err != nil {
-	//		t.Fatalf("ConfirmVanBlockHashes error: %s", err.Error())
-	//	}
-	//
-	//	wantedResp := &vanTypes.ConfirmationResData{
-	//		Slot:   0,
-	//		Hash:   [32]byte{},
-	//		Status: "",
-	//	}
-	//
-	//	assert.DeepEqual(t, wantedResp, hashes)
-	//})
-
-	//t.Run("test request and response flow", func(t *testing.T) {
-	//	var (
-	//		request  = `{"jsonrpc":"1.0","id":1,"method":"orc_confirmVanBlockHashes","params":{"subtrahend": 23, "minuend": 42}}` + "\n"
-	//		wantResp = `{"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"non-array args"}}` + "\n"
-	//		deadline = time.Now().Add(10 * time.Second)
-	//	)
-	//
-	//	conn, err := net.Dial("tcp", listener.Addr().String())
-	//	if err != nil {
-	//		t.Fatal("can't dial:", err)
-	//	}
-	//
-	//	defer func(conn net.Conn) {
-	//		err := conn.Close()
-	//		if err != nil {
-	//			t.Error(err)
-	//		}
-	//	}(conn)
-	//
-	//	err = conn.SetDeadline(deadline)
-	//	if err != nil {
-	//		t.Error(err)
-	//	}
-	//	// Write the request, then half-close the connection so the server stops reading.
-	//	_, err = conn.Write([]byte(request))
-	//	if err != nil {
-	//		t.Error(err)
-	//	}
-	//	err = conn.(*net.TCPConn).CloseWrite()
-	//	if err != nil {
-	//		t.Error(err)
-	//	}
-	//	// Now try to get the response.
-	//	buf := make([]byte, 2000)
-	//	n, err := conn.Read(buf)
-	//	if err != nil {
-	//		t.Fatal("read error:", err)
-	//	}
-	//	assert.DeepEqual(t, buf[:n], []byte(wantResp))
-	//	//if !bytes.Equal(buf[:n], []byte(wantResp)) {
-	//	//	t.Fatalf("wrong response: %s", buf[:n])
-	//	//}
-	//})
 }
