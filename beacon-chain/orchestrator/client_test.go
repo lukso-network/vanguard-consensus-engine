@@ -90,10 +90,19 @@ func TestRPCClient_ConfirmVanBlockHashes(t *testing.T) {
 	}
 	expectedBlockStatuses[0] = expectedBlockStatus
 
+	// Test cases
 	t.Run("connection success and returned with 1 verified block", func(t *testing.T) {
 		blockStatuses, err := orcRpcClient.ConfirmVanBlockHashes(ctx, blockHashes)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(blockStatuses))
 		assert.DeepEqual(t, expectedBlockStatuses, blockStatuses)
+	})
+
+	t.Run("connection success and empty request", func(t *testing.T) {
+		emptyBlockHashes := make([]*vanTypes.ConfirmationReqData, 1)
+		blockStatuses, err := orcRpcClient.ConfirmVanBlockHashes(ctx, emptyBlockHashes)
+		assert.NoError(t, err)
+		assert.Equal(t, 0, len(blockStatuses))
+		assert.DeepEqual(t, []*vanTypes.ConfirmationResData(nil), blockStatuses)
 	})
 }
