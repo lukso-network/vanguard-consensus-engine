@@ -67,10 +67,8 @@ jobs:
         uses: softprops/action-gh-release@v1
 
         with:
-          tag_name: steps.pushtag.new_tag
-          files: |
-            beacon-chain
-            validator
+          tag_name: $ {{ steps.pushtag.new_tag }}
+          files: ./beacon-chain
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
 
