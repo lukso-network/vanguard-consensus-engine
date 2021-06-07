@@ -58,14 +58,16 @@ jobs:
           cp ./builds/validator ./validator
 
       - name: Push tag
+        id: pushtag
         uses: mathieudutour/github-tag-action@v5.5
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Release
         uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+
         with:
+          tag_name: steps.pushtag.new_tag
           files: |
             beacon-chain
             validator
