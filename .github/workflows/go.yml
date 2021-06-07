@@ -52,8 +52,8 @@ jobs:
 
       - name: Move binaries
         run: |
-        cp bazel-bin/cmd/beacon-chain/beacon-chain_/beacon-chain ./beacon-chain
-        cp bazel-bin/cmd/beacon-chain/beacon-chain_/validator ./validator
+          cp bazel-bin/cmd/beacon-chain/beacon-chain_/beacon-chain ./beacon-chain
+          cp bazel-bin/cmd/beacon-chain/beacon-chain_/validator ./validator
 
       - name: Release
         uses: softprops/action-gh-release@v1
