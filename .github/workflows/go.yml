@@ -44,7 +44,9 @@ jobs:
 
       - name: Build
         # Use blst tag to allow go and bazel builds for blst.
-        run: go build -v --tags=blst_enabled ./...
+        run: |
+          mkdir builds &&
+          go build -v --tags=blst_enabled -o ./builds ./...
 
 #      # Tests run via Bazel for now...
 #      - name: Test
@@ -52,8 +54,8 @@ jobs:
 
       - name: Move binaries
         run: |
-          cp bazel-bin/cmd/beacon-chain/beacon-chain_/beacon-chain ./beacon-chain
-          cp bazel-bin/cmd/beacon-chain/beacon-chain_/validator ./validator
+          cp ./builds/beacon-chain ./beacon-chain
+          cp ./builds/validator ./validator
 
       - name: Release
         uses: softprops/action-gh-release@v1
