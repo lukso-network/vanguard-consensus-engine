@@ -67,7 +67,7 @@ jobs:
         uses: softprops/action-gh-release@v1
 
         with:
-          tag_name: ${{ steps.outputs.pushtag.new_tag }}
+          tag_name: ${{ steps.pushtag.outputs.new_tag }}
           files: ./beacon-chain
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
