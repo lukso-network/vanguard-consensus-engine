@@ -54,7 +54,7 @@ jobs:
 
       - name: Move binaries
         run: |
-          cp ./builds/beacon-chain ./beacon-chain
+          cp ./builds/beacon-chain ./beacon-chain.run
           cp ./builds/validator ./validator
 
       - name: Push tag
@@ -65,10 +65,9 @@ jobs:
 
       - name: Release
         uses: softprops/action-gh-release@v1
-
         with:
           tag_name: ${{ steps.pushtag.outputs.new_tag }}
-          files: ./beacon-chain
+          files: ./builds/beacon-chain
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
 
