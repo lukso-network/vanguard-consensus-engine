@@ -510,7 +510,7 @@ func HydrateV1BeaconBlockBody(b *v1.BeaconBlockBody) *v1.BeaconBlockBody {
 }
 
 // getDummyBlock method creates a brand new block with extraData
-func NewPandoraBlock(slot types.Slot, proposerIndex uint64) (*gethTypes.Header, common.Hash, *pandora.ExtraData) {
+func NewPandoraBlock(slot types.Slot, proposerIndex uint64) (*gethTypes.Header, *pandora.ExtraData) {
 	epoch := types.Epoch(slot / params.BeaconConfig().SlotsPerEpoch)
 	extraData := pandora.ExtraData{
 		Slot:          uint64(slot),
@@ -519,7 +519,7 @@ func NewPandoraBlock(slot types.Slot, proposerIndex uint64) (*gethTypes.Header, 
 	}
 	extraDataByte, err := rlp.EncodeToBytes(extraData)
 	if err != nil {
-		return nil, gethTypes.EmptyRootHash, nil
+		return nil, nil
 	}
 
 	block := gethTypes.NewBlock(&gethTypes.Header{
@@ -539,5 +539,5 @@ func NewPandoraBlock(slot types.Slot, proposerIndex uint64) (*gethTypes.Header, 
 		Nonce:       gethTypes.BlockNonce{0x01, 0x02, 0x03},
 	}, nil, nil, nil, nil)
 
-	return block.Header(), block.Hash(), &extraData
+	return block.Header(), &extraData
 }

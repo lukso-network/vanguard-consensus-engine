@@ -1,6 +1,7 @@
 package beacon
 
 import (
+	"context"
 	ptypes "github.com/gogo/protobuf/types"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed"
@@ -51,4 +52,16 @@ func (bs *Server) StreamNewPendingBlocks(empty *ptypes.Empty, stream ethpb.Beaco
 			return status.Error(codes.Canceled, "Context canceled")
 		}
 	}
+}
+
+// GetCanonicalBlock returns
+func (bs *Server) GetCanonicalBlock(ctx context.Context, empty *ptypes.Empty) (*ethpb.SignedBeaconBlock, error) {
+	headBlock, err := bs.HeadFetcher.HeadBlock(ctx)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "Could not get head block")
+	}
+	if headBlock == nil || headBlock.Block == nil {
+		return nil, status.Error(codes.Internal, "Head block of chain was nil")
+	}
+	return headBlock, nil
 }
