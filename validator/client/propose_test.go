@@ -27,10 +27,11 @@ import (
 )
 
 type mocks struct {
-	validatorClient *mock.MockBeaconNodeValidatorClient
-	nodeClient      *mock.MockNodeClient
-	signExitFunc    func(context.Context, *validatorpb.SignRequest) (bls.Signature, error)
-	pandoraService  *mock.MockPandoraService
+	validatorClient   *mock.MockBeaconNodeValidatorClient
+	nodeClient        *mock.MockNodeClient
+	signExitFunc      func(context.Context, *validatorpb.SignRequest) (bls.Signature, error)
+	pandoraService    *mock.MockPandoraService
+	beaconChainClient *mock.MockBeaconChainClient
 }
 
 type mockSignature struct{}
@@ -64,7 +65,8 @@ func setup(t *testing.T) (*validator, *mocks, bls.SecretKey, func()) {
 		signExitFunc: func(ctx context.Context, req *validatorpb.SignRequest) (bls.Signature, error) {
 			return mockSignature{}, nil
 		},
-		pandoraService: mock.NewMockPandoraService(ctrl),
+		pandoraService:    mock.NewMockPandoraService(ctrl),
+		beaconChainClient: mock.NewMockBeaconChainClient(ctrl),
 	}
 
 	aggregatedSlotCommitteeIDCache, err := lru.New(int(params.BeaconConfig().MaxCommitteesPerSlot))
@@ -83,6 +85,7 @@ func setup(t *testing.T) (*validator, *mocks, bls.SecretKey, func()) {
 		attLogs:                        make(map[[32]byte]*attSubmitted),
 		aggregatedSlotCommitteeIDCache: aggregatedSlotCommitteeIDCache,
 		pandoraService:                 m.pandoraService,
+		beaconClient:                   m.beaconChainClient,
 	}
 
 	return validator, m, validatorKey, ctrl.Finish
