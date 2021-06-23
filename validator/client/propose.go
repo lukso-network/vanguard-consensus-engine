@@ -421,34 +421,38 @@ func (v *validator) verifyPandoraShardHeader(beaconBlk *ethpb.BeaconBlock, slot 
 		return errInvalidHeaderHash
 	}
 	// verify timestamp. Timestamp should not be future time
-	if header.Time >= uint64(timeutils.Now().Unix()) {
+	if header.Time > uint64(timeutils.Now().Unix()) {
 		log.WithError(errInvalidTimestamp).Error("invalid timestamp from pandora chain")
 		return errInvalidTimestamp
-	}
-	// verify slot number
-	if extraData.Slot != uint64(slot) {
-		log.WithError(errInvalidSlot).
-			WithField("slot", slot).
-			WithField("extraDataSlot", extraData.Slot).
-			WithField("header", header.Extra).
-			Error("invalid slot from pandora chain")
-		return errInvalidSlot
 	}
 	// verify epoch number
 	if extraData.Epoch != uint64(epoch) {
 		log.WithError(errInvalidEpoch).Error("invalid epoch from pandora chain")
 		return errInvalidEpoch
 	}
-	// verify proposer index
-	//if extraData.ProposerIndex != uint64(beaconBlk.ProposerIndex) {
-	//	log.WithError(errInvalidProposerIndex).Error("invalid proposer index from pandora chain")
-	//	return errInvalidProposerIndex
-	//}
+
+	expectedTimeStart, err := helpers.SlotToTime(v.genesisTime, slot)
+
+	if nil != err {
+		return err
+	}
+
+	// verify slot number
+	if extraData.Slot != uint64(slot) {
+		log.WithError(errInvalidSlot).
+			WithField("slot", slot).
+			WithField("extraDataSlot", extraData.Slot).
+			WithField("header", header.Extra).
+			WithField("headerTime", header.Time).
+			WithField("expectedTimeStart", expectedTimeStart.Unix()).
+			Error("invalid slot from pandora chain")
+		return errInvalidSlot
+	}
 
 	return nil
 }
 
-// SealHash returns the hash of a block prior to it being sealed.
+// sealHash returns the hash of a block prior to it being sealed.
 func sealHash(header *eth1Types.Header) (hash common.Hash) {
 	hasher := sha3.NewLegacyKeccak256()
 
