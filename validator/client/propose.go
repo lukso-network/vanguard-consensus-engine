@@ -421,7 +421,7 @@ func (v *validator) verifyPandoraShardHeader(beaconBlk *ethpb.BeaconBlock, slot 
 		return errInvalidHeaderHash
 	}
 	// verify timestamp. Timestamp should not be future time
-	if header.Time >= uint64(timeutils.Now().Unix()) {
+	if header.Time > uint64(timeutils.Now().Unix()) {
 		log.WithError(errInvalidTimestamp).Error("invalid timestamp from pandora chain")
 		return errInvalidTimestamp
 	}
