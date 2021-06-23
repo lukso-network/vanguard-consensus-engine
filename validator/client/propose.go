@@ -430,20 +430,24 @@ func (v *validator) verifyPandoraShardHeader(beaconBlk *ethpb.BeaconBlock, slot 
 		log.WithError(errInvalidEpoch).Error("invalid epoch from pandora chain")
 		return errInvalidEpoch
 	}
+
+	expectedTimeStart, err := helpers.SlotToTime(v.genesisTime, slot)
+
+	if nil != err {
+		return err
+	}
+
 	// verify slot number
 	if extraData.Slot != uint64(slot) {
 		log.WithError(errInvalidSlot).
 			WithField("slot", slot).
 			WithField("extraDataSlot", extraData.Slot).
 			WithField("header", header.Extra).
+			WithField("headerTime", header.Time).
+			WithField("expectedTimeStart", expectedTimeStart.Unix()).
 			Error("invalid slot from pandora chain")
 		return errInvalidSlot
 	}
-	// verify proposer index
-	//if extraData.ProposerIndex != uint64(beaconBlk.ProposerIndex) {
-	//	log.WithError(errInvalidProposerIndex).Error("invalid proposer index from pandora chain")
-	//	return errInvalidProposerIndex
-	//}
 
 	return nil
 }
