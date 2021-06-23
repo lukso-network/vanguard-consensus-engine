@@ -425,6 +425,11 @@ func (v *validator) verifyPandoraShardHeader(beaconBlk *ethpb.BeaconBlock, slot 
 		log.WithError(errInvalidTimestamp).Error("invalid timestamp from pandora chain")
 		return errInvalidTimestamp
 	}
+	// verify epoch number
+	if extraData.Epoch != uint64(epoch) {
+		log.WithError(errInvalidEpoch).Error("invalid epoch from pandora chain")
+		return errInvalidEpoch
+	}
 	// verify slot number
 	if extraData.Slot != uint64(slot) {
 		log.WithError(errInvalidSlot).
@@ -433,11 +438,6 @@ func (v *validator) verifyPandoraShardHeader(beaconBlk *ethpb.BeaconBlock, slot 
 			WithField("header", header.Extra).
 			Error("invalid slot from pandora chain")
 		return errInvalidSlot
-	}
-	// verify epoch number
-	if extraData.Epoch != uint64(epoch) {
-		log.WithError(errInvalidEpoch).Error("invalid epoch from pandora chain")
-		return errInvalidEpoch
 	}
 	// verify proposer index
 	//if extraData.ProposerIndex != uint64(beaconBlk.ProposerIndex) {
@@ -448,7 +448,7 @@ func (v *validator) verifyPandoraShardHeader(beaconBlk *ethpb.BeaconBlock, slot 
 	return nil
 }
 
-// SealHash returns the hash of a block prior to it being sealed.
+// sealHash returns the hash of a block prior to it being sealed.
 func sealHash(header *eth1Types.Header) (hash common.Hash) {
 	hasher := sha3.NewLegacyKeccak256()
 

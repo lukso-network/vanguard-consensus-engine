@@ -930,13 +930,6 @@ func TestVerifyPandoraShardHeader(t *testing.T) {
 	want = "invalid epoch"
 	err = validator.verifyPandoraShardHeader(blk.Block, blk.Block.Slot, epoch, header, headerHash, extraData)
 	require.ErrorContains(t, want, err, "Should get an errInvalidEpoch error")
-
-	// Shoud get an `errInvalidProposerIndex` error
-	epoch = 3
-	blk.Block.ProposerIndex = 190
-	want = "invalid proposer index"
-	err = validator.verifyPandoraShardHeader(blk.Block, blk.Block.Slot, epoch, header, headerHash, extraData)
-	require.ErrorContains(t, want, err, "Should get an errInvalidProposerIndex error")
 }
 
 // TestProcessPandoraShardHeader method checks the `processPandoraShardHeader`

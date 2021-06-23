@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
+	eth1Types "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/prysmaticlabs/prysm/validator/pandora"
+	"golang.org/x/crypto/sha3"
 	"math/big"
 
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
@@ -539,5 +541,30 @@ func NewPandoraBlock(slot types.Slot, proposerIndex uint64) (*gethTypes.Header, 
 		Nonce:       gethTypes.BlockNonce{0x01, 0x02, 0x03},
 	}, nil, nil, nil, nil)
 
-	return block.Header(), block.Hash(), &extraData
+	return block.Header(), sealHash(block.Header()), &extraData
+}
+
+// sealHash returns the hash of a block prior to it being sealed.
+func sealHash(header *eth1Types.Header) (hash common.Hash) {
+	hasher := sha3.NewLegacyKeccak256()
+
+	if err := rlp.Encode(hasher, []interface{}{
+		header.ParentHash,
+		header.UncleHash,
+		header.Coinbase,
+		header.Root,
+		header.TxHash,
+		header.ReceiptHash,
+		header.Bloom,
+		header.Difficulty,
+		header.Number,
+		header.GasLimit,
+		header.GasUsed,
+		header.Time,
+		header.Extra,
+	}); err != nil {
+		return eth1Types.EmptyRootHash
+	}
+	hasher.Sum(hash[:0])
+	return hash
 }
