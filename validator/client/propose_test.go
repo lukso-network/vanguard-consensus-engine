@@ -976,7 +976,7 @@ func TestProcessPandoraShardHeader(t *testing.T) {
 		gomock.Any(), // ctx
 	).Return(nil, common.Hash{}, nil, ErrRlpDecoding)
 	_, err = validator.processPandoraShardHeader(context.Background(), blk.Block, blk.Block.Slot, epoch, pubKey)
-	require.ErrorContains(t, "rlp: input contains more than one value", ErrRlpDecoding)
+	require.ErrorContains(t, "rlp: input contains more than one value", err)
 }
 
 // TestValidator_ProposeBlock_Failed_WhenSubmitShardInfoFails methods checks when `SubmitShardInfo` fails
