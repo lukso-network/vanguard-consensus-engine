@@ -1,10 +1,10 @@
 name: Go
 
 on:
-  push:
-    branches: [ master ]
-  pull_request:
-    branches: [ '**' ]
+  create:
+    tags:
+      - v*
+      - v-v*
 
 jobs:
 
@@ -52,16 +52,10 @@ jobs:
 #      - name: Test
 #        run: go test -v --tags=develop,blst_enabled ./...
 
-      - name: Push tag
-        id: pushtag
-        uses: mathieudutour/github-tag-action@v5.5
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ steps.pushtag.outputs.new_tag }}
+          tag_name: ${{ github.event.release.tag_name }}
           files: |
             ./builds/beacon-chain
             ./builds/validator
@@ -71,8 +65,8 @@ jobs:
       - name: Request Multinet Upgrade
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-          GH_TAG: ${{ steps.pushtag.outputs.new_tag }}
         run: |
+          export GH_TAG=${GITHUB_REF/refs\/tags\//} &&
           curl -X POST \
           -H "Accept: application/vnd.github.v3+json" \
           -d '{"event_type":"upgrade dev", "client_payload": {"repository": "VANGUARD", "tag": "'$GH_TAG'"}}' \
