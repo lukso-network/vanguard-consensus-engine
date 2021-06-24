@@ -904,8 +904,13 @@ func TestVerifyPandoraShardHeader(t *testing.T) {
 	blk.Block.Slot = 98
 	blk.Block.ProposerIndex = 23
 	epoch := types.Epoch(uint64(blk.Block.Slot) / 32)
+	genesisTime := uint64(time.Now().Unix()) - params.BeaconConfig().SecondsPerSlot*uint64(blk.Block.Slot)
 
-	header, headerHash, extraData := testutil.NewPandoraBlock(blk.Block.Slot, uint64(blk.Block.ProposerIndex))
+	header, headerHash, extraData := testutil.NewPandoraBlockWithCorrectTime(
+		blk.Block.Slot,
+		uint64(blk.Block.ProposerIndex),
+		genesisTime,
+	)
 
 	// Checks all the validations
 	err := validator.verifyPandoraShardHeader(blk.Block, blk.Block.Slot, epoch, header, headerHash, extraData)

@@ -466,19 +466,22 @@ func (v *validator) verifyPandoraShardHeader(beaconBlk *ethpb.BeaconBlock, slot 
 			WithField("headerTime", header.Time).
 			WithField("expectedTimeStart", expectedTimeStart.Unix()).
 			WithField("currentSlot", helpers.CurrentSlot(v.genesisTime)).
+			WithField("unixTimeNow", time.Now().Unix()).
 			Error(err)
 
 		return err
 	}
 
 	if int64(header.Time) > expectedNextSlotTimeStart.Unix() {
-		err = fmt.Errorf("unix time for slot higher then expected")
+		err = fmt.Errorf("unix time for slot higher then expected %d", expectedTimeStart.Unix())
 		log.WithError(errInvalidSlot).
 			WithField("slot", slot).
 			WithField("extraDataSlot", extraData.Slot).
 			WithField("header", header.Extra).
 			WithField("headerTime", header.Time).
 			WithField("expectedTimeStart", expectedTimeStart.Unix()).
+			WithField("expectedNextTimeStart", expectedNextSlotTimeStart.Unix()).
+			WithField("unixTimeNow", time.Now().Unix()).
 			WithField("currentSlot", helpers.CurrentSlot(v.genesisTime)).
 			Error(err)
 
