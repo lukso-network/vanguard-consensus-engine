@@ -924,14 +924,18 @@ func TestVerifyPandoraShardHeader(t *testing.T) {
 
 	// Should get an `errInvalidSlot` error
 	header.Time = uint64(1426516743)
-	blk.Block.Slot = 90
 	want = "invalid slot"
+	header, headerHash, extraData = testutil.NewPandoraBlockWithCorrectTime(
+		90,
+		uint64(blk.Block.ProposerIndex),
+		genesisTime,
+	)
+	epoch = 2
 	err = validator.verifyPandoraShardHeader(blk.Block, blk.Block.Slot, epoch, header, headerHash, extraData)
 	require.ErrorContains(t, want, err, "Should get an errInvalidSlot error")
 
-	// Should get an `errInvalidEpoch` error
-	blk.Block.Slot = 98
-	epoch = 2
+	//// Should get an `errInvalidEpoch` error
+	epoch = 3
 	want = "invalid epoch"
 	err = validator.verifyPandoraShardHeader(blk.Block, blk.Block.Slot, epoch, header, headerHash, extraData)
 	require.ErrorContains(t, want, err, "Should get an errInvalidEpoch error")

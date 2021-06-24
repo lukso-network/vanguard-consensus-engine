@@ -438,12 +438,6 @@ func (v *validator) verifyPandoraShardHeader(beaconBlk *ethpb.BeaconBlock, slot 
 		return err
 	}
 
-	expectedNextSlotTimeStart, err := helpers.SlotToTime(v.genesisTime, slot+1)
-
-	if nil != err {
-		return err
-	}
-
 	// verify slot number
 	if extraData.Slot != uint64(slot) {
 		log.WithError(errInvalidSlot).
@@ -457,8 +451,13 @@ func (v *validator) verifyPandoraShardHeader(beaconBlk *ethpb.BeaconBlock, slot 
 		return errInvalidSlot
 	}
 
-	if int64(header.Time) < expectedTimeStart.Unix() {
-		err = fmt.Errorf("unix time for slot lower then expected")
+	err = helpers.VerifySlotTime(
+		v.genesisTime,
+		types.Slot(extraData.Slot),
+		params.BeaconNetworkConfig().MaximumGossipClockDisparity,
+	)
+
+	if nil != err {
 		log.WithError(errInvalidSlot).
 			WithField("slot", slot).
 			WithField("extraDataSlot", extraData.Slot).
@@ -467,22 +466,6 @@ func (v *validator) verifyPandoraShardHeader(beaconBlk *ethpb.BeaconBlock, slot 
 			WithField("expectedTimeStart", expectedTimeStart.Unix()).
 			WithField("currentSlot", helpers.CurrentSlot(v.genesisTime)).
 			WithField("unixTimeNow", time.Now().Unix()).
-			Error(err)
-
-		return err
-	}
-
-	if int64(header.Time) > expectedNextSlotTimeStart.Unix() {
-		err = fmt.Errorf("unix time for slot higher then expected %d", expectedTimeStart.Unix())
-		log.WithError(errInvalidSlot).
-			WithField("slot", slot).
-			WithField("extraDataSlot", extraData.Slot).
-			WithField("header", header.Extra).
-			WithField("headerTime", header.Time).
-			WithField("expectedTimeStart", expectedTimeStart.Unix()).
-			WithField("expectedNextTimeStart", expectedNextSlotTimeStart.Unix()).
-			WithField("unixTimeNow", time.Now().Unix()).
-			WithField("currentSlot", helpers.CurrentSlot(v.genesisTime)).
 			Error(err)
 
 		return err
