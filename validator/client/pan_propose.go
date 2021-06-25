@@ -15,13 +15,6 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-const (
-	// pandoraShardingId
-	pandoraShardingId = 0
-	// beacon block can attach maximum 1 pandora sharding info
-	totalPandoraShardInfo = 1
-)
-
 var (
 	// errInvalidHeaderHash is returned if the header hash does not match with incoming header hash
 	errInvalidHeaderHash = errors.New("invalid header hash")
@@ -50,15 +43,16 @@ func (v *validator) processPandoraShardHeader(
 	slot types.Slot,
 	epoch types.Epoch,
 	pubKey [48]byte,
-) (bool, error) {
+) error {
 
+	log.Debug("")
 	fmtKey := fmt.Sprintf("%#x", pubKey[:])
 
 	// Request for canonical sharding info from beacon node
-	//err, panHeaderHash, panBlkNum := v.panShardingCanonicalInfo(ctx, slot, pubKey)
-	//if err != nil {
-	//	return false, err
-	//}
+	err, _, _ := v.panShardingCanonicalInfo(ctx, slot, pubKey)
+	if err != nil {
+		return err
+	}
 	// TODO: Need to pass the canonical pandora header hash and block number to getWork api
 
 	// Request for pandora chain header
@@ -70,7 +64,7 @@ func (v *validator) processPandoraShardHeader(
 		if v.emitAccountMetrics {
 			ValidatorProposeFailVec.WithLabelValues(fmtKey).Inc()
 		}
-		return false, err
+		return err
 	}
 	// Validate pandora chain header hash, extraData fields
 	if err := v.verifyPandoraShardHeader(slot, epoch, header, headerHash, extraData); err != nil {
@@ -80,7 +74,7 @@ func (v *validator) processPandoraShardHeader(
 		if v.emitAccountMetrics {
 			ValidatorProposeFailVec.WithLabelValues(fmtKey).Inc()
 		}
-		return false, err
+		return err
 	}
 	headerHashSig, err := v.keyManager.Sign(ctx, &validatorpb.SignRequest{
 		PublicKey:       pubKey[:],
@@ -88,18 +82,39 @@ func (v *validator) processPandoraShardHeader(
 		SignatureDomain: nil,
 		Object:          nil,
 	})
-	//compressedSig := headerHashSig.Marshal()
+
 	if err != nil {
 		log.WithField("blockSlot", slot).WithError(err).Error("Failed to sign pandora header hash")
 		if v.emitAccountMetrics {
 			ValidatorProposeFailVec.WithLabelValues(fmtKey).Inc()
 		}
-		return false, err
+		return err
 	}
+
 	header.MixDigest = common.BytesToHash(headerHashSig.Marshal())
 	var headerHashSig96Bytes [96]byte
 	copy(headerHashSig96Bytes[:], headerHashSig.Marshal())
-	return v.pandoraService.SubmitShardBlockHeader(ctx, header.Nonce.Uint64(), headerHash, headerHashSig96Bytes)
+
+	// Submit bls signature to pandora
+	if status, err := v.pandoraService.SubmitShardBlockHeader(
+		ctx, header.Nonce.Uint64(), headerHash, headerHashSig96Bytes); !status || err != nil {
+
+		log.WithError(err).
+			WithField("pubKey", fmt.Sprintf("%#x", pubKey)).
+			WithField("slot", slot).
+			Error("Failed to process pandora chain shard header")
+		if v.emitAccountMetrics {
+			ValidatorProposeFailVec.WithLabelValues(fmtKey).Inc()
+		}
+		return err
+	}
+
+	// fill pandora shard info with pandora header
+	pandoraShard := v.preparePandoraShardingInfo(header, headerHash, headerHashSig.Marshal())
+	pandoraShards := make([]*ethpb.PandoraShard, 2)
+	pandoraShards[0] = pandoraShard
+	beaconBlk.Body.PandoraShard = pandoraShards
+	return nil
 }
 
 // verifyPandoraShardHeader verifies pandora sharding chain header hash and extraData field
@@ -117,7 +132,7 @@ func (v *validator) verifyPandoraShardHeader(
 		return errInvalidHeaderHash
 	}
 	// verify timestamp. Timestamp should not be future time
-	if header.Time >= uint64(timeutils.Now().Unix()) {
+	if header.Time > uint64(timeutils.Now().Unix()) {
 		log.WithError(errInvalidTimestamp).Error("invalid timestamp from pandora chain")
 		return errInvalidTimestamp
 	}
@@ -157,39 +172,36 @@ func (v *validator) panShardingCanonicalInfo(
 		return err, eth1Types.EmptyRootHash, 0
 	}
 
-	if len(headBlock.Block.Body.ShardTransitions) == 0 {
-		return errPanShardingInfoNotFound, eth1Types.EmptyRootHash, 0
+	// Pandora shard info nil means there is no pandora sharding data into beacon state
+	// if pandora sharding info is nil then canonical pandora block number should zero and hash will be unknown for first time
+	if headBlock.Block.Body.PandoraShard == nil || len(headBlock.Block.Body.PandoraShard) == 0 {
+		return nil, eth1Types.EmptyRootHash, 0
 	}
 
-	headerHash := common.BytesToHash(headBlock.Block.Body.ShardTransitions[pandoraShardingId].PandoraShardState.Hash)
-	blkNum := headBlock.Block.Body.ShardTransitions[pandoraShardingId].PandoraShardState.BlockNumber
-	log.WithField("panHeaderHash", headerHash).WithField("panBlockNum", blkNum).Debug(
-		"canonical pandora sharding info")
+	headerHash := common.BytesToHash(headBlock.Block.Body.PandoraShard[0].Hash)
+	blkNum := headBlock.Block.Body.PandoraShard[0].BlockNumber
+	log.WithField("slot", headBlock.Block.Slot).WithField("panHeaderHash", headerHash).WithField(
+		"panBlockNum", blkNum).Debug("canonical pandora sharding info from beacon head block")
 	return nil, headerHash, blkNum
 }
 
 // preparePandoraShardingInfo
 func (v *validator) preparePandoraShardingInfo(
-	slot types.Slot,
 	header *eth1Types.Header,
 	headerHash common.Hash,
-	parentHash common.Hash,
-) (error, *ethpb.PandoraShardState) {
+	sig []byte,
+) *ethpb.PandoraShard {
 
-	if header == nil {
-		return errNilHeader, nil
-	}
+	pandoraShard := new(ethpb.PandoraShard)
+	pandoraShard.BlockNumber = header.Number.Uint64()
+	pandoraShard.Hash = headerHash.Bytes()
+	pandoraShard.ParentHash = header.ParentHash.Bytes()
+	pandoraShard.StateRoot = header.Root.Bytes()
+	pandoraShard.TxHash = header.TxHash.Bytes()
+	pandoraShard.ReceiptHash = header.ReceiptHash.Bytes()
+	pandoraShard.Signature = sig
 
-	panState := new(ethpb.PandoraShardState)
-	panState.Slot = uint64(slot)
-	panState.BlockNumber = header.Number.Uint64()
-	panState.Hash = headerHash.Bytes()
-	panState.ParentHash = header.ParentHash.Bytes()
-	panState.StateRoot = header.Root.Bytes()
-	panState.TxHash = header.TxHash.Bytes()
-	panState.ReceiptHash = header.ReceiptHash.Bytes()
-
-	return nil, panState
+	return pandoraShard
 }
 
 // SealHash returns the hash of a block prior to it being sealed.

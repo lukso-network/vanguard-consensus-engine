@@ -454,7 +454,7 @@ func (b *BeaconNode) registerBlockchainService() error {
 	}
 
 	var orcClient *orchestrator.RPCClient
-	if b.cliCtx.Bool(flags.Network.Name) {
+	if b.cliCtx.Bool(cmd.VanguardNetwork.Name) {
 		endpoint := b.cliCtx.String(flags.OrcRpcProviderFlag.Name)
 		if endpoint == "" {
 			log.Error("No orchestrator node specified to run with the vanguard node. Please consider running your own orchestrator node for final consensus.")
@@ -484,7 +484,7 @@ func (b *BeaconNode) registerBlockchainService() error {
 		StateGen:           b.stateGen,
 		WspBlockRoot:       bRoot,
 		WspEpoch:           epoch,
-		EnableVanguardNode: b.cliCtx.Bool(flags.Network.Name),
+		EnableVanguardNode: b.cliCtx.Bool(cmd.VanguardNetwork.Name),
 		OrcRPCClient:       orcClient,
 	})
 	if err != nil {

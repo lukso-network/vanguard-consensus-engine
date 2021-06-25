@@ -543,25 +543,22 @@ func NewPandoraBlock(slot types.Slot, proposerIndex uint64) (*gethTypes.Header, 
 }
 
 // NewBeaconBlockWithPandoraSharding
-func NewBeaconBlockWithPandoraSharding(blkNum uint64, slot types.Slot) *ethpb.SignedBeaconBlock {
+func NewBeaconBlockWithPandoraSharding(panHeader *gethTypes.Header, slot types.Slot) *ethpb.SignedBeaconBlock {
 	beaconBlock := NewBeaconBlock()
 	beaconBlock.Block.Slot = slot
 
-	panState := new(ethpb.PandoraShardState)
-
-	panState.Slot = uint64(slot)
-	panState.BlockNumber = blkNum
+	panState := new(ethpb.PandoraShard)
+	panState.BlockNumber = panHeader.Number.Uint64() - 1
 	panState.Hash = gethTypes.EmptyRootHash.Bytes()
-	panState.ParentHash = gethTypes.EmptyRootHash.Bytes()
-	panState.StateRoot = gethTypes.EmptyRootHash.Bytes()
-	panState.TxHash = gethTypes.EmptyRootHash.Bytes()
-	panState.ReceiptHash = gethTypes.EmptyRootHash.Bytes()
+	panState.ParentHash = panHeader.ParentHash.Bytes()
+	panState.StateRoot = panHeader.Root.Bytes()
+	panState.TxHash = panHeader.TxHash.Bytes()
+	panState.ReceiptHash = panHeader.ReceiptHash.Bytes()
+	panState.Signature = make([]byte, params.BeaconConfig().BLSSignatureLength)
 
-	shardTransitions := make([]*ethpb.ShardTransition, 0)
-	shardTransition := new(ethpb.ShardTransition)
-	shardTransition.PandoraShardState = panState
-	shardTransitions = append(shardTransitions, shardTransition)
+	pandoraShards := make([]*ethpb.PandoraShard, 2)
+	pandoraShards[0] = panState
 
-	beaconBlock.Block.Body.ShardTransitions = shardTransitions
+	beaconBlock.Block.Body.PandoraShard = pandoraShards
 	return beaconBlock
 }

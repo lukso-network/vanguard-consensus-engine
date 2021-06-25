@@ -80,16 +80,12 @@ func (v *validator) ProposeBlock(ctx context.Context, slot types.Slot, pubKey [4
 		return
 	}
 
-	// processPandoraShardHeader method process the block header from pandora chain
-	if status, err := v.processPandoraShardHeader(ctx, b, slot, epoch, pubKey); !status || err != nil {
-		log.WithError(err).
-			WithField("pubKey", fmt.Sprintf("%#x", pubKey)).
-			WithField("slot", slot).
-			Error("Failed to process pandora chain shard header")
-		if v.emitAccountMetrics {
-			ValidatorProposeFailVec.WithLabelValues(fmtKey).Inc()
+	// Vanguard: If VanguardNetwork flag is enabled then this if state will be executed
+	if v.enableVanguardNode {
+		// Vanguard: processPandoraShardHeader method process the block header from pandora chain
+		if err := v.processPandoraShardHeader(ctx, b, slot, epoch, pubKey); err != nil {
+			return
 		}
-		return
 	}
 
 	// Sign returned block from beacon node
