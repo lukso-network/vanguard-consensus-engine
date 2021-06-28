@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 	types "github.com/prysmaticlabs/eth2-types"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
+	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
 	validatorpb "github.com/prysmaticlabs/prysm/proto/validator/accounts/v2"
 	"github.com/prysmaticlabs/prysm/shared/timeutils"
 	"github.com/prysmaticlabs/prysm/validator/pandora"
@@ -134,19 +135,28 @@ func (v *validator) verifyPandoraShardHeader(
 		log.WithError(errInvalidTimestamp).Error("invalid timestamp from pandora chain")
 		return errInvalidTimestamp
 	}
+	// verify epoch number
+	if extraData.Epoch != uint64(epoch) {
+		log.WithError(errInvalidEpoch).Error("invalid epoch from pandora chain")
+		return errInvalidEpoch
+	}
+
+	expectedTimeStart, err := helpers.SlotToTime(v.genesisTime, slot)
+
+	if nil != err {
+		return err
+	}
+
 	// verify slot number
 	if extraData.Slot != uint64(slot) {
 		log.WithError(errInvalidSlot).
 			WithField("slot", slot).
 			WithField("extraDataSlot", extraData.Slot).
 			WithField("header", header.Extra).
+			WithField("headerTime", header.Time).
+			WithField("expectedTimeStart", expectedTimeStart.Unix()).
 			Error("invalid slot from pandora chain")
 		return errInvalidSlot
-	}
-	// verify epoch number
-	if extraData.Epoch != uint64(epoch) {
-		log.WithError(errInvalidEpoch).Error("invalid epoch from pandora chain")
-		return errInvalidEpoch
 	}
 
 	return nil

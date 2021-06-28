@@ -3,7 +3,6 @@ package blockchain
 import (
 	"context"
 	"github.com/pkg/errors"
-	types "github.com/prysmaticlabs/eth2-types"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed"
 	blockfeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/block"
@@ -16,9 +15,9 @@ import (
 
 var (
 	// Getting confirmation status from orchestrator after each confirmationStatusFetchingInverval
-	confirmationStatusFetchingInverval = 1 * time.Second
+	confirmationStatusFetchingInverval = 2 * time.Second
 	// maxPendingBlockTryLimit is the maximum limit for pending status of a block
-	maxPendingBlockTryLimit       = 5
+	maxPendingBlockTryLimit       = 10
 	errInvalidBlock               = errors.New("invalid block found, discarded block batch")
 	errPendingBlockCtxIsDone      = errors.New("pending block confirmation context is done, reinitialize")
 	errEmptyBlocksBatch           = errors.New("empty length of the batch of incoming blocks")
@@ -26,6 +25,7 @@ var (
 	errUnknownStatus              = errors.New("invalid status from orchestrator")
 	errInvalidRPCClient           = errors.New("invalid orchestrator rpc client or no client initiated")
 	errPendingQueueUnprocessed    = errors.New("pending queue is un-processed")
+	errSkippedStatus              = errors.New("skipped status from orchestrator")
 )
 
 // PendingBlocksFetcher retrieves the cached un-confirmed beacon blocks from cache
@@ -66,6 +66,22 @@ func (s *Service) SortedUnConfirmedBlocksFromCache() ([]*ethpb.BeaconBlock, erro
 	return blks, nil
 }
 
+// publishAndWaitForOrcConfirmation publish the block to orchestrator and store the block into pending queue cache
+func (s *Service) publishAndWaitForOrcConfirmation(ctx context.Context, pendingBlk *ethpb.SignedBeaconBlock) error {
+	// Send the incoming block acknowledge to orchestrator and store the pending block to cache
+	if err := s.publishAndStorePendingBlock(ctx, pendingBlk.Block); err != nil {
+		log.WithError(err).Warn("could not publish un-confirmed block or cache it")
+		return err
+	}
+	// Wait for final confirmation from orchestrator node
+	if err := s.waitForConfirmationBlock(ctx, pendingBlk); err != nil {
+		log.WithError(err).WithField("slot", pendingBlk.Block.Slot).Warn(
+			"could not validate by orchestrator so discard the block")
+		return err
+	}
+	return nil
+}
+
 // publishAndStorePendingBlock method publishes and stores the pending block for final confirmation check
 func (s *Service) publishAndStorePendingBlock(ctx context.Context, pendingBlk *ethpb.BeaconBlock) error {
 	ctx, span := trace.StartSpan(ctx, "blockChain.publishAndStorePendingBlock")
@@ -81,29 +97,6 @@ func (s *Service) publishAndStorePendingBlock(ctx context.Context, pendingBlk *e
 	// Storing pending block into pendingBlockCache
 	if err := s.pendingBlockCache.AddPendingBlock(pendingBlk); err != nil {
 		return errors.Wrapf(err, "could not cache block of slot %d", pendingBlk.Slot)
-	}
-
-	return nil
-}
-
-// publishAndStorePendingBlockBatch method publishes and stores the batch of pending block for final confirmation check
-// Should get sorted pendingBlkBatch
-func (s *Service) publishAndStorePendingBlockBatch(ctx context.Context, pendingBlkBatch []*ethpb.SignedBeaconBlock) error {
-	ctx, span := trace.StartSpan(ctx, "blockChain.publishAndStorePendingBlockBatch")
-	defer span.End()
-
-	for _, b := range pendingBlkBatch {
-		// Sending pending block feed to streaming api
-		log.WithField("slot", b.Block.Slot).Debug("Unconfirmed block batch sends for publishing")
-		s.blockNotifier.BlockFeed().Send(&feed.Event{
-			Type: blockfeed.UnConfirmedBlock,
-			Data: &blockfeed.UnConfirmedBlockData{Block: b.Block},
-		})
-
-		// Storing pending block into pendingBlockCache
-		if err := s.pendingBlockCache.AddPendingBlock(b.Block); err != nil {
-			return errors.Wrapf(err, "could not cache block of slot %d", b.Block.Slot)
-		}
 	}
 
 	return nil
@@ -244,9 +237,19 @@ func (s *Service) waitForConfirmationBlock(ctx context.Context, b *ethpb.SignedB
 							return err
 						}
 						return errInvalidBlock
+					case vanTypes.Skipped:
+						log.WithError(errSkippedStatus).WithField("slot", data.Slot).WithField(
+							"status", "skipped").Error(
+							"got skipped status from orchestrator and discarding the block, exiting goroutine")
+						if err := s.pendingBlockCache.Delete(data.Slot); err != nil {
+							log.WithError(err).Error("couldn't delete the skipped block from cache")
+							return err
+						}
+						return errSkippedStatus
 					default:
-						log.WithError(errUnknownStatus).Error(
-							"got unknown status from orchestrator, exiting goroutine")
+						log.WithError(errUnknownStatus).WithField("slot", data.Slot).WithField(
+							"status", "unknown").Error(
+							"got unknown status from orchestrator and discarding the block, exiting goroutine")
 						return errUnknownStatus
 					}
 				}
@@ -257,107 +260,6 @@ func (s *Service) waitForConfirmationBlock(ctx context.Context, b *ethpb.SignedB
 		case <-s.ctx.Done():
 			log.WithField("function",
 				"waitForConfirmationBlock").Debug("context is closed, exiting")
-			return errPendingBlockCtxIsDone
-		}
-	}
-}
-
-// waitForConfirmationsBlockBatch method gets batch of blocks. It is notified by processOrcConfirmationLoop and then it
-// takes action based on status of block. If status is Verified then it will switch to next block. If status
-// Verified:
-// 	- switch to next block
-//	- check if the current verified slot is last one then it return nil error
-// Invalid:
-//	- directly return error and discard the whole batch.
-//	- sync service will re-download the batch
-// Pending:
-//	- Re-check new response from orchestrator
-//  - Decrease the re-try limit if it gets pending status again
-//	- If it reaches the maximum limit then return error
-func (s *Service) waitForConfirmationsBlockBatch(ctx context.Context, blocks []*ethpb.SignedBeaconBlock) error {
-	if len(blocks) <= 0 {
-		log.WithError(errEmptyBlocksBatch).Error("incoming batch length is zero")
-		return errEmptyBlocksBatch
-	}
-
-	confirmedBlocksCh := make(chan *feed.Event, 1)
-	var confirmedBlockSub event.Subscription
-	confirmedBlockSub = s.blockNotifier.BlockFeed().Subscribe(confirmedBlocksCh)
-	defer confirmedBlockSub.Unsubscribe()
-
-	curVerifiedSlot := types.Slot(0)
-	slotCounter := 0
-	nextSlotToVerify := blocks[slotCounter].Block.Slot
-	lastSlot := blocks[len(blocks)-1].Block.Slot
-	pendingBlockTryLimit := maxPendingBlockTryLimit
-
-	for {
-		select {
-		case statusData := <-confirmedBlocksCh:
-			if statusData.Type == blockfeed.ConfirmedBlock {
-				data, ok := statusData.Data.(*blockfeed.ConfirmedData)
-				if !ok || data == nil {
-					continue
-				}
-
-				// When the published status is only the status for next slot to verify then we check the status
-				if nextSlotToVerify == data.Slot {
-					switch status := data.Status; status {
-					case vanTypes.Verified:
-						log.WithField("slot", data.Slot).WithField(
-							"blockHash", data.BlockRootHash).Debug("verified by orchestrator")
-						curVerifiedSlot = data.Slot
-						if curVerifiedSlot == lastSlot {
-							for _, b := range blocks {
-								if err := s.pendingBlockCache.Delete(b.Block.Slot); err != nil {
-									log.WithError(err).Error("couldn't delete the verified blocks from cache")
-									return err
-								}
-							}
-							return nil
-						}
-						slotCounter++
-						nextSlotToVerify = blocks[slotCounter].Block.GetSlot()
-						// Reset this limit for next pending block
-						pendingBlockTryLimit = maxPendingBlockTryLimit
-						continue
-					case vanTypes.Invalid:
-						log.WithField("slot", data.Slot).WithField(
-							"blockHash", data.BlockRootHash).Debug(
-							"invalid by orchestrator, deleting the invalid block from cache")
-
-						if err := s.pendingBlockCache.Delete(data.Slot); err != nil {
-							log.WithError(err).Error("couldn't delete the invalid block from cache")
-							return err
-						}
-						return errInvalidBlock
-					case vanTypes.Pending:
-						log.WithField("slot", data.Slot).WithField(
-							"blockHash", data.BlockRootHash).Debug("got pending status from orchestrator")
-						pendingBlockTryLimit = pendingBlockTryLimit - 1
-						if pendingBlockTryLimit == 0 {
-							log.WithField("slot", data.Slot).WithError(errPendingBlockTryLimitExceed).Error(
-								"orchestrator sends pending status for this block so many times, deleting the invalid block from cache")
-
-							if err := s.pendingBlockCache.Delete(data.Slot); err != nil {
-								log.WithError(err).Error("couldn't delete the pending block from cache")
-								return err
-							}
-							return errPendingBlockTryLimitExceed
-						}
-						continue
-					default:
-						log.WithError(errUnknownStatus).Error(
-							"got unknown status from orchestrator, exiting goroutine")
-						return errUnknownStatus
-					}
-				}
-			}
-		case err := <-confirmedBlockSub.Err():
-			log.WithError(err).Error("Confirmation fetcher closed, exiting goroutine")
-			return err
-		case <-s.ctx.Done():
-			log.WithField("function", "waitForConfirmationsBlockBatch").Debug("context is closed, exiting")
 			return errPendingBlockCtxIsDone
 		}
 	}

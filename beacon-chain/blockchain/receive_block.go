@@ -44,15 +44,10 @@ func (s *Service) ReceiveBlock(ctx context.Context, block *ethpb.SignedBeaconBlo
 		return err
 	}
 
+	// Vanguard: Validated by vanguard node. Now intercepting the execution and publishing the block
+	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
 	if s.enableVanguardNode {
-		// Send the incoming block acknowledge to orchestrator and store the pending block to cache
-		if err := s.publishAndStorePendingBlock(ctx, blockCopy.Block); err != nil {
-			log.WithError(err).Warn("could not publish un-confirmed block or cache it")
-			return err
-		}
-
-		// Wait for final confirmation from orchestrator node
-		if err := s.waitForConfirmationBlock(ctx, blockCopy); err != nil {
+		if err := s.publishAndWaitForOrcConfirmation(ctx, blockCopy); err != nil {
 			return err
 		}
 	}
@@ -112,20 +107,15 @@ func (s *Service) ReceiveBlockBatch(ctx context.Context, blocks []*ethpb.SignedB
 		return err
 	}
 
-	if s.enableVanguardNode {
-		// Send the incoming block acknowledge to orchestrator and store the pending block to cache
-		if err := s.publishAndStorePendingBlockBatch(ctx, blocks); err != nil {
-			log.WithError(err).Warn("could not publish un-confirmed batch of block or cache it")
-			return err
-		}
-
-		// Wait for final confirmation from orchestrator node
-		if err := s.waitForConfirmationsBlockBatch(ctx, blocks); err != nil {
-			return err
-		}
-	}
-
 	for i, b := range blocks {
+		// Vanguard: Validated by vanguard node. Now intercepting the execution and publishing the block
+		// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
+		if s.enableVanguardNode {
+			if err := s.publishAndWaitForOrcConfirmation(ctx, b); err != nil {
+				return err
+			}
+		}
+
 		blockCopy := stateTrie.CopySignedBeaconBlock(b)
 		if err = s.handleBlockAfterBatchVerify(ctx, blockCopy, blkRoots[i], fCheckpoints[i], jCheckpoints[i]); err != nil {
 			traceutil.AnnotateError(span, err)
