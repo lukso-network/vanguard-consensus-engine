@@ -25,6 +25,7 @@ var (
 	errPendingBlockTryLimitExceed = errors.New("maximum wait is exceeded and orchestrator can not verify the block")
 	errUnknownStatus              = errors.New("invalid status from orchestrator")
 	errInvalidRPCClient           = errors.New("invalid orchestrator rpc client or no client initiated")
+	errPendingQueueUnprocessed    = errors.New("pending queue is un-processed")
 )
 
 // PendingBlocksFetcher retrieves the cached un-confirmed beacon blocks from cache
@@ -32,7 +33,38 @@ type PendingBlocksFetcher interface {
 	SortedUnConfirmedBlocksFromCache() ([]*ethpb.BeaconBlock, error)
 }
 
-type blockRoot [32]byte
+// BlockProposal interface use when validator calls GetBlock api for proposing new beancon block
+type PendingQueueFetcher interface {
+	CanPropose() error
+}
+
+// CanPropose
+func (s *Service) CanPropose() error {
+	blks, err := s.pendingBlockCache.PendingBlocks()
+	if err != nil {
+		return errors.Wrap(err, "Could not retrieve cached unconfirmed blocks from cache")
+	}
+
+	if len(blks) > 0 {
+		log.WithField("unprocessedBlockLen", len(blks)).WithError(err).Error("Pending queue is not nil")
+		return errPendingQueueUnprocessed
+	}
+	return nil
+}
+
+// UnConfirmedBlocksFromCache retrieves all the cached blocks from cache and send it back to event api
+func (s *Service) SortedUnConfirmedBlocksFromCache() ([]*ethpb.BeaconBlock, error) {
+	blks, err := s.pendingBlockCache.PendingBlocks()
+	if err != nil {
+		return nil, errors.Wrap(err, "Could not retrieve cached unconfirmed blocks from cache")
+	}
+
+	sort.Slice(blks, func(i, j int) bool {
+		return blks[i].Slot < blks[j].Slot
+	})
+
+	return blks, nil
+}
 
 // publishAndStorePendingBlock method publishes and stores the pending block for final confirmation check
 func (s *Service) publishAndStorePendingBlock(ctx context.Context, pendingBlk *ethpb.BeaconBlock) error {
@@ -75,20 +107,6 @@ func (s *Service) publishAndStorePendingBlockBatch(ctx context.Context, pendingB
 	}
 
 	return nil
-}
-
-// UnConfirmedBlocksFromCache retrieves all the cached blocks from cache and send it back to event api
-func (s *Service) SortedUnConfirmedBlocksFromCache() ([]*ethpb.BeaconBlock, error) {
-	blks, err := s.pendingBlockCache.PendingBlocks()
-	if err != nil {
-		return nil, errors.Wrap(err, "Could not retrieve cached unconfirmed blocks from cache")
-	}
-
-	sort.Slice(blks, func(i, j int) bool {
-		return blks[i].Slot < blks[j].Slot
-	})
-
-	return blks, nil
 }
 
 // processOrcConfirmation runs every certain interval and fetch confirmation from orchestrator periodically and

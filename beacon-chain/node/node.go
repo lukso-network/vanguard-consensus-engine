@@ -469,21 +469,23 @@ func (b *BeaconNode) registerBlockchainService() error {
 
 	maxRoutines := b.cliCtx.Int(cmd.MaxGoroutines.Name)
 	blockchainService, err := blockchain.NewService(b.ctx, &blockchain.Config{
-		BeaconDB:           b.db,
-		DepositCache:       b.depositCache,
-		ChainStartFetcher:  web3Service,
-		AttPool:            b.attestationPool,
-		ExitPool:           b.exitPool,
-		SlashingPool:       b.slashingsPool,
-		P2p:                b.fetchP2P(),
-		MaxRoutines:        maxRoutines,
-		StateNotifier:      b,
-		BlockNotifier:      b,
-		ForkChoiceStore:    b.forkChoiceStore,
-		OpsService:         opsService,
-		StateGen:           b.stateGen,
-		WspBlockRoot:       bRoot,
-		WspEpoch:           epoch,
+		BeaconDB:          b.db,
+		DepositCache:      b.depositCache,
+		ChainStartFetcher: web3Service,
+		AttPool:           b.attestationPool,
+		ExitPool:          b.exitPool,
+		SlashingPool:      b.slashingsPool,
+		P2p:               b.fetchP2P(),
+		MaxRoutines:       maxRoutines,
+		StateNotifier:     b,
+		BlockNotifier:     b,
+		ForkChoiceStore:   b.forkChoiceStore,
+		OpsService:        opsService,
+		StateGen:          b.stateGen,
+		WspBlockRoot:      bRoot,
+		WspEpoch:          epoch,
+
+		// vanguard: EnableVanguardNode and OrcRPCClient is used for vanguard chain
 		EnableVanguardNode: b.cliCtx.Bool(cmd.VanguardNetwork.Name),
 		OrcRPCClient:       orcClient,
 	})
@@ -674,7 +676,8 @@ func (b *BeaconNode) registerRPCService() error {
 		EnableDebugRPCEndpoints: enableDebugRPCEndpoints,
 		MaxMsgSize:              maxMsgSize,
 
-		// Vanguard: un-confirmed cached block fetcher
+		// vanguard: EnableVanguardNode and UnconfirmedBlockFetcher is used for vanguard chain
+		EnableVanguardNode:      b.cliCtx.Bool(cmd.VanguardNetwork.Name),
 		UnconfirmedBlockFetcher: chainService,
 	})
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"github.com/prysmaticlabs/prysm/shared/van_mock"
 	"strings"
 	"testing"
 	"time"
@@ -30,7 +31,7 @@ type mocks struct {
 	validatorClient   *mock.MockBeaconNodeValidatorClient
 	nodeClient        *mock.MockNodeClient
 	signExitFunc      func(context.Context, *validatorpb.SignRequest) (bls.Signature, error)
-	pandoraService    *mock.MockPandoraService
+	pandoraService    *van_mock.MockPandoraService
 	beaconChainClient *mock.MockBeaconChainClient
 }
 
@@ -65,7 +66,7 @@ func setup(t *testing.T) (*validator, *mocks, bls.SecretKey, func()) {
 		signExitFunc: func(ctx context.Context, req *validatorpb.SignRequest) (bls.Signature, error) {
 			return mockSignature{}, nil
 		},
-		pandoraService:    mock.NewMockPandoraService(ctrl),
+		pandoraService:    van_mock.NewMockPandoraService(ctrl),
 		beaconChainClient: mock.NewMockBeaconChainClient(ctrl),
 	}
 

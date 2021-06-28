@@ -49,14 +49,12 @@ func (v *validator) processPandoraShardHeader(
 	fmtKey := fmt.Sprintf("%#x", pubKey[:])
 
 	// Request for canonical sharding info from beacon node
-	err, _, _ := v.panShardingCanonicalInfo(ctx, slot, pubKey)
+	err, parentHash, blockNumber := v.panShardingCanonicalInfo(ctx, slot, pubKey)
 	if err != nil {
 		return err
 	}
-	// TODO: Need to pass the canonical pandora header hash and block number to getWork api
-
 	// Request for pandora chain header
-	header, headerHash, extraData, err := v.pandoraService.GetShardBlockHeader(ctx)
+	header, headerHash, extraData, err := v.pandoraService.GetShardBlockHeader(ctx, parentHash, blockNumber)
 	if err != nil {
 		log.WithField("blockSlot", slot).
 			WithField("fmtKey", fmtKey).
