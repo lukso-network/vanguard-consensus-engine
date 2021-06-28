@@ -425,6 +425,7 @@ func (v *validator) verifyPandoraShardHeader(beaconBlk *ethpb.BeaconBlock, slot 
 		log.WithError(errInvalidTimestamp).Error("invalid timestamp from pandora chain")
 		return errInvalidTimestamp
 	}
+
 	// verify epoch number
 	if extraData.Epoch != uint64(epoch) {
 		log.WithError(errInvalidEpoch).Error("invalid epoch from pandora chain")
@@ -445,8 +446,29 @@ func (v *validator) verifyPandoraShardHeader(beaconBlk *ethpb.BeaconBlock, slot 
 			WithField("header", header.Extra).
 			WithField("headerTime", header.Time).
 			WithField("expectedTimeStart", expectedTimeStart.Unix()).
+			WithField("currentSlot", helpers.CurrentSlot(v.genesisTime)).
 			Error("invalid slot from pandora chain")
 		return errInvalidSlot
+	}
+
+	err = helpers.VerifySlotTime(
+		v.genesisTime,
+		types.Slot(extraData.Slot),
+		params.BeaconNetworkConfig().MaximumGossipClockDisparity,
+	)
+
+	if nil != err {
+		log.WithError(errInvalidSlot).
+			WithField("slot", slot).
+			WithField("extraDataSlot", extraData.Slot).
+			WithField("header", header.Extra).
+			WithField("headerTime", header.Time).
+			WithField("expectedTimeStart", expectedTimeStart.Unix()).
+			WithField("currentSlot", helpers.CurrentSlot(v.genesisTime)).
+			WithField("unixTimeNow", time.Now().Unix()).
+			Error(err)
+
+		return err
 	}
 
 	return nil
