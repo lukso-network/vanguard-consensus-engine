@@ -904,8 +904,13 @@ func TestVerifyPandoraShardHeader(t *testing.T) {
 	blk.Block.Slot = 98
 	blk.Block.ProposerIndex = 23
 	epoch := types.Epoch(uint64(blk.Block.Slot) / 32)
+	genesisTime := uint64(time.Now().Unix()) - params.BeaconConfig().SecondsPerSlot*uint64(blk.Block.Slot)
 
-	header, headerHash, extraData := testutil.NewPandoraBlock(blk.Block.Slot, uint64(blk.Block.ProposerIndex))
+	header, headerHash, extraData := testutil.NewPandoraBlockWithCorrectTime(
+		blk.Block.Slot,
+		uint64(blk.Block.ProposerIndex),
+		genesisTime,
+	)
 
 	// Checks all the validations
 	err := validator.verifyPandoraShardHeader(blk.Block, blk.Block.Slot, epoch, header, headerHash, extraData)
@@ -919,24 +924,21 @@ func TestVerifyPandoraShardHeader(t *testing.T) {
 
 	// Should get an `errInvalidSlot` error
 	header.Time = uint64(1426516743)
-	blk.Block.Slot = 90
 	want = "invalid slot"
+	header, headerHash, extraData = testutil.NewPandoraBlockWithCorrectTime(
+		90,
+		uint64(blk.Block.ProposerIndex),
+		genesisTime,
+	)
+	epoch = 2
 	err = validator.verifyPandoraShardHeader(blk.Block, blk.Block.Slot, epoch, header, headerHash, extraData)
 	require.ErrorContains(t, want, err, "Should get an errInvalidSlot error")
 
-	// Should get an `errInvalidEpoch` error
-	blk.Block.Slot = 98
-	epoch = 2
+	//// Should get an `errInvalidEpoch` error
+	epoch = 3
 	want = "invalid epoch"
 	err = validator.verifyPandoraShardHeader(blk.Block, blk.Block.Slot, epoch, header, headerHash, extraData)
 	require.ErrorContains(t, want, err, "Should get an errInvalidEpoch error")
-
-	// Shoud get an `errInvalidProposerIndex` error
-	epoch = 3
-	blk.Block.ProposerIndex = 190
-	want = "invalid proposer index"
-	err = validator.verifyPandoraShardHeader(blk.Block, blk.Block.Slot, epoch, header, headerHash, extraData)
-	require.ErrorContains(t, want, err, "Should get an errInvalidProposerIndex error")
 }
 
 // TestProcessPandoraShardHeader method checks the `processPandoraShardHeader`
@@ -983,7 +985,7 @@ func TestProcessPandoraShardHeader(t *testing.T) {
 		gomock.Any(), // ctx
 	).Return(nil, common.Hash{}, nil, ErrRlpDecoding)
 	_, err = validator.processPandoraShardHeader(context.Background(), blk.Block, blk.Block.Slot, epoch, pubKey)
-	require.ErrorContains(t, "rlp: input contains more than one value", ErrRlpDecoding)
+	require.ErrorContains(t, "rlp: input contains more than one value", err)
 }
 
 // TestValidator_ProposeBlock_Failed_WhenSubmitShardInfoFails methods checks when `SubmitShardInfo` fails
