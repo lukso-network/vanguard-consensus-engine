@@ -114,9 +114,10 @@ func (v *validator) processPandoraShardHeader(
 
 	// fill pandora shard info with pandora header
 	pandoraShard := v.preparePandoraShardingInfo(header, headerHash, headerHashSig.Marshal())
-	pandoraShards := make([]*ethpb.PandoraShard, 2)
+	pandoraShards := make([]*ethpb.PandoraShard, 1)
 	pandoraShards[0] = pandoraShard
 	beaconBlk.Body.PandoraShard = pandoraShards
+	log.WithField("beaconBodyWithPandoraShard", beaconBlk.Body).Debug("successfully created pandora sharding block")
 	return nil
 }
 
@@ -234,6 +235,7 @@ func (v *validator) preparePandoraShardingInfo(
 	pandoraShard.ReceiptHash = header.ReceiptHash.Bytes()
 	pandoraShard.Signature = sig
 
+	log.WithField("pandoraShard", pandoraShard).Debug("successfully prepared pandora sharding info")
 	return pandoraShard
 }
 
