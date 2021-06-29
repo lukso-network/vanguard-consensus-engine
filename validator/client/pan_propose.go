@@ -11,9 +11,11 @@ import (
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
 	validatorpb "github.com/prysmaticlabs/prysm/proto/validator/accounts/v2"
+	"github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/shared/timeutils"
 	"github.com/prysmaticlabs/prysm/validator/pandora"
 	"golang.org/x/crypto/sha3"
+	"time"
 )
 
 var (
@@ -157,6 +159,26 @@ func (v *validator) verifyPandoraShardHeader(
 			WithField("expectedTimeStart", expectedTimeStart.Unix()).
 			Error("invalid slot from pandora chain")
 		return errInvalidSlot
+	}
+
+	err = helpers.VerifySlotTime(
+		v.genesisTime,
+		types.Slot(extraData.Slot),
+		params.BeaconNetworkConfig().MaximumGossipClockDisparity,
+	)
+
+	if nil != err {
+		log.WithError(errInvalidSlot).
+			WithField("slot", slot).
+			WithField("extraDataSlot", extraData.Slot).
+			WithField("header", header.Extra).
+			WithField("headerTime", header.Time).
+			WithField("expectedTimeStart", expectedTimeStart.Unix()).
+			WithField("currentSlot", helpers.CurrentSlot(v.genesisTime)).
+			WithField("unixTimeNow", time.Now().Unix()).
+			Error(err)
+
+		return err
 	}
 
 	return nil

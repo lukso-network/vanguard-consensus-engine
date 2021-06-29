@@ -20,6 +20,7 @@ import (
 	"go.opencensus.io/trace"
 	"time"
 )
+
 type signingFunc func(context.Context, *validatorpb.SignRequest) (bls.Signature, error)
 
 const domainDataErr = "could not get verify domain data"
