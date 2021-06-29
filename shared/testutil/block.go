@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/prysmaticlabs/prysm/validator/pandora"
-	"math/big"
-
+	eth1Types "github.com/ethereum/go-ethereum/core/types"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/pkg/errors"
 	types "github.com/prysmaticlabs/eth2-types"
 	v1 "github.com/prysmaticlabs/ethereumapis/eth/v1"
@@ -19,6 +17,10 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/shared/rand"
+	"github.com/prysmaticlabs/prysm/validator/pandora"
+	"golang.org/x/crypto/sha3"
+	"math/big"
+	"time"
 )
 
 // BlockGenConfig is used to define the requested conditions
@@ -509,8 +511,36 @@ func HydrateV1BeaconBlockBody(b *v1.BeaconBlockBody) *v1.BeaconBlockBody {
 	return b
 }
 
+func NewPandoraBlockWithCorrectTime(
+	slot types.Slot,
+	proposerIndex uint64,
+	genesisTime uint64,
+) (header *gethTypes.Header, hash common.Hash, extraData *pandora.ExtraData) {
+	headerTime, err := helpers.SlotToTime(genesisTime, slot)
+
+	if err != nil {
+		return nil, gethTypes.EmptyRootHash, nil
+	}
+
+	headerTimeUnix := uint64(headerTime.Unix()) + uint64((time.Millisecond * 50).Seconds())
+
+	header, hash, extraData = NewPandoraBlock(slot, proposerIndex)
+
+	if nil == header {
+		return
+	}
+
+	header.Time = headerTimeUnix
+	hash = sealHash(header)
+
+	return
+}
+
 // getDummyBlock method creates a brand new block with extraData
-func NewPandoraBlock(slot types.Slot, proposerIndex uint64) (*gethTypes.Header, common.Hash, *pandora.ExtraData) {
+func NewPandoraBlock(
+	slot types.Slot,
+	proposerIndex uint64,
+) (*gethTypes.Header, common.Hash, *pandora.ExtraData) {
 	epoch := types.Epoch(slot / params.BeaconConfig().SlotsPerEpoch)
 	extraData := pandora.ExtraData{
 		Slot:          uint64(slot),
@@ -539,5 +569,30 @@ func NewPandoraBlock(slot types.Slot, proposerIndex uint64) (*gethTypes.Header, 
 		Nonce:       gethTypes.BlockNonce{0x01, 0x02, 0x03},
 	}, nil, nil, nil, nil)
 
-	return block.Header(), block.Hash(), &extraData
+	return block.Header(), sealHash(block.Header()), &extraData
+}
+
+// sealHash returns the hash of a block prior to it being sealed.
+func sealHash(header *eth1Types.Header) (hash common.Hash) {
+	hasher := sha3.NewLegacyKeccak256()
+
+	if err := rlp.Encode(hasher, []interface{}{
+		header.ParentHash,
+		header.UncleHash,
+		header.Coinbase,
+		header.Root,
+		header.TxHash,
+		header.ReceiptHash,
+		header.Bloom,
+		header.Difficulty,
+		header.Number,
+		header.GasLimit,
+		header.GasUsed,
+		header.Time,
+		header.Extra,
+	}); err != nil {
+		return eth1Types.EmptyRootHash
+	}
+	hasher.Sum(hash[:0])
+	return hash
 }
