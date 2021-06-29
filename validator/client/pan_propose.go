@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	eth1Types "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
+	ptypes "github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
 	types "github.com/prysmaticlabs/eth2-types"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
@@ -56,8 +57,9 @@ func (v *validator) processPandoraShardHeader(
 	if err != nil {
 		return err
 	}
+	nextBlockNum := blockNumber + 1
 	// Request for pandora chain header
-	header, headerHash, extraData, err := v.pandoraService.GetShardBlockHeader(ctx, parentHash, blockNumber)
+	header, headerHash, extraData, err := v.pandoraService.GetShardBlockHeader(ctx, parentHash, nextBlockNum)
 	if err != nil {
 		log.WithField("blockSlot", slot).
 			WithField("fmtKey", fmtKey).
@@ -192,8 +194,9 @@ func (v *validator) panShardingCanonicalInfo(
 ) (error, common.Hash, uint64) {
 
 	fmtKey := fmt.Sprintf("%#x", pubKey[:])
+	log.WithField("slot", slot).Debug("trying to retrieve canonical block info")
 	// Request block from beacon node
-	headBlock, err := v.beaconClient.GetCanonicalBlock(ctx, nil)
+	headBlock, err := v.beaconClient.GetCanonicalBlock(ctx, &ptypes.Empty{})
 	if err != nil {
 		log.WithField("blockSlot", slot).WithError(err).Error("Failed to get canonical block from beacon node")
 		if v.emitAccountMetrics {

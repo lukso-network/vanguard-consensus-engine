@@ -59,7 +59,9 @@ func (bs *Server) StreamNewPendingBlocks(empty *ptypes.Empty, stream ethpb.Beaco
 
 // GetCanonicalBlock returns
 func (bs *Server) GetCanonicalBlock(ctx context.Context, empty *ptypes.Empty) (*ethpb.SignedBeaconBlock, error) {
+	log.WithField("api", "GetCanonicalBlock").Debug("got request for canonical head block")
 	headBlock, err := bs.HeadFetcher.HeadBlock(ctx)
+	log.WithField("headBlockSlot", headBlock.Block.Slot).Debug("fetched head block from blockchain")
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Could not get head block")
 	}
@@ -108,6 +110,6 @@ func (bs *Server) GetCanonicalBlock(ctx context.Context, empty *ptypes.Empty) (*
 			return nil, status.Errorf(codes.Internal, "Could not get prev justified block: %v", err)
 		}
 	}
-
+	log.Debug("sending head block to validator")
 	return headBlock, nil
 }
