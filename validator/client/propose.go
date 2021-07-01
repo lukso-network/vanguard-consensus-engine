@@ -127,6 +127,7 @@ func (v *validator) ProposeBlock(ctx context.Context, slot types.Slot, pubKey [4
 		return
 	}
 
+	log.WithField("slot", b.Slot).Debug("<<<<<<<< before printing pandora sharding info >>>>>>>")
 	if len(b.Body.PandoraShard) != 0 {
 		pshards := b.Body.PandoraShard
 		for _, ps := range pshards {
@@ -139,7 +140,7 @@ func (v *validator) ProposeBlock(ctx context.Context, slot types.Slot, pubKey [4
 				"sig", fmt.Sprintf("%X", ps.Signature)).Debug("<<<<<<<< full pandora shard info >>>>>>>")
 		}
 	}
-
+	log.WithField("slot", b.Slot).Debug("<<<<<<<< after printing pandora sharding info >>>>>>>")
 	// Propose and broadcast block via beacon node
 	blkResp, err := v.validatorClient.ProposeBlock(ctx, blk)
 	if err != nil {
