@@ -3,6 +3,7 @@ package powchain
 import (
 	"context"
 	"encoding/binary"
+	"github.com/prysmaticlabs/prysm/shared/hashutil"
 	"math/big"
 	"testing"
 	"time"
@@ -648,6 +649,14 @@ func TestCheckForChainstart_NoValidator(t *testing.T) {
 	s := newPowchainService(t, testAcc, beaconDB)
 	s.checkForChainstart([32]byte{}, nil, 0)
 	require.LogsDoNotContain(t, hook, "Could not determine active validator count from pre genesis state")
+}
+
+func TestDepositEventSignature_OK(t *testing.T) {
+	// Expected DepositEvent signature comes from ETH1 block log - after successful deposit transaction
+	expected := "649bbc62d0e31342afea4e5cd82d4049e7e1ee912fc0889aa790803be39038c5"
+	depositEventSignature = hashutil.HashKeccak256([]byte("DepositEvent(bytes,bytes,bytes,bytes,bytes)"))
+	depositEventSignatureString := common.Bytes2Hex(depositEventSignature[:])
+	assert.DeepEqual(t, expected, depositEventSignatureString)
 }
 
 func newPowchainService(t *testing.T, eth1Backend *contracts.TestAccount, beaconDB db.Database) *Service {
