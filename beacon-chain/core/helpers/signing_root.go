@@ -10,6 +10,7 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/bls"
 	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	"github.com/prysmaticlabs/prysm/shared/params"
+	log "github.com/sirupsen/logrus"
 )
 
 // ForkVersionByteLength length of fork version byte array.
@@ -127,6 +128,7 @@ func BlockSignatureSet(blk *ethpb.BeaconBlock, pub, signature, domain []byte) (*
 	}
 	// utilize custom block hashing function
 	root, err := signingData(blk.HashTreeRoot, domain)
+	log.WithField("root", root).WithField("slot", blk.Slot).Debug("<<<<<<<< signing root >>>>>>>>>")
 	if err != nil {
 		return nil, errors.Wrap(err, "could not compute signing root")
 	}
