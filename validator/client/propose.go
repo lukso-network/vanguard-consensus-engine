@@ -111,6 +111,7 @@ func (v *validator) ProposeBlock(ctx context.Context, slot types.Slot, pubKey [4
 		log.WithError(err).Error("Failed to compute signing root for block")
 		return
 	}
+	log.WithField("signingRoot", signingRoot).WithField("slot", slot).Debug("<<<<<<<< signing root >>>>>>>>>")
 
 	if err := v.preBlockSignValidations(ctx, pubKey, b, signingRoot); err != nil {
 		log.WithFields(

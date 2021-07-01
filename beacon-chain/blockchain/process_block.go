@@ -98,6 +98,9 @@ func (s *Service) onBlock(ctx context.Context, signed *ethpb.SignedBeaconBlock, 
 	if err != nil {
 		return errors.Wrap(err, "could not execute state transition")
 	}
+	for _, msg := range set.Messages {
+		log.WithField("msg", msg).WithField("slot", b.Slot).Debug("<<<<<<<< signing root >>>>>>>>>")
+	}
 	valid, err := set.Verify()
 	if err != nil {
 		return errors.Wrap(err, "could not batch verify signature")
