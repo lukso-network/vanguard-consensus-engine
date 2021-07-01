@@ -37,6 +37,13 @@ func (s *Service) ReceiveBlock(ctx context.Context, block *ethpb.SignedBeaconBlo
 	receivedTime := timeutils.Now()
 	blockCopy := stateTrie.CopySignedBeaconBlock(block)
 
+	// copy pandora shard info
+	if s.enableVanguardNode {
+		if blockCopy != nil && blockCopy.Block != nil && blockCopy.Block.Body != nil {
+			blockCopy.Block.Body.PandoraShard = stateTrie.CopyPandoraShard(block.Block.Body.PandoraShard)
+		}
+	}
+
 	// Apply state transition on the new block.
 	if err := s.onBlock(ctx, blockCopy, blockRoot); err != nil {
 		err := errors.Wrap(err, "could not process block")
