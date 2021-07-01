@@ -34,6 +34,8 @@ var (
 	errNilHeader = errors.New("pandora header is nil")
 	// errPanShardingInfoNotFound
 	errPanShardingInfoNotFound = errors.New("pandora sharding info not found in canonical head")
+	// errSubmitShardingSignatureFailed
+	errSubmitShardingSignatureFailed = errors.New("pandora sharding signature submission failed")
 )
 
 // processPandoraShardHeader method does the following tasks:
@@ -63,7 +65,7 @@ func (v *validator) processPandoraShardHeader(
 	if err != nil {
 		log.WithField("blockSlot", slot).
 			WithField("fmtKey", fmtKey).
-			WithError(err).Error("Failed to request block from pandora node")
+			WithError(err).Error("Failed to request block header from pandora node")
 		if v.emitAccountMetrics {
 			ValidatorProposeFailVec.WithLabelValues(fmtKey).Inc()
 		}
@@ -101,7 +103,11 @@ func (v *validator) processPandoraShardHeader(
 	// Submit bls signature to pandora
 	if status, err := v.pandoraService.SubmitShardBlockHeader(
 		ctx, header.Nonce.Uint64(), headerHash, headerHashSig96Bytes); !status || err != nil {
-
+		// err nil means got success in api request but pandora does not write the header
+		if err == nil {
+			log.WithField("slot", slot).Debug("pandora refused to accept the sharding signature")
+			err = errSubmitShardingSignatureFailed
+		}
 		log.WithError(err).
 			WithField("pubKey", fmt.Sprintf("%#x", pubKey)).
 			WithField("slot", slot).
@@ -117,7 +123,7 @@ func (v *validator) processPandoraShardHeader(
 	pandoraShards := make([]*ethpb.PandoraShard, 1)
 	pandoraShards[0] = pandoraShard
 	beaconBlk.Body.PandoraShard = pandoraShards
-	log.WithField("beaconBodyWithPandoraShard", beaconBlk.Body).Debug("successfully created pandora sharding block")
+	log.WithField("slot", beaconBlk.Slot).Debug("successfully created pandora sharding block")
 	return nil
 }
 
@@ -235,7 +241,6 @@ func (v *validator) preparePandoraShardingInfo(
 	pandoraShard.ReceiptHash = header.ReceiptHash.Bytes()
 	pandoraShard.Signature = sig
 
-	log.WithField("pandoraShard", pandoraShard).Debug("successfully prepared pandora sharding info")
 	return pandoraShard
 }
 

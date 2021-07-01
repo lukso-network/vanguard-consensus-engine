@@ -84,6 +84,7 @@ func (v *validator) ProposeBlock(ctx context.Context, slot types.Slot, pubKey [4
 	if v.enableVanguardNode {
 		// Vanguard: processPandoraShardHeader method process the block header from pandora chain
 		if err := v.processPandoraShardHeader(ctx, b, slot, epoch, pubKey); err != nil {
+			log.WithField("blockSlot", slot).WithError(err).Error("Failed to process pandora sharding info")
 			return
 		}
 	}

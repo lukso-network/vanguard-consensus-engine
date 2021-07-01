@@ -190,9 +190,8 @@ func (s *Service) GetShardBlockHeader(
 	if err := rlp.DecodeBytes(header.Extra, &extraData); err != nil {
 		return nil, common.Hash{}, nil, errors.Wrap(err, "Failed to decode extra data fields")
 	}
-	log.WithField("header", header).WithField(
-		"generatedHeaderHash", header.Hash()).WithField(
-		"headerHash", response.HeaderHash).WithField(
+	log.WithField("generatedHeaderHash", header.Hash().Hex()).WithField(
+		"headerHash", response.HeaderHash.Hex()).WithField(
 		"extraData", extraData).Debug("Got header info from pandora")
 	return header, response.HeaderHash, &extraData, nil
 }
