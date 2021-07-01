@@ -132,7 +132,7 @@ func (v *validator) ProposeBlock(ctx context.Context, slot types.Slot, pubKey [4
 		pshards := b.Body.PandoraShard
 		for _, ps := range pshards {
 			log.WithField("bn", ps.BlockNumber).WithField(
-				"hash",  fmt.Sprintf("%X", ps.Hash)).WithField(
+				"hash", fmt.Sprintf("%X", ps.Hash)).WithField(
 				"ph", fmt.Sprintf("%X", ps.ParentHash)).WithField(
 				"sroot", fmt.Sprintf("%X", ps.StateRoot)).WithField(
 				"txHash", fmt.Sprintf("%X", ps.TxHash)).WithField(

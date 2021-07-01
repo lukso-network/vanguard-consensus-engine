@@ -132,12 +132,12 @@ func BlockSignatureSet(blk *ethpb.BeaconBlock, pub, signature, domain []byte) (*
 		pshards := blk.Body.PandoraShard
 		for _, ps := range pshards {
 			log.WithField("bn", ps.BlockNumber).WithField(
-				"hash",  fmt.Sprintf("%X", ps.Hash)).WithField(
-					"ph", fmt.Sprintf("%X", ps.ParentHash)).WithField(
-						"sroot", fmt.Sprintf("%X", ps.StateRoot)).WithField(
-							"txHash", fmt.Sprintf("%X", ps.TxHash)).WithField(
-								"rHash", fmt.Sprintf("%X", ps.ReceiptHash)).WithField(
-									"sig", fmt.Sprintf("%X", ps.Signature)).Debug("<<<<<<<< full pandora shard info >>>>>>>")
+				"hash", fmt.Sprintf("%X", ps.Hash)).WithField(
+				"ph", fmt.Sprintf("%X", ps.ParentHash)).WithField(
+				"sroot", fmt.Sprintf("%X", ps.StateRoot)).WithField(
+				"txHash", fmt.Sprintf("%X", ps.TxHash)).WithField(
+				"rHash", fmt.Sprintf("%X", ps.ReceiptHash)).WithField(
+				"sig", fmt.Sprintf("%X", ps.Signature)).Debug("<<<<<<<< full pandora shard info >>>>>>>")
 		}
 	}
 
