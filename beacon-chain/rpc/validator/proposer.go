@@ -145,6 +145,23 @@ func (vs *Server) GetBlock(ctx context.Context, req *ethpb.BlockRequest) (*ethpb
 	}
 	blk.StateRoot = stateRoot
 
+	// If vanguard chain is enabled, we set the latest pandora sharding info into beacon block so that
+	// we do not need to make another api call for getting latest sharding info
+	if vs.EnableVanguardNode {
+		headBlk, err := vs.HeadFetcher.HeadBlock(ctx)
+		if err != nil {
+			log.WithField("slot", blk.Slot).Debug("Failed to retrieve head block")
+			return nil, status.Errorf(codes.Internal, "Could not get head block: %v", err)
+		}
+
+		if headBlk == nil || headBlk.Block == nil {
+			log.WithField("slot", blk.Slot).Debug("Head block of chain was nil")
+			return blk, nil
+		}
+
+		blk.Body.PandoraShard = headBlk.Block.Body.PandoraShard
+	}
+
 	return blk, nil
 }
 

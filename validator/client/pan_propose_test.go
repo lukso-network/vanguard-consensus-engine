@@ -69,21 +69,18 @@ func TestProcessPandoraShardHeader(t *testing.T) {
 		},
 	}
 	validator.keyManager = km
-	blk := testutil.NewBeaconBlock()
-	blk.Block.Slot = 98
-	blk.Block.ProposerIndex = 23
-	epoch := types.Epoch(uint64(blk.Block.Slot) / 32)
-
 	// Check with happy path
-	header, extraData := testutil.NewPandoraBlock(blk.Block.Slot, uint64(blk.Block.ProposerIndex))
+	header, extraData := testutil.NewPandoraBlock(98, 23)
 	headerHash := sealHash(header)
+	beaconBlkWithShard := testutil.NewBeaconBlockWithPandoraSharding(header, 98)
+	beaconBlkWithShard.Block.Slot = 98
+	beaconBlkWithShard.Block.ProposerIndex = 23
+	epoch := types.Epoch(uint64(beaconBlkWithShard.Block.Slot) / 32)
 
-	beaconBlkWithShard := testutil.NewBeaconBlockWithPandoraSharding(header, blk.Block.Slot)
-
-	m.beaconChainClient.EXPECT().GetCanonicalBlock(
+	m.validatorClient.EXPECT().UpdateStateRoot(
 		gomock.Any(), // ctx
-		gomock.Any(), // nil
-	).Times(2).Return(beaconBlkWithShard, nil) // *SignedBeaconBlock, error
+		gomock.Any(), // beacon block
+	).Return(beaconBlkWithShard.Block, nil)
 
 	m.pandoraService.EXPECT().GetShardBlockHeader(
 		gomock.Any(), // ctx
@@ -98,7 +95,7 @@ func TestProcessPandoraShardHeader(t *testing.T) {
 		gomock.Any(), // sig
 	).Return(true, nil)
 
-	err = validator.processPandoraShardHeader(context.Background(), blk.Block, blk.Block.Slot, epoch, pubKey)
+	err = validator.processPandoraShardHeader(context.Background(), beaconBlkWithShard.Block, beaconBlkWithShard.Block.Slot, epoch, pubKey)
 	require.NoError(t, err, "Should successfully process pandora sharding header")
 
 	// Return rlp decoding error when calls `GetWork` api
@@ -108,7 +105,7 @@ func TestProcessPandoraShardHeader(t *testing.T) {
 		gomock.Any(), // parentHash
 		gomock.Any(), // next block number
 	).Return(nil, common.Hash{}, nil, ErrRlpDecoding)
-	err = validator.processPandoraShardHeader(context.Background(), blk.Block, blk.Block.Slot, epoch, pubKey)
+	err = validator.processPandoraShardHeader(context.Background(), beaconBlkWithShard.Block, beaconBlkWithShard.Block.Slot, epoch, pubKey)
 	require.ErrorContains(t, "rlp: input contains more than one value", err)
 }
 
@@ -129,21 +126,13 @@ func TestValidator_ProposeBlock_Failed_WhenSubmitShardInfoFails(t *testing.T) {
 		},
 	}
 	validator.keyManager = km
-	blk := testutil.NewBeaconBlock()
-	blk.Block.Slot = 98
-	blk.Block.ProposerIndex = 23
-	epoch := types.Epoch(uint64(blk.Block.Slot) / 32)
-
 	// Check with happy path
-	header, extraData := testutil.NewPandoraBlock(blk.Block.Slot, uint64(blk.Block.ProposerIndex))
+	header, extraData := testutil.NewPandoraBlock(98, 23)
 	headerHash := sealHash(header)
-
-	beaconBlkWithShard := testutil.NewBeaconBlockWithPandoraSharding(header, blk.Block.Slot)
-
-	m.beaconChainClient.EXPECT().GetCanonicalBlock(
-		gomock.Any(), // ctx
-		gomock.Any(), // nil
-	).Return(beaconBlkWithShard, nil) // *SignedBeaconBlock, error
+	beaconBlkWithShard := testutil.NewBeaconBlockWithPandoraSharding(header, 98)
+	beaconBlkWithShard.Block.Slot = 98
+	beaconBlkWithShard.Block.ProposerIndex = 23
+	epoch := types.Epoch(uint64(beaconBlkWithShard.Block.Slot) / 32)
 
 	m.pandoraService.EXPECT().GetShardBlockHeader(
 		gomock.Any(), // ctx
@@ -158,6 +147,6 @@ func TestValidator_ProposeBlock_Failed_WhenSubmitShardInfoFails(t *testing.T) {
 		gomock.Any(), // sig
 	).Return(false, errors.New("Failed to process pandora chain shard header"))
 
-	err = validator.processPandoraShardHeader(context.Background(), blk.Block, blk.Block.Slot, epoch, pubKey)
+	err = validator.processPandoraShardHeader(context.Background(), beaconBlkWithShard.Block, beaconBlkWithShard.Block.Slot, epoch, pubKey)
 	require.ErrorContains(t, "Failed to process pandora chain shard header", err)
 }
