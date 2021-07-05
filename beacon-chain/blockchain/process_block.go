@@ -98,9 +98,6 @@ func (s *Service) onBlock(ctx context.Context, signed *ethpb.SignedBeaconBlock, 
 	if err != nil {
 		return errors.Wrap(err, "could not execute state transition")
 	}
-	//for _, msg := range set.Messages {
-	//	log.WithField("msg", msg).WithField("slot", b.Slot).Debug("<<<<<<<< signing root >>>>>>>>>")
-	//}
 	valid, err := set.Verify()
 	if err != nil {
 		return errors.Wrap(err, "could not batch verify signature")
@@ -108,7 +105,6 @@ func (s *Service) onBlock(ctx context.Context, signed *ethpb.SignedBeaconBlock, 
 	if !valid {
 		return errors.New("signature in block failed to verify")
 	}
-
 	// Vanguard: Validated by vanguard node. Now intercepting the execution and publishing the block
 	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
 	if s.enableVanguardNode {
@@ -256,7 +252,6 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []*ethpb.SignedBeaconBl
 	if !verify {
 		return nil, nil, errors.New("batch block signature verification failed")
 	}
-
 	// Vanguard: Validated by vanguard node. Now intercepting the execution and publishing the block
 	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
 	if s.enableVanguardNode {
@@ -266,7 +261,6 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []*ethpb.SignedBeaconBl
 			}
 		}
 	}
-
 	for r, st := range boundaries {
 		if err := s.stateGen.SaveState(ctx, r, st); err != nil {
 			return nil, nil, err

@@ -100,8 +100,8 @@ github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5
 github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da/go.mod h1:Q73ZrmVTwzkszR9V5SSuryQ31EELlFMUz1kKyl939pY=
 github.com/armon/go-radix v0.0.0-20180808171621-7fddfc383310/go.mod h1:ufUuZ+zHj4x4TnLV4JWEpy2hxWSpsRywHrMgIH9cCH8=
 github.com/aryann/difflib v0.0.0-20170710044230-e206f873d14a/go.mod h1:DAHtR1m6lCRdSC2Tm3DSWRPvIPr6xNKyeHdqDQSQT+A=
-github.com/atif-konasl/fastssz v0.0.0-20210630125347-26ae2470da00 h1:DC86cZc2Ag/3DQsYWAL3mnkk35/w45viuj9hwDPjsoU=
-github.com/atif-konasl/fastssz v0.0.0-20210630125347-26ae2470da00/go.mod h1:DyEu2iuLBnb/T51BlsiO3yLYdJC6UbGMrIkqK1KmQxM=
+github.com/atif-konasl/fastssz v0.0.0-20210705113036-087ec0cbb160 h1:VxX7vk/C1ouWFMXfF078nZ1WMZEbzjwMxpc/hHHyluY=
+github.com/atif-konasl/fastssz v0.0.0-20210705113036-087ec0cbb160/go.mod h1:DyEu2iuLBnb/T51BlsiO3yLYdJC6UbGMrIkqK1KmQxM=
 github.com/aws/aws-lambda-go v1.13.3/go.mod h1:4UKl9IzQMoD+QF79YdCuzCwp8VbmG4VAQwij/eHl5CU=
 github.com/aws/aws-sdk-go v1.25.48/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=
 github.com/aws/aws-sdk-go v1.27.0/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=
@@ -764,8 +764,8 @@ github.com/lightstep/lightstep-tracer-common/golang/gogo v0.0.0-20190605223551-b
 github.com/lightstep/lightstep-tracer-go v0.18.1/go.mod h1:jlF1pusYV4pidLvZ+XD0UBX0ZE6WURAspgAczcDHrL4=
 github.com/logrusorgru/aurora v2.0.3+incompatible h1:tOpm7WcpBTn4fjmVfgpQq0EfczGlG91VSDkswnjF5A8=
 github.com/logrusorgru/aurora v2.0.3+incompatible/go.mod h1:7rIyQOR62GCctdiQpZ/zOJlFyk6y+94wXzv6RNZgaR4=
-github.com/lukso-network/vanguard-apis v0.0.1-alpha.0.20210702133725-b3275c33bc65 h1:wcWDUWmxSyR/pizw8mTSY9/b+AUEJMA6HQt8dCAsjBk=
-github.com/lukso-network/vanguard-apis v0.0.1-alpha.0.20210702133725-b3275c33bc65/go.mod h1:TpK86pqju87k0cwO2LBbSzN4LRYSPoUCWa2i0YWiBN0=
+github.com/lukso-network/vanguard-apis v0.0.1-alpha.0.20210705112853-d3e6c58aeec1 h1:ETfFTAn0nHumh3o0EFbo8S4OgEDkltd6mWE0lpWQRYI=
+github.com/lukso-network/vanguard-apis v0.0.1-alpha.0.20210705112853-d3e6c58aeec1/go.mod h1:TpK86pqju87k0cwO2LBbSzN4LRYSPoUCWa2i0YWiBN0=
 github.com/lunixbochs/vtclean v0.0.0-20180621232353-2d01aacdc34a/go.mod h1:pHhQNgMf3btfWnGBVipUOjRYhoOsdGqdm/+2c2E2WMI=
 github.com/lunixbochs/vtclean v1.0.0 h1:xu2sLAri4lGiovBDQKxl5mrXyESr3gUr5m5SM5+LVb8=
 github.com/lunixbochs/vtclean v1.0.0/go.mod h1:pHhQNgMf3btfWnGBVipUOjRYhoOsdGqdm/+2c2E2WMI=

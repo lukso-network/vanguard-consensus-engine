@@ -233,20 +233,19 @@ func (v *validator) updateStateRoot(
 // preparePandoraShardingInfo
 func (v *validator) preparePandoraShardingInfo(
 	header *eth1Types.Header,
-	headerHash common.Hash,
+	sealedHeaderHash common.Hash,
 	sig []byte,
 ) *ethpb.PandoraShard {
-
-	pandoraShard := new(ethpb.PandoraShard)
-	pandoraShard.BlockNumber = header.Number.Uint64()
-	pandoraShard.Hash = headerHash.Bytes()
-	pandoraShard.ParentHash = header.ParentHash.Bytes()
-	pandoraShard.StateRoot = header.Root.Bytes()
-	pandoraShard.TxHash = header.TxHash.Bytes()
-	pandoraShard.ReceiptHash = header.ReceiptHash.Bytes()
-	pandoraShard.Signature = sig
-
-	return pandoraShard
+	return &ethpb.PandoraShard{
+		BlockNumber: header.Number.Uint64(),
+		Hash:        header.Hash().Bytes(),
+		ParentHash:  header.ParentHash.Bytes(),
+		StateRoot:   header.Root.Bytes(),
+		TxHash:      header.TxHash.Bytes(),
+		ReceiptHash: header.ReceiptHash.Bytes(),
+		SealHash:    sealedHeaderHash.Bytes(),
+		Signature:   sig,
+	}
 }
 
 // SealHash returns the hash of a block prior to it being sealed.

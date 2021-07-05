@@ -169,22 +169,6 @@ func (vs *Server) GetBlock(ctx context.Context, req *ethpb.BlockRequest) (*ethpb
 // ProposeBlock is called by a proposer during its assigned slot to create a block in an attempt
 // to get it processed by the beacon node as the canonical head.
 func (vs *Server) ProposeBlock(ctx context.Context, blk *ethpb.SignedBeaconBlock) (*ethpb.ProposeResponse, error) {
-
-	log.WithField("slot", blk.Block.Slot).Debug("<<<<<<<< before printing pandora sharding info >>>>>>>")
-	if len(blk.Block.Body.PandoraShard) != 0 {
-		pshards := blk.Block.Body.PandoraShard
-		for _, ps := range pshards {
-			log.WithField("bn", ps.BlockNumber).WithField(
-				"hash", fmt.Sprintf("%X", ps.Hash)).WithField(
-				"ph", fmt.Sprintf("%X", ps.ParentHash)).WithField(
-				"sroot", fmt.Sprintf("%X", ps.StateRoot)).WithField(
-				"txHash", fmt.Sprintf("%X", ps.TxHash)).WithField(
-				"rHash", fmt.Sprintf("%X", ps.ReceiptHash)).WithField(
-				"sig", fmt.Sprintf("%X", ps.Signature)).Debug("<<<<<<<< full pandora shard info >>>>>>>")
-		}
-	}
-	log.WithField("slot", blk.Block.Slot).Debug("<<<<<<<< after printing pandora sharding info >>>>>>>")
-
 	root, err := blk.Block.HashTreeRoot()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not tree hash block: %v", err)

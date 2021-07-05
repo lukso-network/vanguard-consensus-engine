@@ -300,6 +300,7 @@ func CopyPandoraShard(pShards []*ethpb.PandoraShard) []*ethpb.PandoraShard {
 		StateRoot:   ps.StateRoot,
 		TxHash:      ps.TxHash,
 		ReceiptHash: ps.ReceiptHash,
+		SealHash:    ps.SealHash,
 		Signature:   ps.Signature,
 	}
 	pandoraShards[0] = pandoraShard
