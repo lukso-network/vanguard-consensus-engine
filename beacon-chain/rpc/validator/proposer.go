@@ -158,7 +158,8 @@ func (vs *Server) GetBlock(ctx context.Context, req *ethpb.BlockRequest) (*ethpb
 			log.WithField("slot", blk.Slot).Debug("Head block of chain was nil")
 			return blk, nil
 		}
-
+		log.WithField("slot", headBlk.Block.Slot).WithField(
+			"pandoraShard", fmt.Sprintf("%v", headBlk.Block.Body.PandoraShard)).Debug("head block info")
 		blk.Body.PandoraShard = headBlk.Block.Body.PandoraShard
 	}
 
