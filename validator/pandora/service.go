@@ -27,7 +27,8 @@ type ExtraData struct {
 	ProposerIndex uint64
 }
 
-const SignatureSize    = 96
+const SignatureSize = 96
+
 type BlsSignatureBytes [SignatureSize]byte
 
 type PandoraExtraDataSig struct {
