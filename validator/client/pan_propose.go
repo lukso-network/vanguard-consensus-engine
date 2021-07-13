@@ -137,7 +137,7 @@ func (v *validator) processPandoraShardHeader(
 	pandoraShards[0] = pandoraShard
 	beaconBlk.Body.PandoraShard = pandoraShards
 	log.WithField("slot", beaconBlk.Slot).WithField(
-		"pandoraHeaderHash", pandoraShard.Hash).Debug("successfully created pandora sharding block")
+		"pandoraHeaderHash", common.BytesToHash(pandoraShard.Hash)).Debug("successfully created pandora sharding block")
 
 	// calling UpdateStateRoot api of beacon-chain so that state root will be updated after adding pandora shard
 	updateBeaconBlk, err := v.updateStateRoot(ctx, beaconBlk)
@@ -252,7 +252,7 @@ func (v *validator) preparePandoraShardingInfo(
 ) *ethpb.PandoraShard {
 	return &ethpb.PandoraShard{
 		BlockNumber: header.Number.Uint64(),
-		Hash:        headerHashWithSig.Bytes(),
+		Hash:        header.Hash().Bytes(),
 		ParentHash:  header.ParentHash.Bytes(),
 		StateRoot:   header.Root.Bytes(),
 		TxHash:      header.TxHash.Bytes(),
@@ -302,6 +302,6 @@ func calculateHeaderHashWithSig(
 
 	header.Extra, err = rlp.EncodeToBytes(extraDataWithSig)
 	headerHash = header.Hash()
-	log.WithField("headerHashWithSig", headerHash).Debug("calculated header hash with signature")
+	log.WithField("headerHashWithSig", headerHash.Hex()).Debug("calculated header hash with signature")
 	return
 }
