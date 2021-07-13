@@ -71,7 +71,7 @@ func (v *validator) processPandoraShardHeader(
 		}
 		return err
 	}
-	// TODO- Need to verify pandora parentHash
+
 	// Validate pandora chain header hash, extraData fields
 	if err := v.verifyPandoraShardHeader(slot, epoch, header, headerHash, extraData); err != nil {
 		log.WithField("blockSlot", slot).
@@ -119,8 +119,20 @@ func (v *validator) processPandoraShardHeader(
 		return err
 	}
 
+	var headerHashWithSig common.Hash
+	if headerHashWithSig, err = calculateHeaderHashWithSig(header, *extraData, headerHashSig96Bytes); err != nil {
+		log.WithError(err).
+			WithField("pubKey", fmt.Sprintf("%#x", pubKey)).
+			WithField("slot", slot).
+			Error("Failed to process pandora chain shard header hash with signature")
+		if v.emitAccountMetrics {
+			ValidatorProposeFailVec.WithLabelValues(fmtKey).Inc()
+		}
+		return err
+	}
+
 	// fill pandora shard info with pandora header
-	pandoraShard := v.preparePandoraShardingInfo(header, headerHash, headerHashSig.Marshal())
+	pandoraShard := v.preparePandoraShardingInfo(header, headerHashWithSig, headerHash, headerHashSig.Marshal())
 	pandoraShards := make([]*ethpb.PandoraShard, 1)
 	pandoraShards[0] = pandoraShard
 	beaconBlk.Body.PandoraShard = pandoraShards
@@ -233,12 +245,13 @@ func (v *validator) updateStateRoot(
 // preparePandoraShardingInfo
 func (v *validator) preparePandoraShardingInfo(
 	header *eth1Types.Header,
+	headerHashWithSig common.Hash,
 	sealedHeaderHash common.Hash,
 	sig []byte,
 ) *ethpb.PandoraShard {
 	return &ethpb.PandoraShard{
 		BlockNumber: header.Number.Uint64(),
-		Hash:        header.Hash().Bytes(),
+		Hash:        headerHashWithSig.Bytes(),
 		ParentHash:  header.ParentHash.Bytes(),
 		StateRoot:   header.Root.Bytes(),
 		TxHash:      header.TxHash.Bytes(),
@@ -271,4 +284,23 @@ func sealHash(header *eth1Types.Header) (hash common.Hash) {
 	}
 	hasher.Sum(hash[:0])
 	return hash
+}
+
+func calculateHeaderHashWithSig(
+	header *eth1Types.Header,
+	pandoraExtraData pandora.ExtraData,
+	signatureBytes [96]byte,
+) (headerHash common.Hash, err error) {
+
+	var blsSignatureBytes pandora.BlsSignatureBytes
+	copy(blsSignatureBytes[:], signatureBytes[:])
+
+	extraDataWithSig := new(pandora.PandoraExtraDataSig)
+	extraDataWithSig.ExtraData = pandoraExtraData
+	extraDataWithSig.BlsSignatureBytes = &blsSignatureBytes
+
+	header.Extra, err = rlp.EncodeToBytes(extraDataWithSig)
+	headerHash = header.Hash()
+	log.WithField("headerHashWithSig", headerHash).Debug("calculated header hash with signature")
+	return
 }

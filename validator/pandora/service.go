@@ -27,6 +27,14 @@ type ExtraData struct {
 	ProposerIndex uint64
 }
 
+const SignatureSize    = 96
+type BlsSignatureBytes [SignatureSize]byte
+
+type PandoraExtraDataSig struct {
+	ExtraData
+	BlsSignatureBytes *BlsSignatureBytes
+}
+
 // Client defines a subset of methods conformed to by Pandora RPC clients for
 // producing catalyst block and insert pandora block.
 type PandoraService interface {
