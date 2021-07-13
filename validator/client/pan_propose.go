@@ -300,6 +300,7 @@ func calculateHeaderHashWithSig(
 	extraDataWithSig.ExtraData = pandoraExtraData
 	extraDataWithSig.BlsSignatureBytes = &blsSignatureBytes
 
+	log.WithField("headerHash", headerHash.Hex()).Debug("before calculation header hash with signature")
 	header.Extra, err = rlp.EncodeToBytes(extraDataWithSig)
 	headerHash = header.Hash()
 	log.WithField("headerHashWithSig", headerHash.Hex()).Debug("calculated header hash with signature")
