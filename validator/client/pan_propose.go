@@ -136,7 +136,8 @@ func (v *validator) processPandoraShardHeader(
 	pandoraShards := make([]*ethpb.PandoraShard, 1)
 	pandoraShards[0] = pandoraShard
 	beaconBlk.Body.PandoraShard = pandoraShards
-	log.WithField("slot", beaconBlk.Slot).Debug("successfully created pandora sharding block")
+	log.WithField("slot", beaconBlk.Slot).WithField(
+		"pandoraHeaderHash", pandoraShard.Hash).Debug("successfully created pandora sharding block")
 
 	// calling UpdateStateRoot api of beacon-chain so that state root will be updated after adding pandora shard
 	updateBeaconBlk, err := v.updateStateRoot(ctx, beaconBlk)
