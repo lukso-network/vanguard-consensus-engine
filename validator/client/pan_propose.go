@@ -97,7 +97,6 @@ func (v *validator) processPandoraShardHeader(
 		return err
 	}
 
-	header.MixDigest = common.BytesToHash(headerHashSig.Marshal())
 	var headerHashSig96Bytes [96]byte
 	copy(headerHashSig96Bytes[:], headerHashSig.Marshal())
 
@@ -137,6 +136,7 @@ func (v *validator) processPandoraShardHeader(
 	pandoraShards[0] = pandoraShard
 	beaconBlk.Body.PandoraShard = pandoraShards
 	log.WithField("slot", beaconBlk.Slot).Debug("successfully created pandora sharding block")
+	printHeader(header)
 
 	// calling UpdateStateRoot api of beacon-chain so that state root will be updated after adding pandora shard
 	updateBeaconBlk, err := v.updateStateRoot(ctx, beaconBlk)
@@ -303,4 +303,40 @@ func calculateHeaderHashWithSig(
 	headerHash = header.Hash()
 	log.WithField("headerHashWithSig", headerHash.Hex()).Debug("calculated header hash with signature")
 	return
+}
+
+/**
+{
+  difficulty: "0x1",
+  extraData: "0xf866c30a800ab860a899054e1dd5ada5f5174edc532ffa39662cbfc90470233028096d7e41a3263114572cb7d0493ba213becec37f43145d041e0bfbaaf4bf8c2a7aeaebdd0d7fd6c326831b986a9802bf5e9ad1f180553ae0af77334cd4eb606ed71b0dc7db424e",
+  gasLimit: "0x47ff2c",
+  gasUsed: "0x0",
+  hash: "0xaa1193c7d0d3cb6fbd33f5ddb748cd1e70e92b7bfc9667d4ecb4f61be63deb6c",
+  logsBloom: "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+  miner: "0xb46d14ef42ac9bb01303ba1842ea784e2460c7e7",
+  mixHash: "0xa899054e1dd5ada5f5174edc532ffa39662cbfc90470233028096d7e41a32631",
+  nonce: "0x0000000000000000",
+  number: "0x4",
+  parentHash: "0x3244474eb97faefc26df91a8c3d0f2a8f859855ba87b76b1cc6044cca29add40",
+  receiptsRoot: "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+  sha3Uncles: "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+  size: "0x288",
+  stateRoot: "0x03906b0760f3bec421d8a71c44273a5994c5f0e35b8b8d9e2112dc95a182aae6",
+  timestamp: "0x60ed66d1",
+  totalDifficulty: "0x80004",
+  transactionsRoot: "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421"
+}
+*/
+func printHeader(header *eth1Types.Header) {
+	log.WithField("difficulty", header.Difficulty).WithField(
+		"extraData", common.Bytes2Hex(header.Extra)).WithField(
+		"gasLimit", header.GasLimit).WithField("gasUsed", header.GasUsed).WithField(
+		"hash", header.Hash()).WithField("logsBloom", header.Bloom.Bytes()).WithField(
+		"miner", header.Coinbase.Hex()).WithField("mixHash", header.MixDigest.Hex()).WithField(
+		"nonce", header.Nonce).WithField("number", header.Number).WithField(
+		"parentHash", header.ParentHash.Hex()).WithField(
+		"receiptsRoot", header.ReceiptHash.Hex()).WithField(
+		"sha3Uncles", header.UncleHash.Hex()).WithField("stateRoot", header.Root.Hex()).WithField(
+		"timestamp", header.Time).WithField("transactionsRoot", header.TxHash.Hex()).Debug("header info")
+
 }
