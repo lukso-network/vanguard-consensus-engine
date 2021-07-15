@@ -5,7 +5,7 @@ go 1.16
 replace (
 	github.com/ethereum/go-ethereum => github.com/prysmaticlabs/bazel-go-ethereum v0.0.0-20210222122116-71d15f72c132
 	github.com/json-iterator/go => github.com/prestonvanloon/go v1.1.7-0.20190722034630-4f2e55fcf87b
-	github.com/prysmaticlabs/ethereumapis => github.com/lukso-network/vanguard-apis v0.0.1-alpha.0.20210519191023-19569d809edc
+	github.com/prysmaticlabs/ethereumapis => github.com/lukso-network/vanguard-apis v0.0.1-beta
 	github.com/prysmaticlabs/prysm => github.com/lukso-network/vanguard-consensus-engine v1.3.3
 	github.com/ethereum/go-ethereum => github.com/prysmaticlabs/bazel-go-ethereum v0.0.0-20210311182818-b9c0d847ae7b
 	github.com/json-iterator/go => github.com/prestonvanloon/go v1.1.7-0.20190722034630-4f2e55fcf87b
