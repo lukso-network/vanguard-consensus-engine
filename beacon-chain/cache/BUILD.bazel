@@ -54,7 +54,6 @@ go_test(
     size = "small",
     srcs = [
         "attestation_data_test.go",
-        "cache_test.go",
         "checkpoint_state_test.go",
         "committee_fuzz_test.go",
         "committee_test.go",

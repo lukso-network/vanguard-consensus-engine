@@ -10,7 +10,7 @@ import (
 	"github.com/pkg/errors"
 	types "github.com/prysmaticlabs/eth2-types"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
-	"github.com/prysmaticlabs/go-bitfield"
+	bitfield "github.com/prysmaticlabs/go-bitfield"
 	"github.com/prysmaticlabs/prysm/beacon-chain/cache"
 	iface "github.com/prysmaticlabs/prysm/beacon-chain/state/interface"
 	"github.com/prysmaticlabs/prysm/shared/bytesutil"
@@ -415,7 +415,7 @@ func precomputeProposerIndices(state iface.ReadOnlyBeaconState, activeIndices []
 // ProposerAssignments returns a map of proposer validator indices to corresponding slots for the next epoch.
 // This method is especially implemented for Orchestrator.
 func ProposerAssignments(
-	state *stateTrie.BeaconState,
+	state iface.BeaconState,
 	epoch types.Epoch,
 ) (map[types.ValidatorIndex][]types.Slot, error) {
 
