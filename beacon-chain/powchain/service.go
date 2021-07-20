@@ -720,25 +720,42 @@ func (s *Service) initPOWService() {
 				s.retryETH1Node(err)
 				continue
 			}
+			// Handle edge case with embedded genesis state by fetching genesis header to determine
+			// its height.
+			if s.chainStartData.Chainstarted && s.chainStartData.GenesisBlock == 0 {
+				// TODO: do this fallback better
+				genHeaderFromNumber, err := s.eth1DataFetcher.HeaderByNumber(ctx, big.NewInt(0))
+
+				if err != nil {
+					log.Errorf("Fail on fetching genesis header in pandora")
+					s.retryETH1Node(err)
+					continue
+				}
+
+				genHeader, err := s.eth1DataFetcher.HeaderByHash(ctx, common.BytesToHash(s.chainStartData.Eth1Data.BlockHash))
+
+				if err != nil && nil == genHeaderFromNumber {
+					log.Errorf("Unable to retrieve genesis ETH1.0 chain header: %v", err)
+					s.retryETH1Node(err)
+					continue
+				}
+
+				if nil != genHeaderFromNumber {
+					genHeader = genHeaderFromNumber
+				}
+
+				s.chainStartData.GenesisBlock = genHeader.Number.Uint64()
+				if err := s.savePowchainData(ctx); err != nil {
+					log.Errorf("Unable to save powchain data: %v", err)
+				}
+
+				return
+			}
 			// Cache eth1 headers from our voting period.
 			if err := s.cacheHeadersForEth1DataVote(ctx); err != nil {
 				log.Errorf("Unable to process past headers %v", err)
 				s.retryETH1Node(err)
 				continue
-			}
-			// Handle edge case with embedded genesis state by fetching genesis header to determine
-			// its height.
-			if s.chainStartData.Chainstarted && s.chainStartData.GenesisBlock == 0 {
-				genHeader, err := s.eth1DataFetcher.HeaderByHash(ctx, common.BytesToHash(s.chainStartData.Eth1Data.BlockHash))
-				if err != nil {
-					log.Errorf("Unable to retrieve genesis ETH1.0 chain header: %v", err)
-					s.retryETH1Node(err)
-					continue
-				}
-				s.chainStartData.GenesisBlock = genHeader.Number.Uint64()
-				if err := s.savePowchainData(ctx); err != nil {
-					log.Errorf("Unable to save powchain data: %v", err)
-				}
 			}
 			return
 		}
