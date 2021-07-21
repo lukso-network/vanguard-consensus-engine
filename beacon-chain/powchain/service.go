@@ -724,7 +724,9 @@ func (s *Service) initPOWService() {
 			// its height.
 			if s.chainStartData.Chainstarted && s.chainStartData.GenesisBlock == 0 {
 				// TODO: do this fallback better
-				genHeaderFromNumber, err := s.eth1DataFetcher.HeaderByNumber(ctx, big.NewInt(0))
+				blockNumber := int64(params.BeaconNetworkConfig().ContractDeploymentBlock)
+				log.Debugf("Beacon network config - blockNumber: %v", blockNumber)
+				genHeaderFromNumber, err := s.eth1DataFetcher.HeaderByNumber(ctx, big.NewInt(blockNumber))
 
 				if err != nil {
 					log.Errorf("Fail on fetching genesis header in pandora")
