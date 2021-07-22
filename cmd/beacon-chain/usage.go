@@ -121,6 +121,7 @@ var appHelpFlagGroups = []flagGroup{
 			flags.WeakSubjectivityCheckpt,
 			flags.Eth1HeaderReqLimit,
 			flags.OrcRpcProviderFlag,
+			flags.GenesisStatePath,
 		},
 	},
 	{
