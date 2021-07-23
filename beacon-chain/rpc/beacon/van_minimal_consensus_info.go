@@ -268,8 +268,10 @@ func (bs *Server) getProposerListForEpoch(
 
 	// Any state should return same proposer assignments so I pick first in slice
 	for _, currentState := range states {
+		log.Debugf("[VAN_SUB] Iterating over states, currentState.Slot = %v, startSlot = %v, endSlot = %v", currentState.Slot(), startSlot, endSlot)
 		if currentState.Slot() >= startSlot && currentState.Slot() <= endSlot {
 			latestState = currentState
+			log.Debugf("[VAN_SUB] Iterating over states, currentState = %v, latestState = %v", currentState, latestState)
 
 			break
 		}
