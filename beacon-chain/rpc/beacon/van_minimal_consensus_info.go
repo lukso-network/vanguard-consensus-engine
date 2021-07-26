@@ -135,7 +135,7 @@ func (bs *Server) MinimalConsensusInfoRange(
 
 	for {
 		tempEpochIndex++
-		minimalConsensusInfo, currentErr := bs.MinimalConsensusInfo(ctx, types.Epoch(tempEpochIndex))
+		minimalConsensusInfo, currentErr := bs.MinimalConsensusInfo(ctx, tempEpochIndex)
 
 		if nil != currentErr {
 			log.WithField("currentEpoch", tempEpochIndex).
@@ -264,16 +264,26 @@ func (bs *Server) getProposerListForEpoch(
 			codes.Internal, "Could not retrieve archived state for epoch %d: %v", requestedEpoch, err)
 	}
 
-	log.Debugf("[VAN_SUB] HighestSlotStatesBelow states len = %v", len(states))
+	statesCount := len(states)
+	log.Debugf("[VAN_SUB] HighestSlotStatesBelow states len = %v", statesCount)
 
-	// Any state should return same proposer assignments so I pick first in slice
-	for _, currentState := range states {
-		log.Debugf("[VAN_SUB] Iterating over states, currentState.Slot = %v, startSlot = %v, endSlot = %v", currentState.Slot(), startSlot, endSlot)
-		if currentState.Slot() >= startSlot && currentState.Slot() <= endSlot {
-			latestState = currentState
-			log.Debugf("[VAN_SUB] Iterating over states, currentState = %v, latestState = %v", currentState, latestState)
+	if statesCount < 1 {
+		return nil, status.Errorf(
+			codes.Internal, "Could not retrieve any state by HighestSlotStatesBelow for endSlot %v", endSlot)
+	}
 
-			break
+	latestState = states[0]
+
+	if statesCount > 1 {
+		// Any state should return same proposer assignments so I pick first in slice
+		for _, currentState := range states {
+			log.Debugf("[VAN_SUB] Iterating over states, currentState.Slot = %v, startSlot = %v, endSlot = %v", currentState.Slot(), startSlot, endSlot)
+			if currentState.Slot() >= startSlot && currentState.Slot() <= endSlot {
+				latestState = currentState
+				log.Debugf("[VAN_SUB] Iterating over states, currentState = %v, latestState = %v", currentState, latestState)
+
+				break
+			}
 		}
 	}
 
