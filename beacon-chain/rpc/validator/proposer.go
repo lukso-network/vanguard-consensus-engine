@@ -99,7 +99,7 @@ func (vs *Server) GetBlock(ctx context.Context, req *ethpb.BlockRequest) (*ethpb
 
 	// Pack ETH1 deposits which have not been included in the beacon chain.
 	deposits, err := vs.deposits(ctx, head, eth1Data)
-	if err != nil {
+	if err != nil && head.LatestBlockHeader().Slot < 1 {
 		return nil, status.Errorf(codes.Internal, "Could not get ETH1 deposits: %v", err)
 	}
 
@@ -411,7 +411,12 @@ func (vs *Server) computeStateRoot(ctx context.Context, block *ethpb.SignedBeaco
 		block,
 	)
 	if err != nil {
-		return nil, errors.Wrapf(err, "could not calculate state root at slot %d", beaconState.Slot())
+		return nil, errors.Wrapf(
+			err,
+			"could not calculate state root at slot %d, beaconBlock: %v",
+			beaconState.Slot(),
+			block.String(),
+		)
 	}
 
 	log.WithField("beaconStateRoot", fmt.Sprintf("%#x", root)).Debugf("Computed state root")
