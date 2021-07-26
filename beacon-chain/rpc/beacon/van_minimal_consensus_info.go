@@ -293,19 +293,9 @@ func (bs *Server) getProposerListForEpoch(
 	}
 
 	// Initialize all committee related data.
-	proposerIndexToSlots, err := helpers.ProposerAssignments(latestState, requestedEpoch)
+	res, err = helpers.ProposerAssignments(latestState, requestedEpoch)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not compute committee assignments: %v", err)
-	}
-
-	for index, proposerSlots := range proposerIndexToSlots {
-		pubkey := latestState.PubkeyAtIndex(index)
-		assign := &ethpb.ValidatorAssignments_CommitteeAssignment{
-			ProposerSlots:  proposerSlots,
-			PublicKey:      pubkey[:],
-			ValidatorIndex: index,
-		}
-		res = append(res, assign)
 	}
 
 	maxValidators := params.BeaconConfig().SlotsPerEpoch
