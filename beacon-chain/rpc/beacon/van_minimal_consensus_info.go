@@ -146,6 +146,8 @@ func (bs *Server) MinimalConsensusInfoRange(
 		}
 
 		consensusInfos = append(consensusInfos, minimalConsensusInfo)
+
+		break
 	}
 
 	log.WithField("currentEpoch", tempEpochIndex).

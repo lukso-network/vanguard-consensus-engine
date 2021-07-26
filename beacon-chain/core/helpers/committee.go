@@ -431,11 +431,14 @@ func ProposerAssignments(
 	if types.Epoch(0) == epoch {
 		sliceRange = int(params.BeaconConfig().SlotsPerEpoch) - 1
 	}
-	proposerIndexToSlots := make([]*ethpb.ValidatorAssignments_CommitteeAssignment, sliceRange)
+	proposerIndexToSlots := make([]*ethpb.ValidatorAssignments_CommitteeAssignment, 0)
 
 	rangeSlot := startSlot + params.BeaconConfig().SlotsPerEpoch
 
 	for slot := startSlot; slot < rangeSlot; slot++ {
+		// DEBUG: rangeSlot: 32, startSlot: 0, sliceRange: 31
+		// dla epoki 0 len proposerIndexToSlots wynosi tutaj 31
+
 		// Skip proposer assignment for genesis slot.
 		if slot == 0 {
 			continue
@@ -451,7 +454,7 @@ func ProposerAssignments(
 		}
 
 		pubKey := state.PubkeyAtIndex(i)
-		proposerSlots := make([]types.Slot, 1)
+		proposerSlots := make([]types.Slot, 0)
 		proposerSlots = append(proposerSlots, slot)
 		assign := &ethpb.ValidatorAssignments_CommitteeAssignment{
 			ProposerSlots:  proposerSlots,
@@ -460,7 +463,12 @@ func ProposerAssignments(
 		}
 
 		proposerIndexToSlots = append(proposerIndexToSlots, assign)
+
+		if len(proposerIndexToSlots) > sliceRange {
+			panic(fmt.Sprintf("DEBUG: slot: %v, rangeSlot: %v, startSlot: %v, sliceRange: %v, ValidatorIndex: %v, len(proposerIndexToSlots): %v", slot, rangeSlot, startSlot, sliceRange, i, len(proposerIndexToSlots)))
+		}
 	}
 
+	// dla epoki 0 len proposerIndexToSlots wynosi tutaj 62
 	return proposerIndexToSlots, nil
 }
