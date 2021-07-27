@@ -417,8 +417,7 @@ func precomputeProposerIndices(state iface.ReadOnlyBeaconState, activeIndices []
 func ProposerAssignments(
 	state iface.BeaconState,
 	epoch types.Epoch,
-) (map[types.ValidatorIndex][]types.Slot, error) {
-
+) ([]*ethpb.ValidatorAssignments_CommitteeAssignment, error) {
 	// We determine the slots in which proposers are supposed to act.
 	// Some validators may need to propose multiple times per epoch, so
 	// we use a map of proposer idx -> []slot to keep track of this possibility.
@@ -431,7 +430,7 @@ func ProposerAssignments(
 	if types.Epoch(0) == epoch {
 		sliceRange = int(params.BeaconConfig().SlotsPerEpoch) - 1
 	}
-	proposerIndexToSlots := make(map[types.ValidatorIndex][]types.Slot, sliceRange)
+	proposerIndexToSlots := make([]*ethpb.ValidatorAssignments_CommitteeAssignment, 0)
 
 	rangeSlot := startSlot + params.BeaconConfig().SlotsPerEpoch
 
@@ -440,14 +439,30 @@ func ProposerAssignments(
 		if slot == 0 {
 			continue
 		}
+
 		if err := state.SetSlot(slot); err != nil {
 			return nil, err
 		}
+
 		i, err := BeaconProposerIndex(state)
 		if err != nil {
 			return nil, errors.Wrapf(err, "could not check proposer at slot %d", state.Slot())
 		}
-		proposerIndexToSlots[i] = append(proposerIndexToSlots[i], slot)
+
+		pubKey := state.PubkeyAtIndex(i)
+		proposerSlots := make([]types.Slot, 0)
+		proposerSlots = append(proposerSlots, slot)
+		assign := &ethpb.ValidatorAssignments_CommitteeAssignment{
+			ProposerSlots:  proposerSlots,
+			PublicKey:      pubKey[:],
+			ValidatorIndex: i,
+		}
+
+		proposerIndexToSlots = append(proposerIndexToSlots, assign)
+
+		if len(proposerIndexToSlots) > sliceRange {
+			return nil, errors.Wrap(err, fmt.Sprintf("to many assignments proposed - DEBUG: slot: %v, rangeSlot: %v, startSlot: %v, sliceRange: %v, ValidatorIndex: %v, len(proposerIndexToSlots): %v", slot, rangeSlot, startSlot, sliceRange, i, len(proposerIndexToSlots)))
+		}
 	}
 
 	return proposerIndexToSlots, nil
