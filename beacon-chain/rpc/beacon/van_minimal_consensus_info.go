@@ -133,7 +133,7 @@ func (bs *Server) MinimalConsensusInfoRange(
 
 	currentEpoch := helpers.SlotToEpoch(bs.GenesisTimeFetcher.CurrentSlot())
 
-	for tempEpochIndex := consensusInfo.Epoch; tempEpochIndex <= currentEpoch + 1; tempEpochIndex++ {
+	for tempEpochIndex := consensusInfo.Epoch; tempEpochIndex <= currentEpoch+1; tempEpochIndex++ {
 		minimalConsensusInfo, currentErr := bs.MinimalConsensusInfo(ctx, tempEpochIndex)
 		if nil != currentErr {
 			log.WithField("tempEpochIndex", tempEpochIndex).
