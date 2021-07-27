@@ -121,7 +121,6 @@ func (bs *Server) MinimalConsensusInfoRange(
 	fromEpoch types.Epoch,
 ) (consensusInfos []*ethpb.MinimalConsensusInfo, err error) {
 	consensusInfo, err := bs.MinimalConsensusInfo(ctx, fromEpoch)
-
 	if nil != err {
 		log.WithField("currentEpoch", "unknown").
 			WithField("requestedEpoch", fromEpoch).Error(err.Error())
@@ -131,14 +130,14 @@ func (bs *Server) MinimalConsensusInfoRange(
 
 	consensusInfos = make([]*ethpb.MinimalConsensusInfo, 0)
 	consensusInfos = append(consensusInfos, consensusInfo)
-	tempEpochIndex := consensusInfo.Epoch
 
-	for {
-		tempEpochIndex++
+	currentEpoch := helpers.SlotToEpoch(bs.GenesisTimeFetcher.CurrentSlot())
+
+	for tempEpochIndex := consensusInfo.Epoch; tempEpochIndex <= currentEpoch + 1; tempEpochIndex++ {
 		minimalConsensusInfo, currentErr := bs.MinimalConsensusInfo(ctx, tempEpochIndex)
-
 		if nil != currentErr {
-			log.WithField("currentEpoch", tempEpochIndex).
+			log.WithField("tempEpochIndex", tempEpochIndex).
+				WithField("currentEpoch", currentEpoch).
 				WithField("context", "epochNotFound").
 				WithField("requestedEpoch", fromEpoch).Error(currentErr.Error())
 
@@ -146,11 +145,9 @@ func (bs *Server) MinimalConsensusInfoRange(
 		}
 
 		consensusInfos = append(consensusInfos, minimalConsensusInfo)
-
-		break
 	}
 
-	log.WithField("currentEpoch", tempEpochIndex).
+	log.WithField("currentEpoch", currentEpoch).
 		WithField("gathered", len(consensusInfos)).
 		WithField("requestedEpoch", fromEpoch).Info("I should send epoch list")
 
