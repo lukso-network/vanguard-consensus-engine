@@ -418,7 +418,6 @@ func ProposerAssignments(
 	state iface.BeaconState,
 	epoch types.Epoch,
 ) ([]*ethpb.ValidatorAssignments_CommitteeAssignment, error) {
-
 	// We determine the slots in which proposers are supposed to act.
 	// Some validators may need to propose multiple times per epoch, so
 	// we use a map of proposer idx -> []slot to keep track of this possibility.
@@ -436,9 +435,6 @@ func ProposerAssignments(
 	rangeSlot := startSlot + params.BeaconConfig().SlotsPerEpoch
 
 	for slot := startSlot; slot < rangeSlot; slot++ {
-		// DEBUG: rangeSlot: 32, startSlot: 0, sliceRange: 31
-		// dla epoki 0 len proposerIndexToSlots wynosi tutaj 31
-
 		// Skip proposer assignment for genesis slot.
 		if slot == 0 {
 			continue
@@ -465,10 +461,9 @@ func ProposerAssignments(
 		proposerIndexToSlots = append(proposerIndexToSlots, assign)
 
 		if len(proposerIndexToSlots) > sliceRange {
-			panic(fmt.Sprintf("DEBUG: slot: %v, rangeSlot: %v, startSlot: %v, sliceRange: %v, ValidatorIndex: %v, len(proposerIndexToSlots): %v", slot, rangeSlot, startSlot, sliceRange, i, len(proposerIndexToSlots)))
+			return nil, errors.Wrap(err, fmt.Sprintf("to many assignments proposed - DEBUG: slot: %v, rangeSlot: %v, startSlot: %v, sliceRange: %v, ValidatorIndex: %v, len(proposerIndexToSlots): %v", slot, rangeSlot, startSlot, sliceRange, i, len(proposerIndexToSlots)))
 		}
 	}
 
-	// dla epoki 0 len proposerIndexToSlots wynosi tutaj 62
 	return proposerIndexToSlots, nil
 }
