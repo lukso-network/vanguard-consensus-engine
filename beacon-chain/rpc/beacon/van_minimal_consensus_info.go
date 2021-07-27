@@ -136,7 +136,6 @@ func (bs *Server) MinimalConsensusInfoRange(
 	for {
 		tempEpochIndex++
 		minimalConsensusInfo, currentErr := bs.MinimalConsensusInfo(ctx, tempEpochIndex)
-
 		if nil != currentErr {
 			log.WithField("currentEpoch", tempEpochIndex).
 				WithField("context", "epochNotFound").
@@ -147,6 +146,8 @@ func (bs *Server) MinimalConsensusInfoRange(
 
 		consensusInfos = append(consensusInfos, minimalConsensusInfo)
 
+		// This is because function returns minimalConsensusInfo for requested epoch
+		// and for epoch + 1, without break statement this is infinity loop, because currentErr not occurs
 		break
 	}
 
