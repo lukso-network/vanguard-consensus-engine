@@ -47,7 +47,9 @@ func (s *Service) CanPropose() error {
 	}
 
 	if len(blks) > 0 {
-		log.WithField("unprocessedBlockLen", len(blks)).WithError(err).Error("Pending queue is not nil")
+		log.WithField("unprocessedBlockLen", len(blks)).
+			WithField("blks", blks).
+			WithError(err).Error("Pending queue is not nil")
 		return errPendingQueueUnprocessed
 	}
 	return nil
@@ -114,10 +116,8 @@ func (s *Service) processOrcConfirmationLoop(ctx context.Context) {
 			case <-ticker.C:
 				log.WithField("function", "processOrcConfirmation").Trace("running")
 				if err := s.fetchConfirmations(ctx); err != nil {
-					log.WithError(err).Error("got error when calling fetchOrcConfirmations method. exiting!")
-					return
+					log.WithError(err).Error("got error when calling fetchOrcConfirmations method. Retrying in next tick")
 				}
-				continue
 			case <-ctx.Done():
 				log.WithField("function", "processOrcConfirmation").Debug("context is closed, exiting")
 				ticker.Stop()
@@ -197,10 +197,14 @@ func (s *Service) waitForConfirmationBlock(ctx context.Context, b *ethpb.SignedB
 			if statusData.Type == blockfeed.ConfirmedBlock {
 				data, ok := statusData.Data.(*blockfeed.ConfirmedData)
 				if !ok || data == nil {
+					log.WithField("slot", data.Slot).WithField(
+						"blockHash", fmt.Sprintf("%#x", data.BlockRootHash)).Warn(
+						"!ok or data is nil")
 					continue
 				}
 				// Checks slot number with incoming confirmation data slot
 				if data.Slot == b.Block.Slot {
+					log.WithField("blockSlot", data.Slot).Warn("I am checking slot number in confirmations")
 					switch status := data.Status; status {
 					case vanTypes.Verified:
 						log.WithField("slot", data.Slot).WithField(
@@ -210,6 +214,7 @@ func (s *Service) waitForConfirmationBlock(ctx context.Context, b *ethpb.SignedB
 							log.WithError(err).Error("couldn't delete the verified blocks from cache")
 							return err
 						}
+						log.WithField("b.Block.Slot", b.Block.Slot).Info("Verified status should be deleted")
 						return nil
 					case vanTypes.Pending:
 						log.WithField("slot", data.Slot).WithField(
