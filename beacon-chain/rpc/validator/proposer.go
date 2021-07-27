@@ -59,6 +59,16 @@ func (vs *Server) GetBlock(ctx context.Context, req *ethpb.BlockRequest) (*ethpb
 		return nil, status.Errorf(codes.Unavailable, "Syncing to latest head, not ready to respond")
 	}
 
+	// vanguard: If vanguard chain flag is enabled then we need to check the length of pending queue size. if
+	// pending queue is not empty that means syncing and verification process does not complete yet so skipped the
+	// slot
+	if vs.EnableVanguardNode {
+		log.WithField("slot", req.Slot).Debug("checking pending queue length before preparing block")
+		if err := vs.PendingQueueFetcher.CanPropose(); err != nil {
+			return nil, status.Errorf(codes.Unavailable, "Pending queue is not fully processed yet")
+		}
+	}
+
 	// Retrieve the parent block as the current head of the canonical chain.
 	parentRoot, err := vs.HeadFetcher.HeadRoot(ctx)
 	if err != nil {
@@ -89,7 +99,7 @@ func (vs *Server) GetBlock(ctx context.Context, req *ethpb.BlockRequest) (*ethpb
 
 	// Pack ETH1 deposits which have not been included in the beacon chain.
 	deposits, err := vs.deposits(ctx, head, eth1Data)
-	if err != nil {
+	if err != nil && head.LatestBlockHeader().Slot < 1 {
 		return nil, status.Errorf(codes.Internal, "Could not get ETH1 deposits: %v", err)
 	}
 
@@ -134,6 +144,24 @@ func (vs *Server) GetBlock(ctx context.Context, req *ethpb.BlockRequest) (*ethpb
 		return nil, status.Errorf(codes.Internal, "Could not compute state root: %v", err)
 	}
 	blk.StateRoot = stateRoot
+
+	// If vanguard chain is enabled, we set the latest pandora sharding info into beacon block so that
+	// we do not need to make another api call for getting latest sharding info
+	if vs.EnableVanguardNode {
+		headBlk, err := vs.HeadFetcher.HeadBlock(ctx)
+		if err != nil {
+			log.WithField("slot", blk.Slot).Debug("Failed to retrieve head block")
+			return nil, status.Errorf(codes.Internal, "Could not get head block: %v", err)
+		}
+
+		if headBlk == nil || headBlk.Block == nil {
+			log.WithField("slot", blk.Slot).Debug("Head block of chain was nil")
+			return blk, nil
+		}
+		log.WithField("slot", headBlk.Block.Slot).WithField(
+			"pandoraShard", fmt.Sprintf("%v", headBlk.Block.Body.PandoraShard)).Debug("head block info")
+		blk.Body.PandoraShard = headBlk.Block.Body.PandoraShard
+	}
 
 	return blk, nil
 }
@@ -383,7 +411,12 @@ func (vs *Server) computeStateRoot(ctx context.Context, block *ethpb.SignedBeaco
 		block,
 	)
 	if err != nil {
-		return nil, errors.Wrapf(err, "could not calculate state root at slot %d", beaconState.Slot())
+		return nil, errors.Wrapf(
+			err,
+			"could not calculate state root at slot %d, beaconBlock: %v",
+			beaconState.Slot(),
+			block.String(),
+		)
 	}
 
 	log.WithField("beaconStateRoot", fmt.Sprintf("%#x", root)).Debugf("Computed state root")

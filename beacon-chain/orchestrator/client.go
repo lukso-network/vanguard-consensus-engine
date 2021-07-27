@@ -72,7 +72,9 @@ func (orc *RPCClient) ConfirmVanBlockHashes(ctx context.Context, blockHashes []*
 	err := orc.client.CallContext(ctx, &orcBlockStatuses, confirmVanBlockHashesMethod, orcBlockHashes)
 	if err != nil {
 		log.WithField("context", "ConfirmVanBlockHashes").
-			WithField("requestedBlockHashed", blockHashes)
+			WithField("requestedBlockHashed", blockHashes).
+			WithField("client", orc.client).
+			Error(err)
 		return nil, fmt.Errorf("rpcClient call context error, error is: %s", err.Error())
 	}
 

@@ -65,8 +65,10 @@ type Service struct {
 	connectedRPCClients  map[net.Addr]bool
 	clientConnectionLock sync.Mutex
 
-	// Vanguard un-confirmed cached block fetcher
+	// Vanguard: vanguard chain related attributes
+	enableVanguardNode bool
 	unconfirmedBlockFetcher blockchain.PendingBlocksFetcher
+	pendingQueueFetcher     blockchain.PendingQueueFetcher
 }
 
 // Config options for the beacon node RPC server.
@@ -91,6 +93,7 @@ type Config struct {
 	GenesisFetcher          blockchain.GenesisFetcher
 	EnableDebugRPCEndpoints bool
 	MockEth1Votes           bool
+	EnableVanguardNode      bool // vanguard: vanguard chain enable flag
 	AttestationsPool        attestations.Pool
 	ExitPool                voluntaryexits.PoolManager
 	SlashingsPool           slashings.PoolManager
@@ -109,6 +112,7 @@ type Config struct {
 
 	// Vanguard un-confirmed cached block fetcher
 	UnconfirmedBlockFetcher blockchain.PendingBlocksFetcher
+	PendingQueueFetcher     blockchain.PendingQueueFetcher
 }
 
 // NewService instantiates a new RPC service instance that will
@@ -124,7 +128,9 @@ func NewService(ctx context.Context, cfg *Config) *Service {
 		connectedRPCClients: make(map[net.Addr]bool),
 
 		// Vanguard: un-confirmed cached block fetcher
+		enableVanguardNode:      cfg.EnableVanguardNode,
 		unconfirmedBlockFetcher: cfg.UnconfirmedBlockFetcher,
+		pendingQueueFetcher:     cfg.PendingQueueFetcher,
 	}
 }
 
@@ -198,6 +204,10 @@ func (s *Service) Start() {
 		PendingDepositsFetcher: s.cfg.PendingDepositFetcher,
 		SlashingsPool:          s.cfg.SlashingsPool,
 		StateGen:               s.cfg.StateGen,
+
+		// vanguard: initiate pending queue fetcher
+		EnableVanguardNode:  s.enableVanguardNode,
+		PendingQueueFetcher: s.pendingQueueFetcher,
 	}
 	nodeServer := &node.Server{
 		LogsStreamer:         logutil.NewStreamServer(),

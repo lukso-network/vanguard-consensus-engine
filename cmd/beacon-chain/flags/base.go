@@ -172,11 +172,6 @@ var (
 		Usage: "Load a genesis state from ssz file. Testnet genesis files can be found in the " +
 			"eth2-clients/eth2-testnets repository on github.",
 	}
-	// Network defines a bool flag which is required to run vanguard node
-	Network = &cli.BoolFlag{
-		Name:  "lukso-network",
-		Usage: "Runs the lukso vanguard node. This vanguard node may communicate with pandora and orchestrator node",
-	}
 	// OrcRpcProviderFlag defines a orchestrator node RPC endpoint
 	OrcRpcProviderFlag = &cli.StringFlag{
 		Name:  "orc-http-provider",
