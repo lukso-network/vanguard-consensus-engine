@@ -78,6 +78,9 @@ func (s *Service) publishAndWaitForOrcConfirmation(ctx context.Context, pendingB
 
 	blockSlot := pendingBlk.Block.GetSlot()
 	currSlot := s.CurrentSlot()
+	log.WithField("blockSlot", blockSlot).
+		WithField("currSlot", currSlot).
+		Debug("Checking for block slot condition to run waitForConfirmationBlock")
 	if blockSlot != currSlot {
 		return nil
 	}
