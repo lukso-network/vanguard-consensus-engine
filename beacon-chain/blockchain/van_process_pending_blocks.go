@@ -21,7 +21,6 @@ var (
 	maxPendingBlockTryLimit       = 10
 	errInvalidBlock               = errors.New("invalid block found, discarded block batch")
 	errPendingBlockCtxIsDone      = errors.New("pending block confirmation context is done, reinitialize")
-	errEmptyBlocksBatch           = errors.New("empty length of the batch of incoming blocks")
 	errPendingBlockTryLimitExceed = errors.New("maximum wait is exceeded and orchestrator can not verify the block")
 	errUnknownStatus              = errors.New("invalid status from orchestrator")
 	errInvalidRPCClient           = errors.New("invalid orchestrator rpc client or no client initiated")
@@ -76,6 +75,13 @@ func (s *Service) publishAndWaitForOrcConfirmation(ctx context.Context, pendingB
 		log.WithError(err).Warn("could not publish un-confirmed block or cache it")
 		return err
 	}
+
+	blockSlot := pendingBlk.Block.GetSlot()
+	currSlot := s.CurrentSlot()
+	if blockSlot != currSlot {
+		return nil
+	}
+
 	// Wait for final confirmation from orchestrator node
 	if err := s.waitForConfirmationBlock(ctx, pendingBlk); err != nil {
 		log.WithError(err).WithField("slot", pendingBlk.Block.Slot).Warn(
