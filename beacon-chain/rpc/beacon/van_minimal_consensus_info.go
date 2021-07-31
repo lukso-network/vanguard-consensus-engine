@@ -67,6 +67,7 @@ func (bs *Server) initialEpochInfoPropagation(
 	}
 
 	if bs.SyncChecker.Syncing() {
+		log.WithField("currentEpoch", currentEpoch).Debug("Node is in syncing mode")
 		epochInfo, err := bs.prepareEpochInfo(currentEpoch)
 		if err != nil {
 			log.WithField("epoch", currentEpoch).
@@ -87,9 +88,14 @@ func (bs *Server) initialEpochInfoPropagation(
 				return err
 			}
 
+			log.WithField("curSlot", curSlot).
+				WithField("curEpoch", curEpoch).
+				WithField("endSlotCurEpoch", endSlotCurEpoch).Debug("in syncing loop")
+
 			if endSlotCurEpoch == curSlot {
 				nextEpoch := curEpoch + 1
 				epochInfo, err = bs.prepareEpochInfo(nextEpoch)
+				log.WithField("nextEpoch", nextEpoch).WithField("epochInfo", epochInfo.Epoch).Debug("sending next epoch info")
 				if err != nil {
 					log.WithField("epoch", curEpoch).
 						WithError(err).
@@ -102,6 +108,7 @@ func (bs *Server) initialEpochInfoPropagation(
 			}
 		}
 	} else {
+		log.WithField("currentEpoch", currentEpoch).Debug("Node is in un-syncing mode")
 		// sending past proposer assignments info to orchestrator
 		for epoch := requestedEpoch; epoch <= currentEpoch; epoch++ {
 			epochInfo, err := bs.prepareEpochInfo(epoch)
