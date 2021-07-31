@@ -66,7 +66,7 @@ type Service struct {
 	clientConnectionLock sync.Mutex
 
 	// Vanguard: vanguard chain related attributes
-	enableVanguardNode bool
+	enableVanguardNode      bool
 	unconfirmedBlockFetcher blockchain.PendingBlocksFetcher
 	pendingQueueFetcher     blockchain.PendingQueueFetcher
 }

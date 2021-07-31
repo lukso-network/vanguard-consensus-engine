@@ -133,7 +133,7 @@ func (bs *Server) MinimalConsensusInfoRange(
 
 	currentEpoch := helpers.SlotToEpoch(bs.GenesisTimeFetcher.CurrentSlot())
 
-	for tempEpochIndex := consensusInfo.Epoch; tempEpochIndex <= currentEpoch + 1; tempEpochIndex++ {
+	for tempEpochIndex := consensusInfo.Epoch; tempEpochIndex <= currentEpoch+1; tempEpochIndex++ {
 		minimalConsensusInfo, currentErr := bs.MinimalConsensusInfo(ctx, tempEpochIndex)
 		if nil != currentErr {
 			log.WithField("tempEpochIndex", tempEpochIndex).
@@ -319,10 +319,6 @@ func (bs *Server) StreamMinimalConsensusInfo(
 	req *ethpb.MinimalConsensusInfoRequest,
 	stream ethpb.BeaconChain_StreamMinimalConsensusInfoServer,
 ) error {
-	//if bs.SyncChecker.Syncing() {
-	//	return status.Error(codes.Unavailable, "Syncing to latest head, not ready to respond")
-	//}
-
 	// If we are post-genesis time, then set the current epoch to
 	// the number epochs since the genesis time, otherwise 0 by default.
 	genesisTime := bs.GenesisTimeFetcher.GenesisTime()
