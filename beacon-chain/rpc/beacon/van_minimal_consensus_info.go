@@ -58,15 +58,11 @@ func (bs *Server) initialEpochInfoPropagation(
 	requestedEpoch types.Epoch,
 	stream ethpb.BeaconChain_StreamMinimalConsensusInfoServer,
 ) error {
-	// Fetch our current epoch.
-	headState, err := bs.HeadFetcher.HeadState(bs.Ctx)
+	headBlock, err := bs.HeadFetcher.HeadBlock(bs.Ctx)
 	if err != nil {
-		return status.Error(codes.Internal, "Could not access head state")
+		return nil
 	}
-	if headState == nil {
-		return status.Error(codes.Internal, "Not ready to serve information")
-	}
-	currentEpoch := helpers.SlotToEpoch(headState.Slot())
+	currentEpoch := helpers.SlotToEpoch(headBlock.Block.Slot)
 	if requestedEpoch > currentEpoch {
 		log.WithField("curEpoch", currentEpoch).
 			WithField("requestedEpoch", requestedEpoch).
@@ -89,16 +85,11 @@ func (bs *Server) initialEpochInfoPropagation(
 		}
 
 		for bs.SyncChecker.Syncing() {
-			// Fetch our current epoch.
-			headState, err := bs.HeadFetcher.HeadState(bs.Ctx)
+			headBlock, err := bs.HeadFetcher.HeadBlock(bs.Ctx)
 			if err != nil {
-				return status.Error(codes.Internal, "Could not access head state")
+				return nil
 			}
-			if headState == nil {
-				return status.Error(codes.Internal, "Not ready to serve information")
-			}
-
-			curSlot := headState.Slot()
+			curSlot := headBlock.Block.Slot
 			curEpoch := helpers.SlotToEpoch(curSlot)
 			endSlotCurEpoch, err := helpers.EndSlot(curEpoch)
 			if err != nil {
@@ -106,7 +97,6 @@ func (bs *Server) initialEpochInfoPropagation(
 			}
 
 			time.Sleep(2 * time.Second)
-
 			log.WithField("curSlot", curSlot).
 				WithField("curEpoch", curEpoch).
 				WithField("endSlotCurEpoch", endSlotCurEpoch).Debug("in syncing loop")
@@ -127,7 +117,7 @@ func (bs *Server) initialEpochInfoPropagation(
 			}
 		}
 	} else {
-		log.WithField("currentEpoch", currentEpoch).Debug("Node is in un-syncing mode")
+		log.WithField("currentEpoch", currentEpoch).Debug("Node is in syncing mode")
 		// sending past proposer assignments info to orchestrator
 		for epoch := requestedEpoch; epoch <= currentEpoch; epoch++ {
 			epochInfo, err := bs.prepareEpochInfo(epoch)
