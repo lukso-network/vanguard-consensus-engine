@@ -48,11 +48,10 @@ func (bs *Server) StreamMinimalConsensusInfo(
 	for {
 		select {
 		case slot := <-epochTicker.C():
-			epoch := helpers.SlotToEpoch(slot)
-			log.WithField("epoch", epoch).
-				WithField("slot", slot).
-				Debug("Sending current epoch info to orchestrator")
-			res, err := bs.prepareEpochInfo(epoch)
+			epoch := types.Epoch(slot)
+			log.WithField("epoch", epoch).Debug("Sending current epoch info to orchestrator")
+
+			res, err := bs.prepareEpochInfo(epoch + 1)
 			if err != nil {
 				log.WithField("epoch", epoch).
 					WithField("slot", slot).
@@ -122,6 +121,12 @@ func prepareSortedValidatorList(
 		for _, slot := range assignment.ProposerSlots {
 			slotToPubKeyMapping[slot] = fmt.Sprintf("0x%s", hex.EncodeToString(assignment.PublicKey))
 		}
+	}
+
+	if epoch == 0 {
+		publicKeyBytes := make([]byte, params.BeaconConfig().BLSPubkeyLength)
+		emptyPubKey := fmt.Sprintf("0x%s", hex.EncodeToString(publicKeyBytes))
+		slotToPubKeyMapping[0] = emptyPubKey
 	}
 
 	startSlot, err := helpers.StartSlot(epoch)
