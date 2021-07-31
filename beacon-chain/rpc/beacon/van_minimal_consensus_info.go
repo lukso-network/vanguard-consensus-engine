@@ -19,27 +19,9 @@ func (bs *Server) StreamMinimalConsensusInfo(
 	stream ethpb.BeaconChain_StreamMinimalConsensusInfoServer,
 ) error {
 
-	curEpoch := helpers.SlotToEpoch(bs.HeadFetcher.HeadSlot())
-	requestedEpoch := req.FromEpoch
-	if requestedEpoch > curEpoch {
-		log.WithField("curEpoch", curEpoch).
-			WithField("requestedEpoch", requestedEpoch).
-			Warn("requested epoch is future from current epoch")
-		return status.Errorf(codes.InvalidArgument, errEpoch, curEpoch, req.FromEpoch)
-	}
-
-	// sending past proposer assignments info to orchestrator
-	for epoch := requestedEpoch; epoch <= curEpoch; epoch++ {
-		epochInfo, err := bs.prepareEpochInfo(epoch)
-		if err != nil {
-			log.WithField("epoch", epoch).
-				WithError(err).
-				Warn("Failed to prepare epoch info")
-			return err
-		}
-		if err := stream.Send(epochInfo); err != nil {
-			return status.Errorf(codes.Unavailable, "Could not send minimalConsensusInfo over stream: %v", err)
-		}
+	if err := bs.initialEpochInfoPropagation(req.FromEpoch, stream); err != nil {
+		log.WithError(err).Warn("Failed to send initial epoch infos to orchestrator")
+		return err
 	}
 
 	secondsPerEpoch := params.BeaconConfig().SecondsPerSlot * uint64(params.BeaconConfig().SlotsPerEpoch)
@@ -68,6 +50,73 @@ func (bs *Server) StreamMinimalConsensusInfo(
 			return status.Error(codes.Canceled, "[minimalConsensusInfo] RPC context canceled")
 		}
 	}
+}
+
+// initialEpochInfoPropagation
+func (bs *Server) initialEpochInfoPropagation(
+	requestedEpoch types.Epoch,
+	stream ethpb.BeaconChain_StreamMinimalConsensusInfoServer,
+) error {
+
+	currentEpoch := helpers.SlotToEpoch(bs.HeadFetcher.HeadSlot())
+	if requestedEpoch > currentEpoch {
+		log.WithField("curEpoch", currentEpoch).
+			WithField("requestedEpoch", requestedEpoch).
+			Warn("requested epoch is future from current epoch")
+		return status.Errorf(codes.InvalidArgument, errEpoch, currentEpoch, requestedEpoch)
+	}
+
+	if bs.SyncChecker.Syncing() {
+		epochInfo, err := bs.prepareEpochInfo(currentEpoch)
+		if err != nil {
+			log.WithField("epoch", currentEpoch).
+				WithError(err).
+				Warn("Failed to prepare epoch info")
+			return err
+		}
+
+		if err := stream.Send(epochInfo); err != nil {
+			return status.Errorf(codes.Unavailable, "Could not send minimalConsensusInfo over stream: %v", err)
+		}
+
+		for bs.SyncChecker.Syncing() {
+			curSlot := bs.HeadFetcher.HeadSlot()
+			curEpoch := helpers.SlotToEpoch(curSlot)
+			endSlotCurEpoch, err := helpers.EndSlot(curEpoch)
+			if err != nil {
+				return err
+			}
+
+			if endSlotCurEpoch == curSlot {
+				nextEpoch := curEpoch + 1
+				epochInfo, err = bs.prepareEpochInfo(nextEpoch)
+				if err != nil {
+					log.WithField("epoch", curEpoch).
+						WithError(err).
+						Warn("Failed to prepare epoch info")
+					return err
+				}
+				if err := stream.Send(epochInfo); err != nil {
+					return status.Errorf(codes.Unavailable, "Could not send minimalConsensusInfo over stream: %v", err)
+				}
+			}
+		}
+	} else {
+		// sending past proposer assignments info to orchestrator
+		for epoch := requestedEpoch; epoch <= currentEpoch; epoch++ {
+			epochInfo, err := bs.prepareEpochInfo(epoch)
+			if err != nil {
+				log.WithField("epoch", epoch).
+					WithError(err).
+					Warn("Failed to prepare epoch info")
+				return err
+			}
+			if err := stream.Send(epochInfo); err != nil {
+				return status.Errorf(codes.Unavailable, "Could not send minimalConsensusInfo over stream: %v", err)
+			}
+		}
+	}
+	return nil
 }
 
 // prepareEpochInfo
