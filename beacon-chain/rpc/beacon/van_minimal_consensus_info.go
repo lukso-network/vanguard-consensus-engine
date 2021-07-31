@@ -105,15 +105,16 @@ func (bs *Server) initialEpochInfoPropagation(
 
 					slot := data.Slot
 					epoch := helpers.SlotToEpoch(slot)
-					epochInfo, err = bs.prepareEpochInfo(epoch)
+					nextEpoch := epoch + 1
+					epochInfo, err = bs.prepareEpochInfo(nextEpoch)
 					if err != nil {
-						log.WithField("epoch", epoch).
+						log.WithField("epoch", nextEpoch).
 							WithError(err).
 							Warn("Failed to prepare epoch info")
 						return err
 					}
 
-					log.WithField("epoch", epoch).WithField("epochInfo", epochInfo.Epoch).Debug("sending next epoch info")
+					log.WithField("epoch", nextEpoch).WithField("epochInfo", epochInfo.Epoch).Debug("sending next epoch info")
 					if err := stream.Send(epochInfo); err != nil {
 						return status.Errorf(codes.Unavailable, "Could not send minimalConsensusInfo over stream: %v", err)
 					}
