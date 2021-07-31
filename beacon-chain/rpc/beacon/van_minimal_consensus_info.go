@@ -6,12 +6,13 @@ import (
 	types2 "github.com/gogo/protobuf/types"
 	types "github.com/prysmaticlabs/eth2-types"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
+	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed"
+	statefeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/state"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/shared/slotutil"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"time"
 )
 
 // StreamMinimalConsensusInfo to orchestrator client every single time an unconfirmed block is received by the beacon node.
@@ -20,7 +21,21 @@ func (bs *Server) StreamMinimalConsensusInfo(
 	stream ethpb.BeaconChain_StreamMinimalConsensusInfoServer,
 ) error {
 
-	if err := bs.initialEpochInfoPropagation(req.FromEpoch, stream); err != nil {
+	headBlock, err := bs.HeadFetcher.HeadBlock(bs.Ctx)
+	if err != nil {
+		return nil
+	}
+	currentEpoch := helpers.SlotToEpoch(headBlock.Block.Slot)
+	requestedEpoch := req.FromEpoch
+
+	if requestedEpoch > currentEpoch {
+		log.WithField("curEpoch", currentEpoch).
+			WithField("requestedEpoch", requestedEpoch).
+			Warn("requested epoch is future from current epoch")
+		return status.Errorf(codes.InvalidArgument, errEpoch, currentEpoch, requestedEpoch)
+	}
+
+	if err := bs.initialEpochInfoPropagation(req.FromEpoch, currentEpoch, stream); err != nil {
 		log.WithError(err).Warn("Failed to send initial epoch infos to orchestrator")
 		return err
 	}
@@ -56,20 +71,11 @@ func (bs *Server) StreamMinimalConsensusInfo(
 // initialEpochInfoPropagation
 func (bs *Server) initialEpochInfoPropagation(
 	requestedEpoch types.Epoch,
+	currentEpoch types.Epoch,
 	stream ethpb.BeaconChain_StreamMinimalConsensusInfoServer,
 ) error {
-	headBlock, err := bs.HeadFetcher.HeadBlock(bs.Ctx)
-	if err != nil {
-		return nil
-	}
-	currentEpoch := helpers.SlotToEpoch(headBlock.Block.Slot)
-	if requestedEpoch > currentEpoch {
-		log.WithField("curEpoch", currentEpoch).
-			WithField("requestedEpoch", requestedEpoch).
-			Warn("requested epoch is future from current epoch")
-		return status.Errorf(codes.InvalidArgument, errEpoch, currentEpoch, requestedEpoch)
-	}
 
+	// when initial syncing is true, it starts sending epoch info
 	if bs.SyncChecker.Syncing() {
 		log.WithField("currentEpoch", currentEpoch).Debug("Node is in syncing mode")
 		epochInfo, err := bs.prepareEpochInfo(currentEpoch)
@@ -84,54 +90,64 @@ func (bs *Server) initialEpochInfoPropagation(
 			return status.Errorf(codes.Unavailable, "Could not send minimalConsensusInfo over stream: %v", err)
 		}
 
-		for bs.SyncChecker.Syncing() {
-			headBlock, err := bs.HeadFetcher.HeadBlock(bs.Ctx)
-			if err != nil {
-				return nil
-			}
-			curSlot := headBlock.Block.Slot
-			curEpoch := helpers.SlotToEpoch(curSlot)
-			endSlotCurEpoch, err := helpers.EndSlot(curEpoch)
-			if err != nil {
-				return err
-			}
+		stateChannel := make(chan *feed.Event, 1)
+		stateSub := bs.StateNotifier.StateFeed().Subscribe(stateChannel)
+		defer stateSub.Unsubscribe()
+		for {
+			select {
+			case stateEvent := <-stateChannel:
+				if stateEvent.Type == statefeed.BlockProcessed {
+					data, ok := stateEvent.Data.(*statefeed.BlockProcessedData)
+					if !ok {
+						log.Warn("Failed to send epoch info to orchestrator")
+						continue
+					}
 
-			time.Sleep(2 * time.Second)
-			log.WithField("curSlot", curSlot).
-				WithField("curEpoch", curEpoch).
-				WithField("endSlotCurEpoch", endSlotCurEpoch).Debug("in syncing loop")
+					slot := data.Slot
+					epoch := helpers.SlotToEpoch(slot)
+					epochInfo, err = bs.prepareEpochInfo(epoch)
+					if err != nil {
+						log.WithField("epoch", epoch).
+							WithError(err).
+							Warn("Failed to prepare epoch info")
+						return err
+					}
 
-			if endSlotCurEpoch == curSlot {
-				nextEpoch := curEpoch + 1
-				epochInfo, err = bs.prepareEpochInfo(nextEpoch)
-				log.WithField("nextEpoch", nextEpoch).WithField("epochInfo", epochInfo.Epoch).Debug("sending next epoch info")
-				if err != nil {
-					log.WithField("epoch", curEpoch).
-						WithError(err).
-						Warn("Failed to prepare epoch info")
-					return err
+					log.WithField("epoch", epoch).WithField("epochInfo", epochInfo.Epoch).Debug("sending next epoch info")
+					if err := stream.Send(epochInfo); err != nil {
+						return status.Errorf(codes.Unavailable, "Could not send minimalConsensusInfo over stream: %v", err)
+					}
+
+					if !bs.SyncChecker.Syncing() {
+						log.Info("initial syncing done. exiting initial epochInfo propagation loop")
+						return nil
+					}
 				}
-				if err := stream.Send(epochInfo); err != nil {
-					return status.Errorf(codes.Unavailable, "Could not send minimalConsensusInfo over stream: %v", err)
-				}
-			}
-		}
-	} else {
-		log.WithField("currentEpoch", currentEpoch).Debug("Node is in syncing mode")
-		// sending past proposer assignments info to orchestrator
-		for epoch := requestedEpoch; epoch <= currentEpoch; epoch++ {
-			epochInfo, err := bs.prepareEpochInfo(epoch)
-			if err != nil {
-				log.WithField("epoch", epoch).
-					WithError(err).
-					Warn("Failed to prepare epoch info")
-				return err
-			}
-			if err := stream.Send(epochInfo); err != nil {
-				return status.Errorf(codes.Unavailable, "Could not send minimalConsensusInfo over stream: %v", err)
+			case <-stateSub.Err():
+				return status.Error(codes.Aborted, "Subscriber closed, exiting initial epochInfo propagation loop")
+			case <-bs.Ctx.Done():
+				return status.Error(codes.Canceled, "Context canceled")
+			case <-stream.Context().Done():
+				return status.Error(codes.Canceled, "Context canceled")
 			}
 		}
 	}
+
+	log.WithField("currentEpoch", currentEpoch).Debug("Node is in syncing mode")
+	// sending past proposer assignments info to orchestrator
+	for epoch := requestedEpoch; epoch <= currentEpoch; epoch++ {
+		epochInfo, err := bs.prepareEpochInfo(epoch)
+		if err != nil {
+			log.WithField("epoch", epoch).
+				WithError(err).
+				Warn("Failed to prepare epoch info")
+			return err
+		}
+		if err := stream.Send(epochInfo); err != nil {
+			return status.Errorf(codes.Unavailable, "Could not send minimalConsensusInfo over stream: %v", err)
+		}
+	}
+
 	return nil
 }
 
