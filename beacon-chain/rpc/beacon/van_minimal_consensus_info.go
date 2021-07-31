@@ -49,7 +49,7 @@ func (bs *Server) StreamMinimalConsensusInfo(
 			epoch := types.Epoch(slot)
 			log.WithField("epoch", epoch).Debug("Sending current epoch info to orchestrator")
 
-			res, err := bs.prepareEpochInfo(epoch + 1)
+			res, err := bs.prepareEpochInfo(epoch)
 			if err != nil {
 				log.WithField("epoch", epoch).
 					WithField("slot", slot).
@@ -134,7 +134,7 @@ func (bs *Server) initialEpochInfoPropagation(
 		}
 	}
 
-	log.WithField("currentEpoch", currentEpoch).Debug("Node is in syncing mode")
+	log.WithField("currentEpoch", currentEpoch).Debug("Node is in non-syncing mode")
 	// sending past proposer assignments info to orchestrator
 	for epoch := requestedEpoch; epoch <= currentEpoch; epoch++ {
 		epochInfo, err := bs.prepareEpochInfo(epoch)
