@@ -101,6 +101,9 @@ func (v *validator) processPandoraShardHeader(
 	var headerHashSig96Bytes [96]byte
 	copy(headerHashSig96Bytes[:], headerHashSig.Marshal())
 
+	log.Debug("pandora sharding header info", "slot", slot, "sealHash",
+		headerHash, "signature", common.Bytes2Hex(headerHashSig.Marshal()))
+
 	// Submit bls signature to pandora
 	if status, err := v.pandoraService.SubmitShardBlockHeader(
 		ctx, header.Nonce.Uint64(), headerHash, headerHashSig96Bytes); !status || err != nil {
