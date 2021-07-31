@@ -19,7 +19,7 @@ func (bs *Server) StreamMinimalConsensusInfo(
 	stream ethpb.BeaconChain_StreamMinimalConsensusInfoServer,
 ) error {
 
-	curEpoch := helpers.SlotToEpoch(bs.GenesisTimeFetcher.CurrentSlot())
+	curEpoch := helpers.SlotToEpoch(bs.HeadFetcher.HeadSlot())
 	requestedEpoch := req.FromEpoch
 	if requestedEpoch > curEpoch {
 		log.WithField("curEpoch", curEpoch).
