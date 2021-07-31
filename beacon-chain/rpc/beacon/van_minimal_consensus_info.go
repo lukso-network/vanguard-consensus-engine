@@ -11,6 +11,7 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/slotutil"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"time"
 )
 
 // StreamMinimalConsensusInfo to orchestrator client every single time an unconfirmed block is received by the beacon node.
@@ -57,8 +58,15 @@ func (bs *Server) initialEpochInfoPropagation(
 	requestedEpoch types.Epoch,
 	stream ethpb.BeaconChain_StreamMinimalConsensusInfoServer,
 ) error {
-
-	currentEpoch := helpers.SlotToEpoch(bs.HeadFetcher.HeadSlot())
+	// Fetch our current epoch.
+	headState, err := bs.HeadFetcher.HeadState(bs.Ctx)
+	if err != nil {
+		return status.Error(codes.Internal, "Could not access head state")
+	}
+	if headState == nil {
+		return status.Error(codes.Internal, "Not ready to serve information")
+	}
+	currentEpoch := helpers.SlotToEpoch(headState.Slot())
 	if requestedEpoch > currentEpoch {
 		log.WithField("curEpoch", currentEpoch).
 			WithField("requestedEpoch", requestedEpoch).
@@ -81,12 +89,23 @@ func (bs *Server) initialEpochInfoPropagation(
 		}
 
 		for bs.SyncChecker.Syncing() {
-			curSlot := bs.HeadFetcher.HeadSlot()
+			// Fetch our current epoch.
+			headState, err := bs.HeadFetcher.HeadState(bs.Ctx)
+			if err != nil {
+				return status.Error(codes.Internal, "Could not access head state")
+			}
+			if headState == nil {
+				return status.Error(codes.Internal, "Not ready to serve information")
+			}
+
+			curSlot := headState.Slot()
 			curEpoch := helpers.SlotToEpoch(curSlot)
 			endSlotCurEpoch, err := helpers.EndSlot(curEpoch)
 			if err != nil {
 				return err
 			}
+
+			time.Sleep(2 * time.Second)
 
 			log.WithField("curSlot", curSlot).
 				WithField("curEpoch", curEpoch).
