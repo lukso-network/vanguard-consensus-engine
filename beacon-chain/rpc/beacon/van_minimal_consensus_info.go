@@ -24,6 +24,7 @@ func (bs *Server) StreamMinimalConsensusInfo(
 	stream ethpb.BeaconChain_StreamMinimalConsensusInfoServer,
 ) error {
 
+	sendEpochInfos = make(map[types.Epoch]bool)
 	s, err := bs.HeadFetcher.HeadState(bs.Ctx)
 	if err != nil {
 		return status.Errorf(codes.Internal, "Could not get head state: %v", err)
