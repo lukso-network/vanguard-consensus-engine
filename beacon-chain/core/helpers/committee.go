@@ -437,6 +437,9 @@ func ProposerAssignments(
 	}
 	proposerIndexToSlots := make(map[types.ValidatorIndex][]types.Slot, params.BeaconConfig().SlotsPerEpoch)
 	proposerAssignmentInfo := make([]*ethpb.ValidatorAssignments_CommitteeAssignment, 0)
+
+	// Proposal epochs do not have a look ahead, so we skip them over here.
+	//validProposalEpoch := epoch < nextEpoch
 	for slot := startSlot; slot < startSlot+params.BeaconConfig().SlotsPerEpoch; slot++ {
 		// Skip proposer assignment for genesis slot.
 		if slot == 0 {

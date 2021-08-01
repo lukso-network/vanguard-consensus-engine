@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"bytes"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/pkg/errors"
 	types "github.com/prysmaticlabs/eth2-types"
@@ -193,6 +194,9 @@ func BeaconProposerIndex(state iface.ReadOnlyBeaconState) (types.ValidatorIndex,
 		if err != nil {
 			return 0, err
 		}
+
+		log.WithField("rootedSlot", s).WithField("seed", r).Debug("seed info")
+
 		if r != nil && !bytes.Equal(r, params.BeaconConfig().ZeroHash[:]) {
 			proposerIndices, err := proposerIndicesCache.ProposerIndices(bytesutil.ToBytes32(r))
 			if err != nil {

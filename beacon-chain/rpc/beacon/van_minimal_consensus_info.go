@@ -9,11 +9,14 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed"
 	statefeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/state"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
+	"github.com/prysmaticlabs/prysm/beacon-chain/core/state"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/shared/slotutil"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+var sendEpochInfos map[types.Epoch]bool
 
 // StreamMinimalConsensusInfo to orchestrator client every single time an unconfirmed block is received by the beacon node.
 func (bs *Server) StreamMinimalConsensusInfo(
@@ -21,13 +24,13 @@ func (bs *Server) StreamMinimalConsensusInfo(
 	stream ethpb.BeaconChain_StreamMinimalConsensusInfoServer,
 ) error {
 
-	headBlock, err := bs.HeadFetcher.HeadBlock(bs.Ctx)
+	s, err := bs.HeadFetcher.HeadState(bs.Ctx)
 	if err != nil {
-		return nil
+		return status.Errorf(codes.Internal, "Could not get head state: %v", err)
 	}
-	currentEpoch := helpers.SlotToEpoch(headBlock.Block.Slot)
-	requestedEpoch := req.FromEpoch
 
+	currentEpoch := helpers.SlotToEpoch(s.Slot())
+	requestedEpoch := req.FromEpoch
 	if requestedEpoch > currentEpoch {
 		log.WithField("curEpoch", currentEpoch).
 			WithField("requestedEpoch", requestedEpoch).
@@ -35,7 +38,7 @@ func (bs *Server) StreamMinimalConsensusInfo(
 		return status.Errorf(codes.InvalidArgument, errEpoch, currentEpoch, requestedEpoch)
 	}
 
-	if err := bs.initialEpochInfoPropagation(req.FromEpoch, currentEpoch, stream); err != nil {
+	if err := bs.initialEpochInfoPropagation(requestedEpoch, currentEpoch, stream); err != nil {
 		log.WithError(err).Warn("Failed to send initial epoch infos to orchestrator")
 		return err
 	}
@@ -47,11 +50,14 @@ func (bs *Server) StreamMinimalConsensusInfo(
 		select {
 		case slot := <-epochTicker.C():
 			epoch := types.Epoch(slot)
-			log.WithField("epoch", epoch).Debug("Sending current epoch info to orchestrator")
+			nextEpoch := epoch + 1
+			log.WithField("epoch", epoch).
+				WithField("nextEpoch", nextEpoch).
+				Debug("Sending current epoch info to orchestrator")
 
-			res, err := bs.prepareEpochInfo(epoch)
+			res, err := bs.prepareEpochInfo(nextEpoch)
 			if err != nil {
-				log.WithField("epoch", epoch).
+				log.WithField("epoch", nextEpoch).
 					WithField("slot", slot).
 					WithError(err).Warn("Failed to prepare epoch info")
 				return status.Errorf(codes.Unavailable, "Could not send epoch info over stream: %v", err)
@@ -89,6 +95,7 @@ func (bs *Server) initialEpochInfoPropagation(
 		if err := stream.Send(epochInfo); err != nil {
 			return status.Errorf(codes.Unavailable, "Could not send minimalConsensusInfo over stream: %v", err)
 		}
+		sendEpochInfos[epochInfo.Epoch] = true
 
 		stateChannel := make(chan *feed.Event, 1)
 		stateSub := bs.StateNotifier.StateFeed().Subscribe(stateChannel)
@@ -106,17 +113,21 @@ func (bs *Server) initialEpochInfoPropagation(
 					slot := data.Slot
 					epoch := helpers.SlotToEpoch(slot)
 					nextEpoch := epoch + 1
-					epochInfo, err = bs.prepareEpochInfo(nextEpoch)
-					if err != nil {
-						log.WithField("epoch", nextEpoch).
-							WithError(err).
-							Warn("Failed to prepare epoch info")
-						return err
-					}
 
-					log.WithField("epoch", nextEpoch).WithField("epochInfo", epochInfo.Epoch).Debug("sending next epoch info")
-					if err := stream.Send(epochInfo); err != nil {
-						return status.Errorf(codes.Unavailable, "Could not send minimalConsensusInfo over stream: %v", err)
+					if !sendEpochInfos[nextEpoch] {
+						epochInfo, err = bs.prepareEpochInfo(nextEpoch)
+						if err != nil {
+							log.WithField("epoch", nextEpoch).
+								WithError(err).
+								Warn("Failed to prepare epoch info")
+							return err
+						}
+
+						log.WithField("epoch", nextEpoch).WithField("epochInfo", epochInfo.Epoch).Debug("sending next epoch info")
+						if err := stream.Send(epochInfo); err != nil {
+							return status.Errorf(codes.Unavailable, "Could not send minimalConsensusInfo over stream: %v", err)
+						}
+						sendEpochInfos[epochInfo.Epoch] = true
 					}
 
 					if !bs.SyncChecker.Syncing() {
@@ -154,17 +165,30 @@ func (bs *Server) initialEpochInfoPropagation(
 
 // prepareEpochInfo
 func (bs *Server) prepareEpochInfo(epoch types.Epoch) (*ethpb.MinimalConsensusInfo, error) {
+	s, err := bs.HeadFetcher.HeadState(bs.Ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Could not get head state: %v", err)
+	}
+	// Advance state with empty transitions up to the requested epoch start slot.
+	epochStartSlot, err := helpers.StartSlot(epoch)
+	if err != nil {
+		return nil, err
+	}
+
+	log.WithField("stateSlot", s.Slot()).WithField("epochStartSlot", epochStartSlot).Debug("will start slot processing")
+	if s.Slot() < epochStartSlot {
+		s, err = state.ProcessSlots(bs.Ctx, s, epochStartSlot)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Could not process slots up to %d: %v", epochStartSlot, err)
+		}
+	}
+
 	startSlot, err := helpers.StartSlot(epoch)
 	if err != nil {
 		return nil, err
 	}
 
-	requestedState, err := bs.StateGen.StateBySlot(bs.Ctx, startSlot)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Could not retrieve archived state for epoch %d: %v", epoch, err)
-	}
-
-	proposerAssignmentInfo, err := helpers.ProposerAssignments(requestedState, epoch)
+	proposerAssignmentInfo, err := helpers.ProposerAssignments(s, epoch)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not generate proposer assignments %d: %v", epoch, err)
 	}
