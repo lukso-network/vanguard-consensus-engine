@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	fastssz "github.com/ferranbt/fastssz"
 	"github.com/pkg/errors"
 	types "github.com/prysmaticlabs/eth2-types"
@@ -158,9 +159,16 @@ func (vs *Server) GetBlock(ctx context.Context, req *ethpb.BlockRequest) (*ethpb
 			log.WithField("slot", blk.Slot).Debug("Head block of chain was nil")
 			return blk, nil
 		}
-		log.WithField("slot", headBlk.Block.Slot).WithField(
-			"pandoraShard", fmt.Sprintf("%v", headBlk.Block.Body.PandoraShard)).Debug("head block info")
-		blk.Body.PandoraShard = headBlk.Block.Body.PandoraShard
+
+		canonicalPandoraShard := headBlk.Block.Body.PandoraShard
+		log.WithField("slot", headBlk.Block.Slot).
+			WithField("blockNumber", canonicalPandoraShard[0].BlockNumber).
+			WithField("hash", hexutil.Encode(canonicalPandoraShard[0].Hash)).
+			WithField("sealHash", hexutil.Encode(canonicalPandoraShard[0].SealHash)).
+			WithField("StateRoot", hexutil.Encode(canonicalPandoraShard[0].StateRoot)).
+			WithField("signature", hexutil.Encode(canonicalPandoraShard[0].Signature)).
+			Debug("pandora canonical sharding info")
+		blk.Body.PandoraShard = canonicalPandoraShard
 	}
 
 	return blk, nil

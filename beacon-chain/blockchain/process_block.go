@@ -252,7 +252,15 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []*ethpb.SignedBeaconBl
 	if !verify {
 		return nil, nil, errors.New("batch block signature verification failed")
 	}
-
+	// Vanguard: Validated by vanguard node. Now intercepting the execution and publishing the block
+	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
+	if s.enableVanguardNode {
+		for _, b := range blks {
+			if err := s.publishAndWaitForOrcConfirmation(ctx, b); err != nil {
+				return nil, nil, err
+			}
+		}
+	}
 	for r, st := range boundaries {
 		if err := s.cfg.StateGen.SaveState(ctx, r, st); err != nil {
 			return nil, nil, err
