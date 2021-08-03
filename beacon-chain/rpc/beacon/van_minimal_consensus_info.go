@@ -10,13 +10,13 @@ import (
 	statefeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/state"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/state"
+	"github.com/prysmaticlabs/prysm/shared/event"
 	"github.com/prysmaticlabs/prysm/shared/params"
-	"github.com/prysmaticlabs/prysm/shared/slotutil"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-var sendEpochInfos map[types.Epoch]bool
+var alreadySendEpochInfos map[types.Epoch]bool
 
 // StreamMinimalConsensusInfo to orchestrator client every single time an unconfirmed block is received by the beacon node.
 func (bs *Server) StreamMinimalConsensusInfo(
@@ -24,7 +24,7 @@ func (bs *Server) StreamMinimalConsensusInfo(
 	stream ethpb.BeaconChain_StreamMinimalConsensusInfoServer,
 ) error {
 
-	sendEpochInfos = make(map[types.Epoch]bool)
+	alreadySendEpochInfos = make(map[types.Epoch]bool)
 	s, err := bs.HeadFetcher.HeadState(bs.Ctx)
 	if err != nil {
 		return status.Errorf(codes.Internal, "Could not get head state: %v", err)
@@ -39,33 +39,31 @@ func (bs *Server) StreamMinimalConsensusInfo(
 		return status.Errorf(codes.InvalidArgument, errEpoch, currentEpoch, requestedEpoch)
 	}
 
-	if err := bs.initialEpochInfoPropagation(requestedEpoch, currentEpoch, stream); err != nil {
+	stateChannel := make(chan *feed.Event, 1)
+	stateSub := bs.StateNotifier.StateFeed().Subscribe(stateChannel)
+	defer stateSub.Unsubscribe()
+
+	if err := bs.initialEpochInfoPropagation(requestedEpoch, currentEpoch, stream, stateChannel, stateSub); err != nil {
 		log.WithError(err).Warn("Failed to send initial epoch infos to orchestrator")
 		return err
 	}
 
-	secondsPerEpoch := params.BeaconConfig().SecondsPerSlot * uint64(params.BeaconConfig().SlotsPerEpoch)
-	epochTicker := slotutil.NewSlotTicker(bs.GenesisTimeFetcher.GenesisTime(), secondsPerEpoch)
-
 	for {
 		select {
-		case slot := <-epochTicker.C():
-			epoch := types.Epoch(slot)
-			nextEpoch := epoch + 1
-			log.WithField("epoch", epoch).
-				WithField("nextEpoch", nextEpoch).
-				Debug("Sending current epoch info to orchestrator")
+		case stateEvent := <-stateChannel:
+			if stateEvent.Type == statefeed.BlockProcessed {
+				block, ok := stateEvent.Data.(*statefeed.BlockProcessedData)
+				if !ok {
+					log.Warn("Failed to send epoch info to orchestrator")
+					continue
+				}
 
-			res, err := bs.prepareEpochInfo(nextEpoch)
-			if err != nil {
-				log.WithField("epoch", nextEpoch).
-					WithField("slot", slot).
-					WithError(err).Warn("Failed to prepare epoch info")
-				return status.Errorf(codes.Unavailable, "Could not send epoch info over stream: %v", err)
-			}
-
-			if err := stream.Send(res); err != nil {
-				return status.Errorf(codes.Internal, "Could not send minimalConsensusInfo response over stream: %v", err)
+				if err := bs.sendNextEpochInfo(block, stream); err != nil {
+					log.WithField("epoch", helpers.SlotToEpoch(block.Slot)+1).
+						WithError(err).
+						Warn("Failed to send epoch info to orchestrator")
+					continue
+				}
 			}
 		case <-stream.Context().Done():
 			return status.Error(codes.Canceled, "[minimalConsensusInfo] Stream context canceled")
@@ -80,6 +78,8 @@ func (bs *Server) initialEpochInfoPropagation(
 	requestedEpoch types.Epoch,
 	currentEpoch types.Epoch,
 	stream ethpb.BeaconChain_StreamMinimalConsensusInfoServer,
+	stateChannel chan *feed.Event,
+	stateSub event.Subscription,
 ) error {
 
 	// when initial syncing is true, it starts sending epoch info
@@ -96,39 +96,22 @@ func (bs *Server) initialEpochInfoPropagation(
 		if err := stream.Send(epochInfo); err != nil {
 			return status.Errorf(codes.Unavailable, "Could not send minimalConsensusInfo over stream: %v", err)
 		}
-		sendEpochInfos[epochInfo.Epoch] = true
+		alreadySendEpochInfos[epochInfo.Epoch] = true
 
-		stateChannel := make(chan *feed.Event, 1)
-		stateSub := bs.StateNotifier.StateFeed().Subscribe(stateChannel)
-		defer stateSub.Unsubscribe()
 		for {
 			select {
 			case stateEvent := <-stateChannel:
 				if stateEvent.Type == statefeed.BlockProcessed {
-					data, ok := stateEvent.Data.(*statefeed.BlockProcessedData)
+					block, ok := stateEvent.Data.(*statefeed.BlockProcessedData)
 					if !ok {
-						log.Warn("Failed to send epoch info to orchestrator")
 						continue
 					}
 
-					slot := data.Slot
-					epoch := helpers.SlotToEpoch(slot)
-					nextEpoch := epoch + 1
-
-					if !sendEpochInfos[nextEpoch] {
-						epochInfo, err = bs.prepareEpochInfo(nextEpoch)
-						if err != nil {
-							log.WithField("epoch", nextEpoch).
-								WithError(err).
-								Warn("Failed to prepare epoch info")
-							return err
-						}
-
-						log.WithField("epoch", nextEpoch).WithField("epochInfo", epochInfo.Epoch).Debug("sending next epoch info")
-						if err := stream.Send(epochInfo); err != nil {
-							return status.Errorf(codes.Unavailable, "Could not send minimalConsensusInfo over stream: %v", err)
-						}
-						sendEpochInfos[epochInfo.Epoch] = true
+					if err := bs.sendNextEpochInfo(block, stream); err != nil {
+						log.WithField("epoch", helpers.SlotToEpoch(block.Slot)+1).
+							WithError(err).
+							Warn("Failed to send initial epoch infos to orchestrator in-sync mode")
+						continue
 					}
 
 					if !bs.SyncChecker.Syncing() {
@@ -161,6 +144,33 @@ func (bs *Server) initialEpochInfoPropagation(
 		}
 	}
 
+	return nil
+}
+
+// sendNextEpochInfo
+func (bs *Server) sendNextEpochInfo(
+	block *statefeed.BlockProcessedData,
+	stream ethpb.BeaconChain_StreamMinimalConsensusInfoServer,
+) error {
+
+	slot := block.Slot
+	epoch := helpers.SlotToEpoch(slot)
+	nextEpoch := epoch + 1
+
+	if !alreadySendEpochInfos[nextEpoch] {
+		epochInfo, err := bs.prepareEpochInfo(nextEpoch)
+		if err != nil {
+			log.WithField("epoch", nextEpoch).
+				WithError(err).
+				Warn("Failed to prepare epoch info")
+			return err
+		}
+
+		if err := stream.Send(epochInfo); err != nil {
+			return status.Errorf(codes.Unavailable, "Could not send minimalConsensusInfo over stream: %v", err)
+		}
+		alreadySendEpochInfos[epochInfo.Epoch] = true
+	}
 	return nil
 }
 
