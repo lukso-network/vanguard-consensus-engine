@@ -139,7 +139,8 @@ func (bs *Server) initialEpochInfoPropagation(
 						}
 
 						if err := stream.Send(epochInfo); err != nil {
-							return err
+							return status.Errorf(codes.Unavailable,
+								"Could not prepare epoch info in-sync mode. epoch: %v  err: %v", epochInfo.Epoch, err)
 						}
 						alreadySendEpochInfos[epochInfo.Epoch] = true
 						return nil
@@ -169,7 +170,7 @@ func (bs *Server) initialEpochInfoPropagation(
 
 		if err := stream.Send(epochInfo); err != nil {
 			return status.Errorf(codes.Unavailable,
-				"Could not prepare epoch info in-sync mode. epoch: %v  err: %v", epoch, err)
+				"Could not prepare epoch info non-sync mode. epoch: %v  err: %v", epoch, err)
 		}
 
 		alreadySendEpochInfos[epochInfo.Epoch] = true
@@ -198,7 +199,8 @@ func (bs *Server) sendNextEpochInfo(
 		}
 
 		if err := stream.Send(epochInfo); err != nil {
-			return err
+			return status.Errorf(codes.Unavailable,
+				"Could not prepare epoch info. epoch: %v  err: %v", epoch, err)
 		}
 		alreadySendEpochInfos[epochInfo.Epoch] = true
 	}
