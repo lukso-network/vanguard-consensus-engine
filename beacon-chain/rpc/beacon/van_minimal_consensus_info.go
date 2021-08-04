@@ -65,10 +65,12 @@ func (bs *Server) StreamMinimalConsensusInfo(
 					continue
 				}
 			}
+		case <-stateSub.Err():
+			return status.Error(codes.Aborted, "Subscriber closed, exiting go routine")
 		case <-stream.Context().Done():
-			return status.Error(codes.Canceled, "[minimalConsensusInfo] Stream context canceled")
+			return status.Error(codes.Canceled, "Stream context canceled")
 		case <-bs.Ctx.Done():
-			return status.Error(codes.Canceled, "[minimalConsensusInfo] RPC context canceled")
+			return status.Error(codes.Canceled, "RPC context canceled")
 		}
 	}
 }
@@ -89,12 +91,14 @@ func (bs *Server) initialEpochInfoPropagation(
 		if err != nil {
 			log.WithField("epoch", currentEpoch).
 				WithError(err).
-				Warn("Failed to prepare epoch info")
-			return err
+				Warn("Failed to prepare epoch info in-sync mode")
+			return status.Errorf(codes.Internal,
+				"Could not prepare epoch info in-sync mode. epoch: %v  err: %v", currentEpoch, err)
 		}
 
 		if err := stream.Send(epochInfo); err != nil {
-			return status.Errorf(codes.Unavailable, "Could not send minimalConsensusInfo over stream: %v", err)
+			return status.Errorf(codes.Unavailable,
+				"Could not prepare epoch info in-sync mode. epoch: %v  err: %v", currentEpoch, err)
 		}
 		alreadySendEpochInfos[epochInfo.Epoch] = true
 
@@ -115,7 +119,29 @@ func (bs *Server) initialEpochInfoPropagation(
 					}
 
 					if !bs.SyncChecker.Syncing() {
-						log.Info("initial syncing done. exiting initial epochInfo propagation loop")
+						s, err := bs.HeadFetcher.HeadState(bs.Ctx)
+						if err != nil {
+							return status.Errorf(codes.Internal, "Could not get head state: %v", err)
+						}
+						currentEpoch := helpers.SlotToEpoch(s.Slot())
+						nextEpoch := currentEpoch + 1
+
+						log.WithField("epoch", currentEpoch).
+							WithField("nextEpoch", nextEpoch).
+							Info("Initial syncing done. sending next epoch info and exiting initial epochInfo propagation loop")
+
+						epochInfo, err := bs.prepareEpochInfo(nextEpoch)
+						if err != nil {
+							log.WithField("epoch", nextEpoch).
+								WithError(err).
+								Warn("Failed to prepare epoch info")
+							return err
+						}
+
+						if err := stream.Send(epochInfo); err != nil {
+							return err
+						}
+						alreadySendEpochInfos[epochInfo.Epoch] = true
 						return nil
 					}
 				}
@@ -136,12 +162,17 @@ func (bs *Server) initialEpochInfoPropagation(
 		if err != nil {
 			log.WithField("epoch", epoch).
 				WithError(err).
-				Warn("Failed to prepare epoch info")
-			return err
+				Warn("Failed to prepare epoch info in non-syncing mode")
+			return status.Errorf(codes.Internal,
+				"Could not prepare epoch info in-sync mode. epoch: %v  err: %v", epoch, err)
 		}
+
 		if err := stream.Send(epochInfo); err != nil {
-			return status.Errorf(codes.Unavailable, "Could not send minimalConsensusInfo over stream: %v", err)
+			return status.Errorf(codes.Unavailable,
+				"Could not prepare epoch info in-sync mode. epoch: %v  err: %v", epoch, err)
 		}
+
+		alreadySendEpochInfos[epochInfo.Epoch] = true
 	}
 
 	return nil
@@ -167,7 +198,7 @@ func (bs *Server) sendNextEpochInfo(
 		}
 
 		if err := stream.Send(epochInfo); err != nil {
-			return status.Errorf(codes.Unavailable, "Could not send minimalConsensusInfo over stream: %v", err)
+			return err
 		}
 		alreadySendEpochInfos[epochInfo.Epoch] = true
 	}
@@ -178,7 +209,7 @@ func (bs *Server) sendNextEpochInfo(
 func (bs *Server) prepareEpochInfo(epoch types.Epoch) (*ethpb.MinimalConsensusInfo, error) {
 	s, err := bs.HeadFetcher.HeadState(bs.Ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Could not get head state: %v", err)
+		return nil, err
 	}
 	// Advance state with empty transitions up to the requested epoch start slot.
 	epochStartSlot, err := helpers.StartSlot(epoch)
@@ -186,11 +217,10 @@ func (bs *Server) prepareEpochInfo(epoch types.Epoch) (*ethpb.MinimalConsensusIn
 		return nil, err
 	}
 
-	log.WithField("stateSlot", s.Slot()).WithField("epochStartSlot", epochStartSlot).Debug("will start slot processing")
 	if s.Slot() < epochStartSlot {
 		s, err = state.ProcessSlots(bs.Ctx, s, epochStartSlot)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "Could not process slots up to %d: %v", epochStartSlot, err)
+			return nil, err
 		}
 	}
 
@@ -201,21 +231,22 @@ func (bs *Server) prepareEpochInfo(epoch types.Epoch) (*ethpb.MinimalConsensusIn
 
 	proposerAssignmentInfo, err := helpers.ProposerAssignments(s, epoch)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Could not generate proposer assignments %d: %v", epoch, err)
+		return nil, err
 	}
 
 	epochStartTime, err := helpers.SlotToTime(uint64(bs.GenesisTimeFetcher.GenesisTime().Unix()), startSlot)
 	if nil != err {
 		return nil, err
 	}
+
 	validatorList, err := prepareSortedValidatorList(epoch, proposerAssignmentInfo)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Could not prepare validator list %d: %v", epoch, err)
+		return nil, err
 	}
 
 	log.WithField("epoch", epoch).
 		WithField("proposerList", fmt.Sprintf("%v", validatorList)).
-		Debug("proposer public key list")
+		Debug("Successfully prepared proposer public key list")
 
 	return &ethpb.MinimalConsensusInfo{
 		Epoch:            epoch,
