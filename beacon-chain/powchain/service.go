@@ -669,6 +669,7 @@ func (s *Service) handleETH1FollowDistance() {
 		log.Warn("eth1 client is not syncing")
 	}
 	if !s.chainStartData.Chainstarted {
+		log.WithField("lastRequestedBlock", s.latestEth1Data.LastRequestedBlock).WithField("ctx", "handleETH1FollowDistance").Debug("checking block number for chain start")
 		if err := s.checkBlockNumberForChainStart(ctx, big.NewInt(int64(s.latestEth1Data.LastRequestedBlock))); err != nil {
 			s.runError = err
 			log.Error(err)

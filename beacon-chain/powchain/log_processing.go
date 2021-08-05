@@ -72,6 +72,7 @@ func (s *Service) ProcessETH1Block(ctx context.Context, blkNum *big.Int) error {
 		}
 	}
 	if !s.chainStartData.Chainstarted {
+		log.WithField("blkNum", blkNum).WithField("ctx", "ProcessETH1Block").Debug("checking block number for chain start")
 		if err := s.checkBlockNumberForChainStart(ctx, blkNum); err != nil {
 			return err
 		}
