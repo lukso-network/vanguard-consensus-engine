@@ -285,6 +285,11 @@ func (s *Service) processPastLogs(ctx context.Context) error {
 		return err
 	}
 
+	log.WithField("latestBlockHeight", s.latestEth1Data.BlockHeight).
+		WithField("lastRequestBlock", s.latestEth1Data.LastRequestedBlock).
+		WithField("currentBlockNum", currentBlockNum).
+		WithField("latestFollowHeight", latestFollowHeight).Debug("#### processPastLogs ####")
+
 	batchSize := s.cfg.Eth1HeaderReqLimit
 	additiveFactor := uint64(float64(batchSize) * additiveFactorMultiplier)
 

@@ -252,24 +252,24 @@ func (vs *Server) eth1DataMajorityVote(ctx context.Context, beaconState iface.Be
 		WithField("depositCount", vs.HeadFetcher.HeadETH1Data().DepositCount).
 		Debug("canonical chain eth1 data info")
 
-	if vs.EnableVanguardNode {
-		emptyHash := [32]byte{}
-		// TODO- Need a configuration flag here just like Eth1FollowDistance
-		depositContractActivationHeight := big.NewInt(int64(params.BeaconNetworkConfig().ContractDeploymentBlock))
-		hash, err := vs.Eth1BlockFetcher.BlockHashByHeight(vs.Ctx, depositContractActivationHeight)
-
-		if hash == emptyHash || err != nil {
-			log.WithField("hash", hash.Hex()).
-				WithField("depositContractActivationHeight", depositContractActivationHeight).
-				WithError(err).
-				Debug("Deposit contract does not activate yet")
-
-			randomEth1Data, err := vs.randomETH1DataVote(ctx)
-			return randomEth1Data, err
-		}
-
-		log.WithField("hash", hash.Hex()).Debug("Activated deposit contract and calculating eth1DataMajorityVote")
-	}
+	//if vs.EnableVanguardNode {
+	//	emptyHash := [32]byte{}
+	//	// TODO- Need a configuration flag here just like Eth1FollowDistance
+	//	depositContractActivationHeight := big.NewInt(int64(params.BeaconNetworkConfig().ContractDeploymentBlock))
+	//	hash, err := vs.Eth1BlockFetcher.BlockHashByHeight(vs.Ctx, depositContractActivationHeight)
+	//
+	//	if hash == emptyHash || err != nil {
+	//		log.WithField("hash", hash.Hex()).
+	//			WithField("depositContractActivationHeight", depositContractActivationHeight).
+	//			WithError(err).
+	//			Debug("Deposit contract does not activate yet")
+	//
+	//		randomEth1Data, err := vs.randomETH1DataVote(ctx)
+	//		return randomEth1Data, err
+	//	}
+	//
+	//	log.WithField("hash", hash.Hex()).Debug("Activated deposit contract and calculating eth1DataMajorityVote")
+	//}
 
 	lastBlockByEarliestValidTime, err := vs.Eth1BlockFetcher.BlockByTimestamp(ctx, earliestValidTime)
 	if err != nil {
@@ -497,29 +497,29 @@ func (vs *Server) deposits(
 		return []*ethpb.Deposit{}, nil
 	}
 
-	if vs.EnableVanguardNode {
-		emptyHash := [32]byte{}
-		// TODO- Need a configuration flag here just like Eth1FollowDistance
-		depositContractActivationHeight := big.NewInt(int64(params.BeaconNetworkConfig().ContractDeploymentBlock))
-		hash, err := vs.Eth1BlockFetcher.BlockHashByHeight(vs.Ctx, depositContractActivationHeight)
-
-		if hash == emptyHash || err != nil {
-			log.WithField("hash", hash.Hex()).
-				WithField("depositContractActivationHeight", depositContractActivationHeight).
-				WithError(err).
-				WithField("ctx", "deposits").
-				Debug("Deposit contract does activate yet")
-			return []*ethpb.Deposit{}, nil
-		}
-
-		log.WithField("hash", hash.Hex()).Debug("Activated deposit contract and calculating deposits")
-	}
+	//if vs.EnableVanguardNode {
+	//	emptyHash := [32]byte{}
+	//	// TODO- Need a configuration flag here just like Eth1FollowDistance
+	//	depositContractActivationHeight := big.NewInt(int64(params.BeaconNetworkConfig().ContractDeploymentBlock))
+	//	hash, err := vs.Eth1BlockFetcher.BlockHashByHeight(vs.Ctx, depositContractActivationHeight)
+	//
+	//	if hash == emptyHash || err != nil {
+	//		log.WithField("hash", hash.Hex()).
+	//			WithField("depositContractActivationHeight", depositContractActivationHeight).
+	//			WithError(err).
+	//			WithField("ctx", "deposits").
+	//			Debug("Deposit contract does activate yet")
+	//		return []*ethpb.Deposit{}, nil
+	//	}
+	//
+	//	log.WithField("hash", hash.Hex()).Debug("Activated deposit contract and calculating deposits")
+	//}
 
 	// Need to fetch if the deposits up to the state's latest eth 1 data matches
 	// the number of all deposits in this RPC call. If not, then we return nil.
 	canonicalEth1Data, canonicalEth1DataHeight, err := vs.canonicalEth1Data(ctx, beaconState, currentVote)
 	if err != nil {
-		return nil, err
+		return []*ethpb.Deposit{}, nil
 	}
 
 	_, genesisEth1Block := vs.Eth1InfoFetcher.Eth2GenesisPowchainInfo()
@@ -597,6 +597,13 @@ func (vs *Server) canonicalEth1Data(
 		canonicalEth1Data = beaconState.Eth1Data()
 		eth1BlockHash = bytesutil.ToBytes32(beaconState.Eth1Data().BlockHash)
 	}
+
+	log.WithField("curBlkHash", hexutil.Encode(currentVote.BlockHash)).
+		WithField("curDepositRoot", hexutil.Encode(currentVote.DepositRoot)).
+		WithField("stateBlkHash", hexutil.Encode(beaconState.Eth1Data().BlockHash)).
+		WithField("stateDepositRoot", hexutil.Encode(beaconState.Eth1Data().DepositRoot)).
+		Debug("#### canonicalEth1Data #####")
+
 	_, canonicalEth1DataHeight, err := vs.Eth1BlockFetcher.BlockExists(ctx, eth1BlockHash)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "could not fetch eth1data height")

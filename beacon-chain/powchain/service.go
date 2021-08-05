@@ -936,6 +936,12 @@ func (s *Service) ensureValidPowchainData(ctx context.Context) error {
 	if err != nil {
 		return errors.Wrap(err, "unable to retrieve eth1 data")
 	}
+
+	log.WithField("blockHash", hexutil.Encode(genState.Eth1Data().BlockHash)).
+		WithField("depositRoot", hexutil.Encode(genState.Eth1Data().DepositRoot)).
+		WithField("depositCount", genState.Eth1Data().DepositCount).
+		Debug("#### ensureValidPowchainData #####")
+
 	if eth1Data == nil || !eth1Data.ChainstartData.Chainstarted {
 		pbState, err := stateV0.ProtobufBeaconState(s.preGenesisState.InnerStateUnsafe())
 		if err != nil {
