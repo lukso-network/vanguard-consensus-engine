@@ -243,18 +243,21 @@ func (vs *Server) eth1DataMajorityVote(ctx context.Context, beaconState iface.Be
 	latestValidTime := votingPeriodStartTime - params.BeaconConfig().SecondsPerETH1Block*eth1FollowDistance
 
 	if vs.EnableVanguardNode {
+		emptyHash := [32]byte{}
 		// TODO- Need a configuration flag here just like Eth1FollowDistance
 		depositContractActivationHeight := big.NewInt(int64(3 * eth1FollowDistance))
 		hash, err := vs.Eth1BlockFetcher.BlockHashByHeight(vs.Ctx, depositContractActivationHeight)
-		if err != nil {
+
+		log.WithField("hash", hash.Hex()).
+			WithField("depositContractActivationHeight", depositContractActivationHeight).
+			WithError(err).
+			Debug("Deposit contract does not activate yet")
+
+		if hash == emptyHash || err != nil {
 			randomEth1Data, err := vs.randomETH1DataVote(ctx)
-			log.WithField("hash", hash.Hex()).
-				WithField("depositContractActivationHeight", depositContractActivationHeight).
-				WithError(err).
-				WithField("stateDepositCount", randomEth1Data.DepositCount).
-				Debug("Deposit contract does not activate yet")
 			return randomEth1Data, err
 		}
+
 		log.WithField("hash", hash.Hex()).Debug("Activated deposit contract and calculating eth1DataMajorityVote")
 	}
 
@@ -474,17 +477,20 @@ func (vs *Server) deposits(
 	}
 
 	if vs.EnableVanguardNode {
+		emptyHash := [32]byte{}
 		// TODO- Need a configuration flag here just like Eth1FollowDistance
 		depositContractActivationHeight := big.NewInt(int64(3 * params.BeaconConfig().Eth1FollowDistance))
 		hash, err := vs.Eth1BlockFetcher.BlockHashByHeight(vs.Ctx, depositContractActivationHeight)
-		if err != nil {
-			log.WithField("hash", hash.Hex()).
-				WithField("depositContractActivationHeight", depositContractActivationHeight).
-				WithError(err).
-				Debug("Deposit contract does not activate yet")
 
+		log.WithField("hash", hash.Hex()).
+			WithField("depositContractActivationHeight", depositContractActivationHeight).
+			WithError(err).
+			Debug("Deposit contract does not activate yet")
+
+		if hash == emptyHash || err != nil {
 			return []*ethpb.Deposit{}, nil
 		}
+
 		log.WithField("hash", hash.Hex()).Debug("Activated deposit contract and calculating deposits")
 	}
 	// Need to fetch if the deposits up to the state's latest eth 1 data matches
