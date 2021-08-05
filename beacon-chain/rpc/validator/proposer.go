@@ -98,6 +98,11 @@ func (vs *Server) GetBlock(ctx context.Context, req *ethpb.BlockRequest) (*ethpb
 		return nil, status.Errorf(codes.Internal, "Could not get ETH1 data: %v", err)
 	}
 
+	log.WithField("blockHash", hexutil.Encode(eth1Data.BlockHash)).
+		WithField("depositRoot", eth1Data.DepositRoot).
+		WithField("depositCount", eth1Data.DepositCount).
+		Debug("eth1Data info")
+
 	// Pack ETH1 deposits which have not been included in the beacon chain.
 	deposits, err := vs.deposits(ctx, head, eth1Data)
 	if err != nil {
@@ -248,12 +253,12 @@ func (vs *Server) eth1DataMajorityVote(ctx context.Context, beaconState iface.Be
 		depositContractActivationHeight := big.NewInt(int64(3 * eth1FollowDistance))
 		hash, err := vs.Eth1BlockFetcher.BlockHashByHeight(vs.Ctx, depositContractActivationHeight)
 
-		log.WithField("hash", hash.Hex()).
-			WithField("depositContractActivationHeight", depositContractActivationHeight).
-			WithError(err).
-			Debug("Deposit contract does not activate yet")
-
 		if hash == emptyHash || err != nil {
+			log.WithField("hash", hash.Hex()).
+				WithField("depositContractActivationHeight", depositContractActivationHeight).
+				WithError(err).
+				Debug("Deposit contract does not activate yet")
+
 			randomEth1Data, err := vs.randomETH1DataVote(ctx)
 			return randomEth1Data, err
 		}
@@ -290,6 +295,15 @@ func (vs *Server) eth1DataMajorityVote(ctx context.Context, beaconState iface.Be
 	if err != nil {
 		return nil, err
 	}
+
+	log.WithField("lastBlockByEarliestValidBlkNum", lastBlockByEarliestValidTime.Number).
+		WithField("lastBlockByLatestValidBlkNum", lastBlockByLatestValidTime.Number).
+		WithField("lastBlockDepositCount", lastBlockDepositCount).
+		WithField("lastBlockDepositRoot", lastBlockDepositRoot).
+		WithField("inRangeVotesLen", len(inRangeVotes)).
+		WithField("stateEth1Data", fmt.Sprintf("%+v", vs.HeadFetcher.HeadETH1Data())).
+		Debug("in range vote info")
+
 	if len(inRangeVotes) == 0 {
 		if lastBlockDepositCount >= vs.HeadFetcher.HeadETH1Data().DepositCount {
 			hash, err := vs.Eth1BlockFetcher.BlockHashByHeight(ctx, lastBlockByLatestValidTime.Number)
@@ -308,12 +322,7 @@ func (vs *Server) eth1DataMajorityVote(ctx context.Context, beaconState iface.Be
 
 	chosenVote := chosenEth1DataMajorityVote(inRangeVotes)
 
-	log.WithField("lastBlockByEarliestValidBlkNum", lastBlockByEarliestValidTime.Number).
-		WithField("lastBlockByLatestValidBlkNum", lastBlockByLatestValidTime.Number).
-		WithField("lastBlockDepositCount", lastBlockDepositCount).
-		WithField("lastBlockDepositRoot", lastBlockDepositRoot).
-		WithField("inRangeVotesLen", len(inRangeVotes)).
-		WithField("chosenEth1DataBlkHeight", chosenVote.data.blockHeight).
+	log.WithField("chosenEth1DataBlkHeight", chosenVote.data.blockHeight).
 		WithField("chosenEth1DataDepositCount", chosenVote.data.eth1Data.DepositCount).
 		WithField("chosenEth1DataDepositRoot", chosenVote.data.eth1Data.DepositRoot).
 		WithField("chosenEth1DataDepositBlockHash", chosenVote.data.eth1Data.BlockHash).
@@ -482,12 +491,12 @@ func (vs *Server) deposits(
 		depositContractActivationHeight := big.NewInt(int64(3 * params.BeaconConfig().Eth1FollowDistance))
 		hash, err := vs.Eth1BlockFetcher.BlockHashByHeight(vs.Ctx, depositContractActivationHeight)
 
-		log.WithField("hash", hash.Hex()).
-			WithField("depositContractActivationHeight", depositContractActivationHeight).
-			WithError(err).
-			Debug("Deposit contract does not activate yet")
-
 		if hash == emptyHash || err != nil {
+			log.WithField("hash", hash.Hex()).
+				WithField("depositContractActivationHeight", depositContractActivationHeight).
+				WithError(err).
+				WithField("ctx", "deposits").
+				Debug("Deposit contract does activate yet")
 			return []*ethpb.Deposit{}, nil
 		}
 
