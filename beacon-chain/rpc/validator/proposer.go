@@ -99,7 +99,7 @@ func (vs *Server) GetBlock(ctx context.Context, req *ethpb.BlockRequest) (*ethpb
 	}
 
 	log.WithField("blockHash", hexutil.Encode(eth1Data.BlockHash)).
-		WithField("depositRoot", eth1Data.DepositRoot).
+		WithField("depositRoot", hexutil.Encode(eth1Data.DepositRoot)).
 		WithField("depositCount", eth1Data.DepositCount).
 		Debug("eth1Data info")
 
@@ -247,24 +247,24 @@ func (vs *Server) eth1DataMajorityVote(ctx context.Context, beaconState iface.Be
 	earliestValidTime := votingPeriodStartTime - 2*params.BeaconConfig().SecondsPerETH1Block*eth1FollowDistance
 	latestValidTime := votingPeriodStartTime - params.BeaconConfig().SecondsPerETH1Block*eth1FollowDistance
 
-	if vs.EnableVanguardNode {
-		emptyHash := [32]byte{}
-		// TODO- Need a configuration flag here just like Eth1FollowDistance
-		depositContractActivationHeight := big.NewInt(int64(3 * eth1FollowDistance))
-		hash, err := vs.Eth1BlockFetcher.BlockHashByHeight(vs.Ctx, depositContractActivationHeight)
-
-		if hash == emptyHash || err != nil {
-			log.WithField("hash", hash.Hex()).
-				WithField("depositContractActivationHeight", depositContractActivationHeight).
-				WithError(err).
-				Debug("Deposit contract does not activate yet")
-
-			randomEth1Data, err := vs.randomETH1DataVote(ctx)
-			return randomEth1Data, err
-		}
-
-		log.WithField("hash", hash.Hex()).Debug("Activated deposit contract and calculating eth1DataMajorityVote")
-	}
+	//if vs.EnableVanguardNode {
+	//	emptyHash := [32]byte{}
+	//	// TODO- Need a configuration flag here just like Eth1FollowDistance
+	//	depositContractActivationHeight := big.NewInt(int64(3 * eth1FollowDistance))
+	//	hash, err := vs.Eth1BlockFetcher.BlockHashByHeight(vs.Ctx, depositContractActivationHeight)
+	//
+	//	if hash == emptyHash || err != nil {
+	//		log.WithField("hash", hash.Hex()).
+	//			WithField("depositContractActivationHeight", depositContractActivationHeight).
+	//			WithError(err).
+	//			Debug("Deposit contract does not activate yet")
+	//
+	//		randomEth1Data, err := vs.randomETH1DataVote(ctx)
+	//		return randomEth1Data, err
+	//	}
+	//
+	//	log.WithField("hash", hash.Hex()).Debug("Activated deposit contract and calculating eth1DataMajorityVote")
+	//}
 
 	lastBlockByEarliestValidTime, err := vs.Eth1BlockFetcher.BlockByTimestamp(ctx, earliestValidTime)
 	if err != nil {
@@ -287,6 +287,14 @@ func (vs *Server) eth1DataMajorityVote(ctx context.Context, beaconState iface.Be
 	}
 
 	lastBlockDepositCount, lastBlockDepositRoot := vs.DepositFetcher.DepositsNumberAndRootAtHeight(ctx, lastBlockByLatestValidTime.Number)
+
+	log.WithField("lastBlockByEarliestValidBlkNum", lastBlockByEarliestValidTime.Number).
+		WithField("lastBlockByLatestValidBlkNum", lastBlockByLatestValidTime.Number).
+		WithField("lastBlockDepositCount", lastBlockDepositCount).
+		WithField("lastBlockDepositRoot", lastBlockDepositRoot).
+		WithField("chainStartEth1Data", fmt.Sprintf("%+v", vs.ChainStartFetcher.ChainStartEth1Data())).
+		Debug("deposit consideration window info")
+
 	if lastBlockDepositCount == 0 {
 		return vs.ChainStartFetcher.ChainStartEth1Data(), nil
 	}
@@ -296,11 +304,7 @@ func (vs *Server) eth1DataMajorityVote(ctx context.Context, beaconState iface.Be
 		return nil, err
 	}
 
-	log.WithField("lastBlockByEarliestValidBlkNum", lastBlockByEarliestValidTime.Number).
-		WithField("lastBlockByLatestValidBlkNum", lastBlockByLatestValidTime.Number).
-		WithField("lastBlockDepositCount", lastBlockDepositCount).
-		WithField("lastBlockDepositRoot", lastBlockDepositRoot).
-		WithField("inRangeVotesLen", len(inRangeVotes)).
+	log.WithField("inRangeVotesLen", len(inRangeVotes)).
 		WithField("stateEth1Data", fmt.Sprintf("%+v", vs.HeadFetcher.HeadETH1Data())).
 		Debug("in range vote info")
 
@@ -485,23 +489,24 @@ func (vs *Server) deposits(
 		return []*ethpb.Deposit{}, nil
 	}
 
-	if vs.EnableVanguardNode {
-		emptyHash := [32]byte{}
-		// TODO- Need a configuration flag here just like Eth1FollowDistance
-		depositContractActivationHeight := big.NewInt(int64(3 * params.BeaconConfig().Eth1FollowDistance))
-		hash, err := vs.Eth1BlockFetcher.BlockHashByHeight(vs.Ctx, depositContractActivationHeight)
+	//if vs.EnableVanguardNode {
+	//	emptyHash := [32]byte{}
+	//	// TODO- Need a configuration flag here just like Eth1FollowDistance
+	//	depositContractActivationHeight := big.NewInt(int64(3 * params.BeaconConfig().Eth1FollowDistance))
+	//	hash, err := vs.Eth1BlockFetcher.BlockHashByHeight(vs.Ctx, depositContractActivationHeight)
+	//
+	//	if hash == emptyHash || err != nil {
+	//		log.WithField("hash", hash.Hex()).
+	//			WithField("depositContractActivationHeight", depositContractActivationHeight).
+	//			WithError(err).
+	//			WithField("ctx", "deposits").
+	//			Debug("Deposit contract does activate yet")
+	//		return []*ethpb.Deposit{}, nil
+	//	}
+	//
+	//	log.WithField("hash", hash.Hex()).Debug("Activated deposit contract and calculating deposits")
+	//}
 
-		if hash == emptyHash || err != nil {
-			log.WithField("hash", hash.Hex()).
-				WithField("depositContractActivationHeight", depositContractActivationHeight).
-				WithError(err).
-				WithField("ctx", "deposits").
-				Debug("Deposit contract does activate yet")
-			return []*ethpb.Deposit{}, nil
-		}
-
-		log.WithField("hash", hash.Hex()).Debug("Activated deposit contract and calculating deposits")
-	}
 	// Need to fetch if the deposits up to the state's latest eth 1 data matches
 	// the number of all deposits in this RPC call. If not, then we return nil.
 	canonicalEth1Data, canonicalEth1DataHeight, err := vs.canonicalEth1Data(ctx, beaconState, currentVote)
