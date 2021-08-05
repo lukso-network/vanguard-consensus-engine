@@ -736,8 +736,7 @@ func (s *Service) initPOWService() {
 					WithField("genesisBlock", s.chainStartData.GenesisBlock).
 					WithField("ctx", "initPOWService").
 					Debug("Try to find genHeader from eth1 chain")
-				//genHeader, err := s.eth1DataFetcher.HeaderByHash(ctx, common.BytesToHash(s.chainStartData.Eth1Data.BlockHash))
-				genHeader, err := s.eth1DataFetcher.HeaderByNumber(ctx, big.NewInt(0))
+				genHeader, err := s.eth1DataFetcher.HeaderByHash(ctx, common.BytesToHash(s.chainStartData.Eth1Data.BlockHash))
 				if err != nil {
 					log.Errorf("Unable to retrieve genesis ETH1.0 chain header: %v", err)
 					s.retryETH1Node(err)
