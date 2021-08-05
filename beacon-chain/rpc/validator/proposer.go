@@ -247,6 +247,11 @@ func (vs *Server) eth1DataMajorityVote(ctx context.Context, beaconState iface.Be
 	earliestValidTime := votingPeriodStartTime - 2*params.BeaconConfig().SecondsPerETH1Block*eth1FollowDistance
 	latestValidTime := votingPeriodStartTime - params.BeaconConfig().SecondsPerETH1Block*eth1FollowDistance
 
+	log.WithField("blockHash", hexutil.Encode(vs.HeadFetcher.HeadETH1Data().BlockHash)).
+		WithField("depositRoot", hexutil.Encode(vs.HeadFetcher.HeadETH1Data().DepositRoot)).
+		WithField("depositCount", vs.HeadFetcher.HeadETH1Data().DepositCount).
+		Debug("canonical chain eth1 data info")
+
 	if vs.EnableVanguardNode {
 		emptyHash := [32]byte{}
 		// TODO- Need a configuration flag here just like Eth1FollowDistance
@@ -282,15 +287,18 @@ func (vs *Server) eth1DataMajorityVote(ctx context.Context, beaconState iface.Be
 		log.WithError(err).Error("Could not get last block by latest valid time")
 		return vs.randomETH1DataVote(ctx)
 	}
+
+	log.WithField("lastBlockByEarliestValidBlkNum", lastBlockByEarliestValidTime.Number).
+		WithField("lastBlockByLatestValidBlkNum", lastBlockByLatestValidTime.Number).
+		Debug("time frame")
+
 	if lastBlockByLatestValidTime.Time < earliestValidTime {
 		return vs.HeadFetcher.HeadETH1Data(), nil
 	}
 
 	lastBlockDepositCount, lastBlockDepositRoot := vs.DepositFetcher.DepositsNumberAndRootAtHeight(ctx, lastBlockByLatestValidTime.Number)
 
-	log.WithField("lastBlockByEarliestValidBlkNum", lastBlockByEarliestValidTime.Number).
-		WithField("lastBlockByLatestValidBlkNum", lastBlockByLatestValidTime.Number).
-		WithField("lastBlockDepositCount", lastBlockDepositCount).
+	log.WithField("lastBlockDepositCount", lastBlockDepositCount).
 		WithField("lastBlockDepositRoot", lastBlockDepositRoot).
 		WithField("chainStartEth1Data", fmt.Sprintf("%+v", vs.ChainStartFetcher.ChainStartEth1Data())).
 		Debug("deposit consideration window info")
