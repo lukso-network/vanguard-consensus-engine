@@ -685,6 +685,11 @@ func (s *Service) handleETH1FollowDistance() {
 		log.Error("Beacon node is not respecting the follow distance")
 		return
 	}
+
+	log.WithField("lastRequestedBlock", s.latestEth1Data.LastRequestedBlock).
+		WithField("blockHeight", s.latestEth1Data.BlockHeight).
+		Debug("#### handleETH1FollowDistance ####")
+
 	if err := s.requestBatchedHeadersAndLogs(ctx); err != nil {
 		s.runError = err
 		log.Error(err)
