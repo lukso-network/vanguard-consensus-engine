@@ -286,40 +286,19 @@ func (vs *Server) eth1DataMajorityVote(ctx context.Context, beaconState iface.Be
 		return vs.ChainStartFetcher.ChainStartEth1Data(), nil
 	}
 
-	inRangeVotes, err := vs.inRangeVotes(ctx, beaconState, lastBlockByEarliestValidTime.Number, lastBlockByLatestValidTime.Number)
-	if err != nil {
-		return nil, err
-	}
-
-	log.WithField("inRangeVotesLen", len(inRangeVotes)).
-		WithField("stateEth1Data", fmt.Sprintf("%+v", vs.HeadFetcher.HeadETH1Data())).
-		Debug("in range vote info")
-
-	if len(inRangeVotes) == 0 {
-		if lastBlockDepositCount >= vs.HeadFetcher.HeadETH1Data().DepositCount {
-			hash, err := vs.Eth1BlockFetcher.BlockHashByHeight(ctx, lastBlockByLatestValidTime.Number)
-			if err != nil {
-				log.WithError(err).Error("Could not get hash of last block by latest valid time")
-				return vs.randomETH1DataVote(ctx)
-			}
-			return &ethpb.Eth1Data{
-				BlockHash:    hash.Bytes(),
-				DepositCount: lastBlockDepositCount,
-				DepositRoot:  lastBlockDepositRoot[:],
-			}, nil
+	if lastBlockDepositCount >= vs.HeadFetcher.HeadETH1Data().DepositCount {
+		hash, err := vs.Eth1BlockFetcher.BlockHashByHeight(ctx, lastBlockByLatestValidTime.Number)
+		if err != nil {
+			log.WithError(err).Error("Could not get hash of last block by latest valid time")
+			return vs.randomETH1DataVote(ctx)
 		}
-		return vs.HeadFetcher.HeadETH1Data(), nil
+		return &ethpb.Eth1Data{
+			BlockHash:    hash.Bytes(),
+			DepositCount: lastBlockDepositCount,
+			DepositRoot:  lastBlockDepositRoot[:],
+		}, nil
 	}
-
-	chosenVote := chosenEth1DataMajorityVote(inRangeVotes)
-
-	log.WithField("chosenEth1DataBlkHeight", chosenVote.data.blockHeight).
-		WithField("chosenEth1DataDepositCount", chosenVote.data.eth1Data.DepositCount).
-		WithField("chosenEth1DataDepositRoot", chosenVote.data.eth1Data.DepositRoot).
-		WithField("chosenEth1DataDepositBlockHash", chosenVote.data.eth1Data.BlockHash).
-		Debug("eth1DataMajorityVote info")
-
-	return &chosenVote.data.eth1Data, nil
+	return vs.HeadFetcher.HeadETH1Data(), nil
 }
 
 func (vs *Server) slotStartTime(slot types.Slot) uint64 {
