@@ -117,6 +117,7 @@ func ActiveValidatorCount(state iface.ReadOnlyBeaconState, epoch types.Epoch) (u
 	if err != nil {
 		return 0, errors.Wrap(err, "could not interface with committee cache")
 	}
+	log.WithField("activeCount", activeCount).Debug("active indices")
 	if activeCount != 0 && state.Slot() != 0 {
 		return uint64(activeCount), nil
 	}
