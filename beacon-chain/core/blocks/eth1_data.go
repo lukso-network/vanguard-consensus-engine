@@ -26,7 +26,7 @@ func ProcessEth1DataInBlock(_ context.Context, beaconState iface.BeaconState, b 
 		return nil, errors.New("nil state")
 	}
 	if block == nil || block.Body == nil {
-		return nil, errors.New("nil block or block withought body")
+		return nil, errors.New("nil block or block without body")
 	}
 	if err := beaconState.AppendEth1DataVotes(block.Body.Eth1Data); err != nil {
 		return nil, err

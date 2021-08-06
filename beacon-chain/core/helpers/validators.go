@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"bytes"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/pkg/errors"
 	types "github.com/prysmaticlabs/eth2-types"
@@ -79,6 +80,9 @@ func ActiveValidatorIndices(state iface.ReadOnlyBeaconState, epoch types.Epoch) 
 		return nil, errors.Wrap(err, "could not get seed")
 	}
 	activeIndices, err := committeeCache.ActiveIndices(seed)
+
+	log.WithField("activeValidatorLen", len(activeIndices)).Debug("active validator info")
+
 	if err != nil {
 		return nil, errors.Wrap(err, "could not interface with committee cache")
 	}
