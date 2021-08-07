@@ -6,6 +6,8 @@ package epoch
 
 import (
 	"fmt"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	log "github.com/sirupsen/logrus"
 	"sort"
 
 	"github.com/pkg/errors"
@@ -78,12 +80,31 @@ func AttestingBalance(state iface.ReadOnlyBeaconState, atts []*pb.PendingAttesta
 //        validator = state.validators[index]
 //        validator.activation_epoch = compute_activation_exit_epoch(get_current_epoch(state))
 func ProcessRegistryUpdates(state iface.BeaconState) (iface.BeaconState, error) {
+	defer log.Debug("Exiting ProcessRegistryUpdates")
 	currentEpoch := helpers.CurrentEpoch(state)
 	vals := state.Validators()
 	var err error
 	ejectionBal := params.BeaconConfig().EjectionBalance
 	activationEligibilityEpoch := helpers.CurrentEpoch(state) + 1
+
+	log.WithField("validators", fmt.Sprintf("%+v", vals)).
+		WithField("valLen", len(vals)).
+		WithField("ejectionBal", ejectionBal).
+		WithField("activationEligibilityEpoch", activationEligibilityEpoch).
+		WithField("curEpoch", currentEpoch).Debug("#### ProcessRegistryUpdates ####")
+
 	for idx, validator := range vals {
+
+		log.WithField("pubKey", hexutil.Encode(validator.PublicKey)).
+			WithField("withdrawalCredentials", hexutil.Encode(validator.WithdrawalCredentials)).
+			WithField("effectiveBalance", validator.EffectiveBalance).
+			WithField("slashed", validator.Slashed).
+			WithField("activationEligibilityEpoch", validator.ActivationEligibilityEpoch).
+			WithField("activationEpoch", validator.ActivationEpoch).
+			WithField("exitEpoch", validator.ExitEpoch).
+			WithField("withdrawableEpoch", validator.WithdrawableEpoch).
+			Debug("validator info in ProcessRegistryUpdates")
+
 		// Process the validators for activation eligibility.
 		if helpers.IsEligibleForActivationQueue(validator) {
 			validator.ActivationEligibilityEpoch = activationEligibilityEpoch
@@ -102,10 +123,20 @@ func ProcessRegistryUpdates(state iface.BeaconState) (iface.BeaconState, error) 
 			}
 		}
 	}
-
 	// Queue validators eligible for activation and not yet dequeued for activation.
 	var activationQ []types.ValidatorIndex
 	for idx, validator := range vals {
+
+		log.WithField("pubKey", hexutil.Encode(validator.PublicKey)).
+			WithField("withdrawalCredentials", hexutil.Encode(validator.WithdrawalCredentials)).
+			WithField("effectiveBalance", validator.EffectiveBalance).
+			WithField("slashed", validator.Slashed).
+			WithField("activationEligibilityEpoch", validator.ActivationEligibilityEpoch).
+			WithField("activationEpoch", validator.ActivationEpoch).
+			WithField("exitEpoch", validator.ExitEpoch).
+			WithField("withdrawableEpoch", validator.WithdrawableEpoch).
+			Debug("Added validator in activationQ in ProcessRegistryUpdates")
+
 		if helpers.IsEligibleForActivation(state, validator) {
 			activationQ = append(activationQ, types.ValidatorIndex(idx))
 		}
@@ -130,6 +161,11 @@ func ProcessRegistryUpdates(state iface.BeaconState) (iface.BeaconState, error) 
 		limit = churnLimit
 	}
 
+	log.WithField("activeValidatorCount", activeValidatorCount).
+		WithField("limit", limit).
+		WithField("churnLimit", churnLimit).
+		Debug("active validator count in ProcessRegistryUpdates")
+
 	activationExitEpoch := helpers.ActivationExitEpoch(currentEpoch)
 	for _, index := range activationQ[:limit] {
 		validator, err := state.ValidatorAtIndex(index)
@@ -137,6 +173,17 @@ func ProcessRegistryUpdates(state iface.BeaconState) (iface.BeaconState, error) 
 			return nil, err
 		}
 		validator.ActivationEpoch = activationExitEpoch
+
+		log.WithField("pubKey", hexutil.Encode(validator.PublicKey)).
+			WithField("withdrawalCredentials", hexutil.Encode(validator.WithdrawalCredentials)).
+			WithField("effectiveBalance", validator.EffectiveBalance).
+			WithField("slashed", validator.Slashed).
+			WithField("activationEligibilityEpoch", validator.ActivationEligibilityEpoch).
+			WithField("activationEpoch", validator.ActivationEpoch).
+			WithField("exitEpoch", validator.ExitEpoch).
+			WithField("withdrawableEpoch", validator.WithdrawableEpoch).
+			Debug("Update activation epoch of validator in ProcessRegistryUpdates")
+
 		if err := state.UpdateValidatorAtIndex(index, validator); err != nil {
 			return nil, err
 		}

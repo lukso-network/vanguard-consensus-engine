@@ -101,6 +101,7 @@ func (s *Service) ProcessLog(ctx context.Context, depositLog gethTypes.Log) erro
 	// Process logs according to their event signature.
 	if depositLog.Topics[0] == depositEventSignature {
 		if err := s.ProcessDepositLog(ctx, depositLog); err != nil {
+			log.WithError(err).Debug("#### Failed to process deposit log ####")
 			return errors.Wrap(err, "Could not process deposit log")
 		}
 		if s.lastReceivedMerkleIndex%eth1DataSavingInterval == 0 {
@@ -170,6 +171,7 @@ func (s *Service) ProcessDepositLog(ctx context.Context, depositLog gethTypes.Lo
 
 	// We always store all historical deposits in the DB.
 	s.cfg.DepositCache.InsertDeposit(ctx, deposit, depositLog.BlockNumber, index, s.depositTrie.Root())
+	log.Debug("#### should not be executed in InsertDeposit ####")
 	validData := true
 	if !s.chainStartData.Chainstarted {
 		s.chainStartData.ChainstartDeposits = append(s.chainStartData.ChainstartDeposits, deposit)

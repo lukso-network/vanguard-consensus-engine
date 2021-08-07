@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	iface "github.com/prysmaticlabs/prysm/beacon-chain/state/interface"
@@ -20,7 +21,7 @@ import (
 //    state.eth1_data_votes.append(body.eth1_data)
 //    if state.eth1_data_votes.count(body.eth1_data) * 2 > EPOCHS_PER_ETH1_VOTING_PERIOD * SLOTS_PER_EPOCH:
 //        state.latest_eth1_data = body.eth1_data
-func ProcessEth1DataInBlock(_ context.Context, beaconState iface.BeaconState, b *ethpb.SignedBeaconBlock) (iface.BeaconState, error) {
+func ProcessEth1DataInBlock(ctx context.Context, beaconState iface.BeaconState, b *ethpb.SignedBeaconBlock) (iface.BeaconState, error) {
 	block := b.Block
 	if beaconState == nil {
 		return nil, errors.New("nil state")
@@ -28,6 +29,16 @@ func ProcessEth1DataInBlock(_ context.Context, beaconState iface.BeaconState, b 
 	if block == nil || block.Body == nil {
 		return nil, errors.New("nil block or block without body")
 	}
+
+	parentStateRoot, err := beaconState.HashTreeRoot(ctx)
+	if err != nil {
+		log.WithField("blockHash", hexutil.Encode(block.Body.Eth1Data.BlockHash)).
+			WithField("depositRoot", hexutil.Encode(block.Body.Eth1Data.DepositRoot)).
+			WithField("depositCount", block.Body.Eth1Data.DepositCount).
+			WithField("parentStateRoot", hexutil.Encode(parentStateRoot[:])).
+			Debug("eth1Data info in ProcessEth1DataInBlock api")
+	}
+
 	if err := beaconState.AppendEth1DataVotes(block.Body.Eth1Data); err != nil {
 		return nil, err
 	}
@@ -69,6 +80,12 @@ func Eth1DataHasEnoughSupport(beaconState iface.ReadOnlyBeaconState, data *ethpb
 			voteCount++
 		}
 	}
+
+	log.WithField("voteCount", voteCount).
+		WithField("blockHash", hexutil.Encode(data.BlockHash)).
+		WithField("depositRoot", hexutil.Encode(data.DepositRoot)).
+		WithField("depositCount", data.DepositCount).
+		Debug("eth1Data info in Eth1DataHasEnoughSupport api")
 
 	// If 50+% majority converged on the same eth1data, then it has enough support to update the
 	// state.
