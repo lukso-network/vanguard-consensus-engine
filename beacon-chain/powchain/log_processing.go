@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"math/big"
 	"time"
 
@@ -127,6 +128,12 @@ func (s *Service) ProcessDepositLog(ctx context.Context, depositLog gethTypes.Lo
 	// ETH1.0 network, and prevents us from updating our trie
 	// with the same log twice, causing an inconsistent state root.
 	index := int64(binary.LittleEndian.Uint64(merkleTreeIndex))
+
+	log.WithField("index", index).
+		WithField("pubKey", hexutil.Encode(pubkey)).
+		WithField("lastReceivedMerkleIndex", s.lastReceivedMerkleIndex).
+		Debug("merkel index checking in ProcessDepositLog")
+
 	if index <= s.lastReceivedMerkleIndex {
 		return nil
 	}

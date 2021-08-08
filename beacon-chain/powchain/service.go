@@ -226,7 +226,11 @@ func NewService(ctx context.Context, config *Web3ServiceConfig) (*Service, error
 			}
 		}
 		s.latestEth1Data = eth1Data.CurrentEth1Data
-		s.lastReceivedMerkleIndex = int64(len(s.depositTrie.Items()) - 1)
+		numOfItems := s.depositTrie.NumOfItems()
+		s.lastReceivedMerkleIndex = int64(numOfItems - 1)
+
+		log.WithField("numOfItems", numOfItems).Debug("merkel index info")
+
 		if err := s.initDepositCaches(ctx, eth1Data.DepositContainers); err != nil {
 			return nil, errors.Wrap(err, "could not initialize caches")
 		}
