@@ -499,12 +499,15 @@ func (vs *Server) deposits(
 			WithField("Eth1BlockHeight", dep.Eth1BlockHeight).
 			WithField("publicKey", hexutil.Encode(dep.Deposit.Data.PublicKey)).
 			WithField("canonicalEth1DataDepositCount", canonicalEth1Data.DepositCount).
+			WithField("Eth1DepositIndex", beaconState.Eth1DepositIndex()).
 			Debug("deposit container info")
 
 		if uint64(dep.Index) >= beaconState.Eth1DepositIndex() && uint64(dep.Index) < canonicalEth1Data.DepositCount {
 			pendingDeps = append(pendingDeps, dep)
 		}
 	}
+
+	log.WithField("pendingDepsContainerLen", len(pendingDeps)).Debug("pendingDeps")
 
 	for i := range pendingDeps {
 		// Don't construct merkle proof if the number of deposits is more than max allowed in block.
