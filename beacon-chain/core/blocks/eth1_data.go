@@ -31,7 +31,7 @@ func ProcessEth1DataInBlock(ctx context.Context, beaconState iface.BeaconState, 
 	}
 
 	parentStateRoot, err := beaconState.HashTreeRoot(ctx)
-	if err != nil {
+	if err == nil {
 		log.WithField("blockHash", hexutil.Encode(block.Body.Eth1Data.BlockHash)).
 			WithField("depositRoot", hexutil.Encode(block.Body.Eth1Data.DepositRoot)).
 			WithField("depositCount", block.Body.Eth1Data.DepositCount).

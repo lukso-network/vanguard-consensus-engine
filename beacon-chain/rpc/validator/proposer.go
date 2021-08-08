@@ -468,8 +468,8 @@ func (vs *Server) deposits(
 	_, genesisEth1Block := vs.Eth1InfoFetcher.Eth2GenesisPowchainInfo()
 
 	log.WithField("canonicalEth1DataDepositCount", canonicalEth1Data.DepositCount).
-		WithField("canonicalEth1DataBlkHash", canonicalEth1Data.BlockHash).
-		WithField("canonicalEth1DataDepositRoot", canonicalEth1Data.DepositRoot).
+		WithField("canonicalEth1DataBlkHash", hexutil.Encode(canonicalEth1Data.BlockHash)).
+		WithField("canonicalEth1DataDepositRoot", hexutil.Encode(canonicalEth1Data.DepositRoot)).
 		WithField("canonicalEth1DataHeight", canonicalEth1DataHeight).
 		WithField("genesisEth1Block", genesisEth1Block).
 		Debug("canonical eth1 data info")
@@ -480,6 +480,7 @@ func (vs *Server) deposits(
 
 	// If there are no pending deposits, exit early.
 	allPendingContainers := vs.PendingDepositsFetcher.PendingContainers(ctx, canonicalEth1DataHeight)
+	log.WithField("allPendingContainersLen", len(allPendingContainers)).Debug("allPendingContainers")
 	if len(allPendingContainers) == 0 {
 		return []*ethpb.Deposit{}, nil
 	}
@@ -493,6 +494,13 @@ func (vs *Server) deposits(
 	// deposits are sorted from lowest to highest.
 	var pendingDeps []*dbpb.DepositContainer
 	for _, dep := range allPendingContainers {
+
+		log.WithField("index", dep.Index).
+			WithField("Eth1BlockHeight", dep.Eth1BlockHeight).
+			WithField("publicKey", hexutil.Encode(dep.Deposit.Data.PublicKey)).
+			WithField("canonicalEth1DataDepositCount", canonicalEth1Data.DepositCount).
+			Debug("deposit container info")
+
 		if uint64(dep.Index) >= beaconState.Eth1DepositIndex() && uint64(dep.Index) < canonicalEth1Data.DepositCount {
 			pendingDeps = append(pendingDeps, dep)
 		}
@@ -504,6 +512,11 @@ func (vs *Server) deposits(
 			break
 		}
 		pendingDeps[i].Deposit, err = constructMerkleProof(depositTrie, int(pendingDeps[i].Index), pendingDeps[i].Deposit)
+
+		log.WithField("publicKey", hexutil.Encode(pendingDeps[i].Deposit.Data.PublicKey)).
+			WithField("err", err).
+			Debug("constructMerkleProof")
+
 		if err != nil {
 			return nil, err
 		}
