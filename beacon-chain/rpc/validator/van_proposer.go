@@ -2,7 +2,6 @@ package validator
 
 import (
 	"context"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/state/interop"
 	"go.opencensus.io/trace"
@@ -15,6 +14,7 @@ func (vs *Server) UpdateStateRoot(ctx context.Context, blk *ethpb.BeaconBlock) (
 	ctx, span := trace.StartSpan(ctx, "ProposerServer.UpdateStateRoot")
 	defer span.End()
 	span.AddAttributes(trace.Int64Attribute("slot", int64(blk.Slot)))
+
 	// Compute state root with the newly constructed block.
 	stateRoot, err := vs.computeStateRoot(ctx, &ethpb.SignedBeaconBlock{Block: blk, Signature: make([]byte, 96)})
 	if err != nil {
@@ -22,13 +22,6 @@ func (vs *Server) UpdateStateRoot(ctx context.Context, blk *ethpb.BeaconBlock) (
 		return nil, status.Errorf(codes.Internal, "Could not compute state root: %v", err)
 	}
 	blk.StateRoot = stateRoot
-
-	eth1Data := blk.Body.Eth1Data
-	log.WithField("blockHash", hexutil.Encode(eth1Data.BlockHash)).
-		WithField("depositRoot", hexutil.Encode(eth1Data.DepositRoot)).
-		WithField("depositCount", eth1Data.DepositCount).
-		WithField("stateRoot", hexutil.Encode(blk.StateRoot)).
-		Debug("eth1Data info in GetBlock api")
 
 	return blk, nil
 }

@@ -52,7 +52,6 @@ func (s *Service) Eth2GenesisPowchainInfo() (uint64, *big.Int) {
 
 // ProcessETH1Block processes the logs from the provided eth1Block.
 func (s *Service) ProcessETH1Block(ctx context.Context, blkNum *big.Int) error {
-	defer log.Debug("exiting ProcessETH1Block")
 	query := ethereum.FilterQuery{
 		Addresses: []common.Address{
 			s.cfg.DepositContract,
@@ -60,14 +59,7 @@ func (s *Service) ProcessETH1Block(ctx context.Context, blkNum *big.Int) error {
 		FromBlock: blkNum,
 		ToBlock:   blkNum,
 	}
-
 	logs, err := s.httpLogger.FilterLogs(ctx, query)
-
-	log.WithField("contractAdd", s.cfg.DepositContract).
-		WithField("block", blkNum).
-		WithField("logsLen", len(logs)).
-		Debug("#### ProcessETH1Block ####")
-
 	if err != nil {
 		return err
 	}
@@ -76,16 +68,11 @@ func (s *Service) ProcessETH1Block(ctx context.Context, blkNum *big.Int) error {
 		if filterLog.BlockNumber != blkNum.Uint64() {
 			continue
 		}
-
-		log.WithField("filteredBlkNumber", filterLog.BlockNumber).
-			Debug("#### ProcessETH1Block ####")
-
 		if err := s.ProcessLog(ctx, filterLog); err != nil {
 			return errors.Wrap(err, "could not process log")
 		}
 	}
 	if !s.chainStartData.Chainstarted {
-		log.WithField("blkNum", blkNum).WithField("ctx", "ProcessETH1Block").Debug("checking block number for chain start")
 		if err := s.checkBlockNumberForChainStart(ctx, blkNum); err != nil {
 			return err
 		}
@@ -96,13 +83,11 @@ func (s *Service) ProcessETH1Block(ctx context.Context, blkNum *big.Int) error {
 // ProcessLog is the main method which handles the processing of all
 // logs from the deposit contract on the ETH1.0 chain.
 func (s *Service) ProcessLog(ctx context.Context, depositLog gethTypes.Log) error {
-	defer log.Debug("exiting ProcessLog")
 	s.processingLock.RLock()
 	defer s.processingLock.RUnlock()
 	// Process logs according to their event signature.
 	if depositLog.Topics[0] == depositEventSignature {
 		if err := s.ProcessDepositLog(ctx, depositLog); err != nil {
-			log.WithError(err).Debug("#### Failed to process deposit log ####")
 			return errors.Wrap(err, "Could not process deposit log")
 		}
 		if s.lastReceivedMerkleIndex%eth1DataSavingInterval == 0 {
@@ -118,7 +103,6 @@ func (s *Service) ProcessLog(ctx context.Context, depositLog gethTypes.Log) erro
 // the ETH1.0 chain by trying to ascertain which participant deposited
 // in the contract.
 func (s *Service) ProcessDepositLog(ctx context.Context, depositLog gethTypes.Log) error {
-	defer log.Debug("exiting ProcessDepositLog")
 	pubkey, withdrawalCredentials, amount, signature, merkleTreeIndex, err := contracts.UnpackDepositLogData(depositLog.Data)
 	if err != nil {
 		return errors.Wrap(err, "Could not unpack log")
@@ -178,7 +162,6 @@ func (s *Service) ProcessDepositLog(ctx context.Context, depositLog gethTypes.Lo
 
 	// We always store all historical deposits in the DB.
 	s.cfg.DepositCache.InsertDeposit(ctx, deposit, depositLog.BlockNumber, index, s.depositTrie.Root())
-	log.Debug("#### should not be executed in InsertDeposit ####")
 	validData := true
 	if !s.chainStartData.Chainstarted {
 		s.chainStartData.ChainstartDeposits = append(s.chainStartData.ChainstartDeposits, deposit)
@@ -273,7 +256,6 @@ func (s *Service) createGenesisTime(timeStamp uint64) uint64 {
 // processPastLogs processes all the past logs from the deposit contract and
 // updates the deposit trie with the data from each individual log.
 func (s *Service) processPastLogs(ctx context.Context) error {
-	defer log.Debug("exiting processPastLogs")
 	currentBlockNum := s.latestEth1Data.LastRequestedBlock
 	deploymentBlock := params.BeaconNetworkConfig().ContractDeploymentBlock
 	// Start from the deployment block if our last requested block
@@ -308,11 +290,6 @@ func (s *Service) processPastLogs(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
-	log.WithField("latestBlockHeight", s.latestEth1Data.BlockHeight).
-		WithField("lastRequestBlock", s.latestEth1Data.LastRequestedBlock).
-		WithField("currentBlockNum", currentBlockNum).
-		WithField("latestFollowHeight", latestFollowHeight).Debug("#### processPastLogs ####")
 
 	batchSize := s.cfg.Eth1HeaderReqLimit
 	additiveFactor := uint64(float64(batchSize) * additiveFactorMultiplier)
@@ -420,12 +397,6 @@ func (s *Service) requestBatchedHeadersAndLogs(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
-	log.WithField("newRequestedBlock", requestedBlock).
-		WithField("lastRequestedBlock", s.latestEth1Data.LastRequestedBlock).
-		WithField("blockHeight", s.latestEth1Data.BlockHeight).
-		Debug("#### requestBatchedHeadersAndLogs ####")
-
 	if requestedBlock > s.latestEth1Data.LastRequestedBlock &&
 		requestedBlock-s.latestEth1Data.LastRequestedBlock > maxTolerableDifference {
 		log.Infof("Falling back to historical headers and logs sync. Current difference is %d", requestedBlock-s.latestEth1Data.LastRequestedBlock)
