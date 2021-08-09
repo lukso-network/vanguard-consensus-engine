@@ -146,12 +146,6 @@ func (vs *Server) GetBlock(ctx context.Context, req *ethpb.BlockRequest) (*ethpb
 	}
 	blk.StateRoot = stateRoot
 
-	log.WithField("blockHash", hexutil.Encode(eth1Data.BlockHash)).
-		WithField("depositRoot", hexutil.Encode(eth1Data.DepositRoot)).
-		WithField("depositCount", eth1Data.DepositCount).
-		WithField("stateRoot", hexutil.Encode(blk.StateRoot)).
-		Debug("eth1Data info in GetBlock api")
-
 	// If vanguard chain is enabled, we set the latest pandora sharding info into beacon block so that
 	// we do not need to make another api call for getting latest sharding info
 	if vs.EnableVanguardNode {
@@ -248,11 +242,6 @@ func (vs *Server) eth1DataMajorityVote(ctx context.Context, beaconState iface.Be
 	earliestValidTime := votingPeriodStartTime - 2*params.BeaconConfig().SecondsPerETH1Block*eth1FollowDistance
 	latestValidTime := votingPeriodStartTime - params.BeaconConfig().SecondsPerETH1Block*eth1FollowDistance
 
-	log.WithField("blockHash", hexutil.Encode(vs.HeadFetcher.HeadETH1Data().BlockHash)).
-		WithField("depositRoot", hexutil.Encode(vs.HeadFetcher.HeadETH1Data().DepositRoot)).
-		WithField("depositCount", vs.HeadFetcher.HeadETH1Data().GetDepositCount()).
-		Debug("HeadETH1Data")
-
 	lastBlockByEarliestValidTime, err := vs.Eth1BlockFetcher.BlockByTimestamp(ctx, earliestValidTime)
 	if err != nil {
 		log.WithError(err).Error("Could not get last block by earliest valid time")
@@ -269,22 +258,11 @@ func (vs *Server) eth1DataMajorityVote(ctx context.Context, beaconState iface.Be
 		log.WithError(err).Error("Could not get last block by latest valid time")
 		return vs.randomETH1DataVote(ctx)
 	}
-
-	log.WithField("lastBlockByEarliestValidBlkNum", lastBlockByEarliestValidTime.Number).
-		WithField("lastBlockByLatestValidBlkNum", lastBlockByLatestValidTime.Number).
-		Debug("time frame")
-
 	if lastBlockByLatestValidTime.Time < earliestValidTime {
 		return vs.HeadFetcher.HeadETH1Data(), nil
 	}
 
 	lastBlockDepositCount, lastBlockDepositRoot := vs.DepositFetcher.DepositsNumberAndRootAtHeight(ctx, lastBlockByLatestValidTime.Number)
-
-	log.WithField("lastBlockDepositCount", lastBlockDepositCount).
-		WithField("lastBlockDepositRoot", lastBlockDepositRoot).
-		WithField("chainStartEth1Data", fmt.Sprintf("%+v", vs.ChainStartFetcher.ChainStartEth1Data())).
-		Debug("deposit consideration window info")
-
 	if lastBlockDepositCount == 0 {
 		return vs.ChainStartFetcher.ChainStartEth1Data(), nil
 	}
@@ -457,7 +435,6 @@ func (vs *Server) deposits(
 	if vs.MockEth1Votes || !vs.Eth1InfoFetcher.IsConnectedToETH1() {
 		return []*ethpb.Deposit{}, nil
 	}
-
 	// Need to fetch if the deposits up to the state's latest eth 1 data matches
 	// the number of all deposits in this RPC call. If not, then we return nil.
 	canonicalEth1Data, canonicalEth1DataHeight, err := vs.canonicalEth1Data(ctx, beaconState, currentVote)
@@ -466,21 +443,12 @@ func (vs *Server) deposits(
 	}
 
 	_, genesisEth1Block := vs.Eth1InfoFetcher.Eth2GenesisPowchainInfo()
-
-	log.WithField("canonicalEth1DataDepositCount", canonicalEth1Data.DepositCount).
-		WithField("canonicalEth1DataBlkHash", hexutil.Encode(canonicalEth1Data.BlockHash)).
-		WithField("canonicalEth1DataDepositRoot", hexutil.Encode(canonicalEth1Data.DepositRoot)).
-		WithField("canonicalEth1DataHeight", canonicalEth1DataHeight).
-		WithField("genesisEth1Block", genesisEth1Block).
-		Debug("canonical eth1 data info")
-
 	if genesisEth1Block.Cmp(canonicalEth1DataHeight) == 0 {
 		return []*ethpb.Deposit{}, nil
 	}
 
 	// If there are no pending deposits, exit early.
 	allPendingContainers := vs.PendingDepositsFetcher.PendingContainers(ctx, canonicalEth1DataHeight)
-	log.WithField("allPendingContainersLen", len(allPendingContainers)).Debug("allPendingContainers")
 	if len(allPendingContainers) == 0 {
 		return []*ethpb.Deposit{}, nil
 	}
@@ -494,20 +462,10 @@ func (vs *Server) deposits(
 	// deposits are sorted from lowest to highest.
 	var pendingDeps []*dbpb.DepositContainer
 	for _, dep := range allPendingContainers {
-
-		log.WithField("index", dep.Index).
-			WithField("Eth1BlockHeight", dep.Eth1BlockHeight).
-			WithField("publicKey", hexutil.Encode(dep.Deposit.Data.PublicKey)).
-			WithField("canonicalEth1DataDepositCount", canonicalEth1Data.DepositCount).
-			WithField("Eth1DepositIndex", beaconState.Eth1DepositIndex()).
-			Debug("deposit container info")
-
 		if uint64(dep.Index) >= beaconState.Eth1DepositIndex() && uint64(dep.Index) < canonicalEth1Data.DepositCount {
 			pendingDeps = append(pendingDeps, dep)
 		}
 	}
-
-	log.WithField("pendingDepsContainerLen", len(pendingDeps)).Debug("pendingDeps")
 
 	for i := range pendingDeps {
 		// Don't construct merkle proof if the number of deposits is more than max allowed in block.
@@ -515,11 +473,6 @@ func (vs *Server) deposits(
 			break
 		}
 		pendingDeps[i].Deposit, err = constructMerkleProof(depositTrie, int(pendingDeps[i].Index), pendingDeps[i].Deposit)
-
-		log.WithField("publicKey", hexutil.Encode(pendingDeps[i].Deposit.Data.PublicKey)).
-			WithField("err", err).
-			Debug("constructMerkleProof")
-
 		if err != nil {
 			return nil, err
 		}
@@ -529,8 +482,6 @@ func (vs *Server) deposits(
 	for i := uint64(0); i < uint64(len(pendingDeps)) && i < params.BeaconConfig().MaxDeposits; i++ {
 		pendingDeposits = append(pendingDeposits, pendingDeps[i].Deposit)
 	}
-
-	log.WithField("pendingDepositsLen", len(pendingDeposits)).Debug("pending deposits")
 	return pendingDeposits, nil
 }
 
@@ -558,18 +509,7 @@ func (vs *Server) canonicalEth1Data(
 		canonicalEth1Data = beaconState.Eth1Data()
 		eth1BlockHash = bytesutil.ToBytes32(beaconState.Eth1Data().BlockHash)
 	}
-
 	_, canonicalEth1DataHeight, err := vs.Eth1BlockFetcher.BlockExists(ctx, eth1BlockHash)
-
-	log.WithField("curBlkHash", hexutil.Encode(currentVote.BlockHash)).
-		WithField("curDepositRoot", hexutil.Encode(currentVote.DepositRoot)).
-		WithField("stateBlkHash", hexutil.Encode(beaconState.Eth1Data().BlockHash)).
-		WithField("stateDepositRoot", hexutil.Encode(beaconState.Eth1Data().DepositRoot)).
-		WithField("hasSupport", hasSupport).
-		WithField("eth1DataVotesLen", len(beaconState.Eth1DataVotes())).
-		WithField("err", err).
-		Debug("#### canonicalEth1Data #####")
-
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "could not fetch eth1data height")
 	}

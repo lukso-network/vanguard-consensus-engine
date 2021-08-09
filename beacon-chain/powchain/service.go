@@ -669,7 +669,6 @@ func (s *Service) handleETH1FollowDistance() {
 		log.Warn("eth1 client is not syncing")
 	}
 	if !s.chainStartData.Chainstarted {
-		log.WithField("lastRequestedBlock", s.latestEth1Data.LastRequestedBlock).WithField("ctx", "handleETH1FollowDistance").Debug("checking block number for chain start")
 		if err := s.checkBlockNumberForChainStart(ctx, big.NewInt(int64(s.latestEth1Data.LastRequestedBlock))); err != nil {
 			s.runError = err
 			log.Error(err)
@@ -685,11 +684,6 @@ func (s *Service) handleETH1FollowDistance() {
 		log.Error("Beacon node is not respecting the follow distance")
 		return
 	}
-
-	log.WithField("lastRequestedBlock", s.latestEth1Data.LastRequestedBlock).
-		WithField("blockHeight", s.latestEth1Data.BlockHeight).
-		Debug("#### handleETH1FollowDistance ####")
-
 	if err := s.requestBatchedHeadersAndLogs(ctx); err != nil {
 		s.runError = err
 		log.Error(err)
@@ -735,12 +729,6 @@ func (s *Service) initPOWService() {
 			// Handle edge case with embedded genesis state by fetching genesis header to determine
 			// its height.
 			if s.chainStartData.Chainstarted && s.chainStartData.GenesisBlock == 0 {
-				log.WithField("chainStatred", s.chainStartData.Chainstarted).
-					WithField("genesisTime", s.chainStartData.GenesisTime).
-					WithField("eth1Data", fmt.Sprintf("%+v", s.chainStartData.Eth1Data)).
-					WithField("genesisBlock", s.chainStartData.GenesisBlock).
-					WithField("ctx", "initPOWService").
-					Debug("Try to find genHeader from eth1 chain")
 				//genHeader, err := s.eth1DataFetcher.HeaderByHash(ctx, common.BytesToHash(s.chainStartData.Eth1Data.BlockHash))
 				genHeader, err := s.eth1DataFetcher.HeaderByNumber(ctx, big.NewInt(0))
 				if err != nil {
@@ -941,12 +929,6 @@ func (s *Service) ensureValidPowchainData(ctx context.Context) error {
 	if err != nil {
 		return errors.Wrap(err, "unable to retrieve eth1 data")
 	}
-
-	log.WithField("blockHash", hexutil.Encode(genState.Eth1Data().BlockHash)).
-		WithField("depositRoot", hexutil.Encode(genState.Eth1Data().DepositRoot)).
-		WithField("depositCount", genState.Eth1Data().DepositCount).
-		Debug("#### ensureValidPowchainData #####")
-
 	if eth1Data == nil || !eth1Data.ChainstartData.Chainstarted {
 		pbState, err := stateV0.ProtobufBeaconState(s.preGenesisState.InnerStateUnsafe())
 		if err != nil {
