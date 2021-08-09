@@ -462,6 +462,14 @@ func (vs *Server) deposits(
 	// deposits are sorted from lowest to highest.
 	var pendingDeps []*dbpb.DepositContainer
 	for _, dep := range allPendingContainers {
+
+		log.WithField("index", dep.Index).
+			WithField("Eth1BlockHeight", dep.Eth1BlockHeight).
+			WithField("publicKey", hexutil.Encode(dep.Deposit.Data.PublicKey)).
+			WithField("canonicalEth1DataDepositCount", canonicalEth1Data.DepositCount).
+			WithField("Eth1DepositIndex", beaconState.Eth1DepositIndex()).
+			Debug("deposit container info")
+
 		if uint64(dep.Index) >= beaconState.Eth1DepositIndex() && uint64(dep.Index) < canonicalEth1Data.DepositCount {
 			pendingDeps = append(pendingDeps, dep)
 		}
@@ -482,6 +490,8 @@ func (vs *Server) deposits(
 	for i := uint64(0); i < uint64(len(pendingDeps)) && i < params.BeaconConfig().MaxDeposits; i++ {
 		pendingDeposits = append(pendingDeposits, pendingDeps[i].Deposit)
 	}
+
+	log.WithField("pendingDepositsLen", len(pendingDeposits)).Debug("pending deposits")
 	return pendingDeposits, nil
 }
 
