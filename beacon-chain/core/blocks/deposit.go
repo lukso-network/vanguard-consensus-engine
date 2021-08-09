@@ -3,7 +3,6 @@ package blocks
 import (
 	"context"
 	"fmt"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/pkg/errors"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
@@ -142,7 +141,6 @@ func ProcessDeposits(
 //        index = ValidatorIndex(validator_pubkeys.index(pubkey))
 //        increase_balance(state, index, amount)
 func ProcessDeposit(beaconState iface.BeaconState, deposit *ethpb.Deposit, verifySignature bool) (iface.BeaconState, error) {
-	defer log.Debug("Exiting ProcessDeposit")
 	if err := verifyDeposit(beaconState, deposit); err != nil {
 		if deposit == nil || deposit.Data == nil {
 			return nil, err
@@ -155,7 +153,6 @@ func ProcessDeposit(beaconState iface.BeaconState, deposit *ethpb.Deposit, verif
 	pubKey := deposit.Data.PublicKey
 	amount := deposit.Data.Amount
 	index, ok := beaconState.ValidatorIndexByPubkey(bytesutil.ToBytes48(pubKey))
-	log.WithField("index", index).WithField("ok", ok).Debug("#### ProcessDeposit ####")
 	if !ok {
 		if verifySignature {
 			domain, err := helpers.ComputeDomain(params.BeaconConfig().DomainDeposit, nil, nil)
@@ -187,10 +184,6 @@ func ProcessDeposit(beaconState iface.BeaconState, deposit *ethpb.Deposit, verif
 		if err := beaconState.AppendBalance(amount); err != nil {
 			return nil, err
 		}
-
-		log.WithField("effectiveBalance", effectiveBalance).
-			WithField("pubKey", hexutil.Encode(pubKey)).Debug("#### Added new validator in ProcessDeposit ####")
-
 	} else if err := helpers.IncreaseBalance(beaconState, index, amount); err != nil {
 		return nil, err
 	}
