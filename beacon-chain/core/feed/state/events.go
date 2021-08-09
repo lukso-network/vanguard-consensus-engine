@@ -22,6 +22,8 @@ const (
 	// Reorg is an event sent when the new head state's slot after a block
 	// transition is lower than its previous head state slot value.
 	Reorg
+	// BlockVerified is sent when new block is validated by orchestrator
+	BlockVerified
 )
 
 // BlockProcessedData is the data sent with BlockProcessed events.

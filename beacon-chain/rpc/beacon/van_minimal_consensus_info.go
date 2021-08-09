@@ -51,7 +51,7 @@ func (bs *Server) StreamMinimalConsensusInfo(
 	for {
 		select {
 		case stateEvent := <-stateChannel:
-			if stateEvent.Type == statefeed.BlockProcessed {
+			if stateEvent.Type == statefeed.BlockVerified {
 				block, ok := stateEvent.Data.(*statefeed.BlockProcessedData)
 				if !ok {
 					log.Warn("Failed to send epoch info to orchestrator")
@@ -105,7 +105,7 @@ func (bs *Server) initialEpochInfoPropagation(
 		for {
 			select {
 			case stateEvent := <-stateChannel:
-				if stateEvent.Type == statefeed.BlockProcessed {
+				if stateEvent.Type == statefeed.BlockVerified {
 					block, ok := stateEvent.Data.(*statefeed.BlockProcessedData)
 					if !ok {
 						continue

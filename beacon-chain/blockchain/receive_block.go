@@ -100,16 +100,7 @@ func (s *Service) ReceiveBlockBatch(ctx context.Context, blocks []*ethpb.SignedB
 	}
 
 	for i, b := range blocks {
-		// Vanguard: Validated by vanguard node. Now intercepting the execution and publishing the block
-		// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
-		//if s.enableVanguardNode {
-		//	if err := s.publishAndWaitForOrcConfirmation(ctx, b); err != nil {
-		//		return err
-		//	}
-		//}
-
 		blockCopy := stateV0.CopySignedBeaconBlock(b)
-
 		if err = s.handleBlockAfterBatchVerify(ctx, blockCopy, blkRoots[i], fCheckpoints[i], jCheckpoints[i]); err != nil {
 			traceutil.AnnotateError(span, err)
 			return err
