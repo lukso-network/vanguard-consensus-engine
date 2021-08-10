@@ -108,14 +108,6 @@ func (s *Service) onBlock(ctx context.Context, signed *ethpb.SignedBeaconBlock, 
 	// Vanguard: Validated by vanguard node. Now intercepting the execution and publishing the block
 	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
 	if s.enableVanguardNode {
-		// Send notification of the processed block to the state feed.
-		s.cfg.StateNotifier.StateFeed().Send(&feed.Event{
-			Type: statefeed.BlockVerified,
-			Data: &statefeed.BlockProcessedData{
-				Slot:     signed.Block.Slot,
-				Verified: true,
-			},
-		})
 		if err := s.publishAndWaitForOrcConfirmation(ctx, signed); err != nil {
 			return err
 		}
@@ -267,9 +259,9 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []*ethpb.SignedBeaconBl
 			// Send notification of the processed block to the state feed.
 			s.cfg.StateNotifier.StateFeed().Send(&feed.Event{
 				Type: statefeed.BlockVerified,
-				Data: &statefeed.BlockProcessedData{
-					Slot:     b.Block.Slot,
-					Verified: true,
+				Data: &statefeed.BlockPreVerifiedData{
+					Slot:         b.Block.Slot,
+					CurrentState: preState,
 				},
 			})
 

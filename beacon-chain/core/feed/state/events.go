@@ -4,6 +4,7 @@
 package state
 
 import (
+	iface "github.com/prysmaticlabs/prysm/beacon-chain/state/interface"
 	"time"
 
 	types "github.com/prysmaticlabs/eth2-types"
@@ -64,4 +65,12 @@ type ReorgData struct {
 	NewSlot types.Slot
 	// OldSlot is the slot of the head state before the reorg.
 	OldSlot types.Slot
+}
+
+// BlockPreVerifiedData is the data sent for orchestrator minimal consensus info
+type BlockPreVerifiedData struct {
+	// Slot is the slot of the processed block.
+	Slot types.Slot
+	// CurrentState of the processed block.
+	CurrentState iface.BeaconState
 }
