@@ -174,12 +174,16 @@ func (s *Service) ProcessDepositLog(ctx context.Context, depositLog gethTypes.Lo
 			return nil
 		}
 		pubKeyHex := hexutil.Encode(pubkey)
-		if uint64(index) < genesisState.Eth1Data().DepositCount && s.genesisPublicKeys[index] == pubKeyHex {
-			s.cfg.DepositCache.InsertFinalizedDeposits(ctx, index)
-
+		if uint64(index) < genesisState.Eth1Data().DepositCount {
 			log.WithField("index", index).
 				WithField("genesisPubKey", pubKeyHex).
 				Debug("Finalized deposit for genesis deposits")
+
+			if s.genesisPublicKeys[index] == pubKeyHex {
+				s.cfg.DepositCache.InsertFinalizedDeposits(ctx, index)
+			} else {
+				return errors.New("Genesis deposit incorrect. Index and genesis public key mis-matched")
+			}
 		}
 	}
 	validData := true
