@@ -22,6 +22,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	eth2Types "github.com/prysmaticlabs/eth2-types"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/beacon-chain/cache/depositcache"
 	statefeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/state"
@@ -148,17 +149,21 @@ type Service struct {
 	lastReceivedMerkleIndex int64 // Keeps track of the last received index to prevent log spam.
 	runError                error
 	preGenesisState         iface.BeaconState
+
+	// vanguard properties
+	genesisPublicKeys []string
 }
 
 // Web3ServiceConfig defines a config struct for web3 service to use through its life cycle.
 type Web3ServiceConfig struct {
-	HTTPEndpoints      []string
+	EnableVanguardNode bool // Vanguard: checking vanguard client
 	DepositContract    common.Address
-	BeaconDB           db.HeadAccessDatabase
-	DepositCache       *depositcache.DepositCache
-	StateNotifier      statefeed.Notifier
-	StateGen           *stategen.State
 	Eth1HeaderReqLimit uint64
+	DepositCache       *depositcache.DepositCache
+	StateGen           *stategen.State
+	StateNotifier      statefeed.Notifier
+	BeaconDB           db.HeadAccessDatabase
+	HTTPEndpoints      []string
 }
 
 // NewService sets up a new instance with an ethclient when
@@ -233,6 +238,12 @@ func NewService(ctx context.Context, config *Web3ServiceConfig) (*Service, error
 
 		if err := s.initDepositCaches(ctx, eth1Data.DepositContainers); err != nil {
 			return nil, errors.Wrap(err, "could not initialize caches")
+		}
+	}
+
+	if s.cfg.EnableVanguardNode {
+		if err := s.retrieveGenesisPublicKeys(ctx); err != nil {
+			return nil, errors.Wrap(err, "could not initialize powchain")
 		}
 	}
 	return s, nil
@@ -953,6 +964,26 @@ func (s *Service) ensureValidPowchainData(ctx context.Context) error {
 			DepositContainers: s.cfg.DepositCache.AllDepositContainers(ctx),
 		}
 		return s.cfg.BeaconDB.SavePowchainData(ctx, eth1Data)
+	}
+	return nil
+}
+
+// retrieveGenesisPublicKeys
+func (s *Service) retrieveGenesisPublicKeys(ctx context.Context) error {
+	genesisState, err := s.cfg.BeaconDB.GenesisState(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to retrieve genesis public keys")
+	}
+	// Exit early if no genesis state is saved.
+	if genesisState == nil {
+		return nil
+	}
+
+	s.genesisPublicKeys = make([]string, genesisState.NumValidators())
+	for i := eth2Types.ValidatorIndex(0); uint64(i) < uint64(genesisState.NumValidators()); i++ {
+		pubKey := genesisState.PubkeyAtIndex(i)
+		pubKeyHex := hexutil.Encode(pubKey[:])
+		s.genesisPublicKeys[i] = pubKeyHex
 	}
 	return nil
 }

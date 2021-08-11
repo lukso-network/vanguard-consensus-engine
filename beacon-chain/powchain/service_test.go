@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"math/big"
 	"strings"
 	"sync"
@@ -613,4 +614,26 @@ func TestService_EnsureConsistentPowchainData(t *testing.T) {
 
 	assert.NotNil(t, eth1Data)
 	assert.Equal(t, true, eth1Data.ChainstartData.Chainstarted)
+}
+
+func TestService_RetrieveGenesisPublicKeys(t *testing.T) {
+	ctx := context.Background()
+	beaconDB := dbutil.SetupDB(t)
+	st, _ := testutil.DeterministicGenesisState(t, 10)
+	b := testutil.NewBeaconBlock()
+	genRoot, err := b.HashTreeRoot()
+	require.NoError(t, err)
+	require.NoError(t, beaconDB.SaveState(context.Background(), st, genRoot))
+	require.NoError(t, beaconDB.SaveGenesisBlockRoot(context.Background(), genRoot))
+
+	s := &Service{
+		chainStartData:  &protodb.ChainStartData{Chainstarted: false},
+		preGenesisState: st,
+		cfg:             &Web3ServiceConfig{BeaconDB: beaconDB, EnableVanguardNode: true},
+	}
+	require.NoError(t, s.retrieveGenesisPublicKeys(ctx))
+	require.Equal(t, 10, len(s.genesisPublicKeys))
+	pubKey := st.PubkeyAtIndex(0)
+	pubKeyHex := hexutil.Encode(pubKey[:])
+	require.Equal(t, pubKeyHex, s.genesisPublicKeys[0])
 }

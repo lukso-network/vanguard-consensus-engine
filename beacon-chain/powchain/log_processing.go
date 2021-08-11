@@ -162,6 +162,26 @@ func (s *Service) ProcessDepositLog(ctx context.Context, depositLog gethTypes.Lo
 
 	// We always store all historical deposits in the DB.
 	s.cfg.DepositCache.InsertDeposit(ctx, deposit, depositLog.BlockNumber, index, s.depositTrie.Root())
+
+	// if vanguard flag is enable, then executes the below code
+	if s.cfg.EnableVanguardNode {
+		genesisState, err := s.cfg.BeaconDB.GenesisState(ctx)
+		if err != nil {
+			return err
+		}
+		// Exit early if no genesis state is saved.
+		if genesisState == nil {
+			return nil
+		}
+		pubKeyHex := hexutil.Encode(pubkey)
+		if uint64(index) < genesisState.Eth1Data().DepositCount && s.genesisPublicKeys[index] == pubKeyHex {
+			s.cfg.DepositCache.InsertFinalizedDeposits(ctx, index)
+
+			log.WithField("index", index).
+				WithField("genesisPubKey", pubKeyHex).
+				Debug("Finalized deposit for genesis deposits")
+		}
+	}
 	validData := true
 	if !s.chainStartData.Chainstarted {
 		s.chainStartData.ChainstartDeposits = append(s.chainStartData.ChainstartDeposits, deposit)
