@@ -93,7 +93,7 @@ func (bs *Server) initialEpochInfoPropagation(
 			return err
 		}
 
-		epochInfo, err := bs.prepareEpochInfo(currentEpoch, state)
+		epochInfo, err := bs.prepareEpochInfo(currentEpoch, state.Copy())
 		if err != nil {
 			log.WithField("epoch", currentEpoch).
 				WithError(err).
@@ -136,7 +136,7 @@ func (bs *Server) initialEpochInfoPropagation(
 							WithField("nextEpoch", nextEpoch).
 							Info("Initial syncing done. sending next epoch info and exiting initial epochInfo propagation loop")
 
-						epochInfo, err := bs.prepareEpochInfo(nextEpoch, s)
+						epochInfo, err := bs.prepareEpochInfo(nextEpoch, s.Copy())
 						if err != nil {
 							log.WithField("epoch", nextEpoch).
 								WithError(err).
@@ -169,7 +169,7 @@ func (bs *Server) initialEpochInfoPropagation(
 	}
 	// sending past proposer assignments info to orchestrator
 	for epoch := requestedEpoch; epoch <= currentEpoch; epoch++ {
-		epochInfo, err := bs.prepareEpochInfo(epoch, state)
+		epochInfo, err := bs.prepareEpochInfo(epoch, state.Copy())
 		if err != nil {
 			log.WithField("epoch", epoch).
 				WithError(err).

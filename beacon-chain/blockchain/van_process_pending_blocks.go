@@ -81,7 +81,7 @@ func (s *Service) publishAndWaitForOrcConfirmation(
 		Type: statefeed.BlockVerified,
 		Data: &statefeed.BlockPreVerifiedData{
 			Slot:         pendingBlk.Block.Slot,
-			CurrentState: curState,
+			CurrentState: curState.Copy(),
 		},
 	})
 
