@@ -52,19 +52,15 @@ func (bs *Server) StreamMinimalConsensusInfo(
 	for {
 		select {
 		case stateEvent := <-stateChannel:
-			if stateEvent.Type == statefeed.BlockProcessed {
-				block, ok := stateEvent.Data.(*statefeed.BlockProcessedData)
+			if stateEvent.Type == statefeed.BlockVerified {
+				blockVerifiedData, ok := stateEvent.Data.(*statefeed.BlockPreVerifiedData)
 				if !ok {
 					log.Warn("Failed to send epoch info to orchestrator")
 					continue
 				}
 
-				state, err := bs.HeadFetcher.HeadState(bs.Ctx)
-				if err != nil {
-					return err
-				}
-				if err := bs.sendNextEpochInfo(block.Slot, stream, state); err != nil {
-					log.WithField("epoch", helpers.SlotToEpoch(block.Slot)+1).
+				if err := bs.sendNextEpochInfo(blockVerifiedData.Slot, stream, blockVerifiedData.CurrentState); err != nil {
+					log.WithField("epoch", helpers.SlotToEpoch(blockVerifiedData.Slot)+1).
 						WithError(err).
 						Warn("Failed to send epoch info to orchestrator")
 					continue
