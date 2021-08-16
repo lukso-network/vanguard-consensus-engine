@@ -162,30 +162,6 @@ func (s *Service) ProcessDepositLog(ctx context.Context, depositLog gethTypes.Lo
 
 	// We always store all historical deposits in the DB.
 	s.cfg.DepositCache.InsertDeposit(ctx, deposit, depositLog.BlockNumber, index, s.depositTrie.Root())
-
-	// if vanguard flag is enable, then executes the below code
-	if s.cfg.EnableVanguardNode {
-		genesisState, err := s.cfg.BeaconDB.GenesisState(ctx)
-		if err != nil {
-			return err
-		}
-		// Exit early if no genesis state is saved.
-		if genesisState == nil {
-			return nil
-		}
-		pubKeyHex := hexutil.Encode(pubkey)
-		if uint64(index) < genesisState.Eth1Data().DepositCount {
-			log.WithField("index", index).
-				WithField("genesisPubKey", pubKeyHex).
-				Debug("Finalized deposit for genesis deposits")
-
-			if s.genesisPublicKeys[index] == pubKeyHex {
-				s.cfg.DepositCache.InsertFinalizedDeposits(ctx, index)
-			} else {
-				return errors.New("Genesis deposit incorrect. Index and genesis public key mis-matched")
-			}
-		}
-	}
 	validData := true
 	if !s.chainStartData.Chainstarted {
 		s.chainStartData.ChainstartDeposits = append(s.chainStartData.ChainstartDeposits, deposit)
@@ -199,7 +175,35 @@ func (s *Service) ProcessDepositLog(ctx context.Context, depositLog gethTypes.Lo
 			validData = false
 		}
 	} else {
-		s.cfg.DepositCache.InsertPendingDeposit(ctx, deposit, depositLog.BlockNumber, index, s.depositTrie.Root())
+		// if vanguard flag is enable, then executes the below code
+		if s.cfg.EnableVanguardNode {
+			genesisState, err := s.cfg.BeaconDB.GenesisState(ctx)
+			if err != nil {
+				return err
+			}
+			// Exit early if no genesis state is saved.
+			if genesisState == nil {
+				return nil
+			}
+			if uint64(index) < genesisState.Eth1Data().DepositCount {
+				pubKeyHex := hexutil.Encode(pubkey)
+				log.WithField("index", index).
+					WithField("genesisPubKey", pubKeyHex).
+					Debug("Finalized deposit for genesis deposits")
+
+				if s.genesisPublicKeys[index] == pubKeyHex {
+					s.cfg.DepositCache.InsertFinalizedDeposits(ctx, index)
+					log.Debug("Inserted genesis deposits into finalized deposits cache")
+				} else {
+					log.Debug("Failed to insert genesis deposits into finalized deposits cache")
+					return errors.New("Genesis deposit incorrect. Index and genesis public key mis-matched")
+				}
+			} else {
+				s.cfg.DepositCache.InsertPendingDeposit(ctx, deposit, depositLog.BlockNumber, index, s.depositTrie.Root())
+			}
+		} else {
+			s.cfg.DepositCache.InsertPendingDeposit(ctx, deposit, depositLog.BlockNumber, index, s.depositTrie.Root())
+		}
 	}
 	if validData {
 		log.WithFields(logrus.Fields{
