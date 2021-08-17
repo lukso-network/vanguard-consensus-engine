@@ -185,19 +185,25 @@ func (s *Service) ProcessDepositLog(ctx context.Context, depositLog gethTypes.Lo
 			if genesisState == nil {
 				return nil
 			}
-			if uint64(index) < genesisState.Eth1Data().DepositCount {
+			if uint64(index) == genesisState.Eth1Data().DepositCount-1 {
 				pubKeyHex := hexutil.Encode(pubkey)
+				s.cfg.DepositCache.InsertFinalizedDeposits(ctx, index)
+				cachedDeposits := s.cfg.DepositCache.FinalizedDeposits(context.Background())
+				finalizedDepositsRoot := cachedDeposits.Deposits.HashTreeRoot()
+
 				log.WithField("index", index).
 					WithField("genesisPubKey", pubKeyHex).
-					Debug("Finalized deposit for genesis deposits")
+					WithField("genesisDepositRoot", hexutil.Encode(genesisState.Eth1Data().DepositRoot)).
+					WithField("finalizedDepositRoot", hexutil.Encode(finalizedDepositsRoot[:])).
+					Debug("Finalized all genesis deposits")
 
-				if s.genesisPublicKeys[index] == pubKeyHex {
-					s.cfg.DepositCache.InsertFinalizedDeposits(ctx, index)
-					log.Debug("Inserted genesis deposits into finalized deposits cache")
-				} else {
-					log.Debug("Failed to insert genesis deposits into finalized deposits cache")
-					return errors.New("Genesis deposit incorrect. Index and genesis public key mis-matched")
-				}
+				//if s.genesisPublicKeys[index] == pubKeyHex {
+				//
+				//	log.Debug("Inserted genesis deposits into finalized deposits cache")
+				//} else {
+				//	log.Debug("Failed to insert genesis deposits into finalized deposits cache")
+				//	return errors.New("Genesis deposit incorrect. Index and genesis public key mis-matched")
+				//}
 			} else {
 				s.cfg.DepositCache.InsertPendingDeposit(ctx, deposit, depositLog.BlockNumber, index, s.depositTrie.Root())
 			}
