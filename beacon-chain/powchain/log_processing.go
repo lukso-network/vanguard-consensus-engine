@@ -115,8 +115,17 @@ func (s *Service) ProcessDepositLog(ctx context.Context, depositLog gethTypes.Lo
 
 	log.WithField("index", index).
 		WithField("pubKey", hexutil.Encode(pubkey)).
+		WithField("pubKeyInGenesis", s.genesisPublicKeys[index]).
 		WithField("lastReceivedMerkleIndex", s.lastReceivedMerkleIndex).
-		Debug("merkel index checking in ProcessDepositLog")
+		Debug("Incoming deposit info")
+
+	if s.cfg.EnableVanguardNode {
+		pubKeyHex := hexutil.Encode(pubkey)
+		if s.genesisPublicKeys[index] != pubKeyHex {
+			log.Warn("Failed to process deposit due index and public key mis-match")
+			return errors.New("Genesis deposit sequence incorrect. Index and genesis public key mis-matched")
+		}
+	}
 
 	if index <= s.lastReceivedMerkleIndex {
 		return nil
@@ -186,24 +195,14 @@ func (s *Service) ProcessDepositLog(ctx context.Context, depositLog gethTypes.Lo
 				return nil
 			}
 			if uint64(index) == genesisState.Eth1Data().DepositCount-1 {
-				pubKeyHex := hexutil.Encode(pubkey)
 				s.cfg.DepositCache.InsertFinalizedDeposits(ctx, index)
 				cachedDeposits := s.cfg.DepositCache.FinalizedDeposits(context.Background())
 				finalizedDepositsRoot := cachedDeposits.Deposits.HashTreeRoot()
 
 				log.WithField("index", index).
-					WithField("genesisPubKey", pubKeyHex).
 					WithField("genesisDepositRoot", hexutil.Encode(genesisState.Eth1Data().DepositRoot)).
 					WithField("finalizedDepositRoot", hexutil.Encode(finalizedDepositsRoot[:])).
 					Debug("Finalized all genesis deposits")
-
-				//if s.genesisPublicKeys[index] == pubKeyHex {
-				//
-				//	log.Debug("Inserted genesis deposits into finalized deposits cache")
-				//} else {
-				//	log.Debug("Failed to insert genesis deposits into finalized deposits cache")
-				//	return errors.New("Genesis deposit incorrect. Index and genesis public key mis-matched")
-				//}
 			} else {
 				s.cfg.DepositCache.InsertPendingDeposit(ctx, deposit, depositLog.BlockNumber, index, s.depositTrie.Root())
 			}

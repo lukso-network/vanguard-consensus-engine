@@ -151,7 +151,7 @@ type Service struct {
 	preGenesisState         iface.BeaconState
 
 	// vanguard properties
-	genesisPublicKeys []string
+	genesisPublicKeys map[int64]string
 }
 
 // Web3ServiceConfig defines a config struct for web3 service to use through its life cycle.
@@ -979,11 +979,11 @@ func (s *Service) retrieveGenesisPublicKeys(ctx context.Context) error {
 		return nil
 	}
 
-	s.genesisPublicKeys = make([]string, genesisState.NumValidators())
-	for i := eth2Types.ValidatorIndex(0); uint64(i) < uint64(genesisState.NumValidators()); i++ {
-		pubKey := genesisState.PubkeyAtIndex(i)
+	s.genesisPublicKeys = make(map[int64]string, genesisState.NumValidators())
+	for i := 0; i < genesisState.NumValidators(); i++ {
+		pubKey := genesisState.PubkeyAtIndex(eth2Types.ValidatorIndex(i))
 		pubKeyHex := hexutil.Encode(pubKey[:])
-		s.genesisPublicKeys[i] = pubKeyHex
+		s.genesisPublicKeys[int64(i)] = pubKeyHex
 	}
 	return nil
 }
