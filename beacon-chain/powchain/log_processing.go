@@ -112,21 +112,26 @@ func (s *Service) ProcessDepositLog(ctx context.Context, depositLog gethTypes.Lo
 	// ETH1.0 network, and prevents us from updating our trie
 	// with the same log twice, causing an inconsistent state root.
 	index := int64(binary.LittleEndian.Uint64(merkleTreeIndex))
-
 	log.WithField("index", index).
 		WithField("pubKey", hexutil.Encode(pubkey)).
 		WithField("pubKeyInGenesis", s.genesisPublicKeys[index]).
 		WithField("lastReceivedMerkleIndex", s.lastReceivedMerkleIndex).
 		Debug("Incoming deposit info")
-
 	if s.cfg.EnableVanguardNode {
+		genesisState, err := s.cfg.BeaconDB.GenesisState(ctx)
+		if err != nil {
+			return err
+		}
+		// Exit early if no genesis state is saved.
+		if genesisState == nil {
+			return nil
+		}
 		pubKeyHex := hexutil.Encode(pubkey)
-		if s.genesisPublicKeys[index] != pubKeyHex {
+		if uint64(index) < genesisState.Eth1Data().DepositCount && s.genesisPublicKeys[index] != pubKeyHex {
 			log.Warn("Failed to process deposit due index and public key mis-match")
 			return errors.New("Genesis deposit sequence incorrect. Index and genesis public key mis-matched")
 		}
 	}
-
 	if index <= s.lastReceivedMerkleIndex {
 		return nil
 	}
