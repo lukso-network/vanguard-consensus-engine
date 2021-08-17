@@ -275,7 +275,7 @@ func (vs *Server) eth1DataMajorityVote(ctx context.Context, beaconState iface.Be
 	log.WithField("earliestValidBlkNum", lastBlockByEarliestValidTime.Number).
 		WithField("latestValidBlkNum", lastBlockByLatestValidTime.Number).
 		WithField("lastBlockDepositCount", lastBlockDepositCount).
-		WithField("lastBlockDepositRoot", hexutil.Encode(lastBlockDepositRoot)).
+		WithField("lastBlockDepositRoot", hexutil.Encode(lastBlockDepositRoot[:])).
 		Debug("prepared eth1 data")
 
 	if lastBlockDepositCount >= vs.HeadFetcher.HeadETH1Data().DepositCount {
