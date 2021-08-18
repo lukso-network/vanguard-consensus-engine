@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"github.com/status-im/keycard-go/hexutils"
 	"math/big"
 	"sort"
 	"sync"
@@ -116,6 +117,11 @@ func (dc *DepositCache) InsertFinalizedDeposits(ctx context.Context, eth1Deposit
 
 	depositTrie := dc.finalizedDeposits.Deposits
 	insertIndex := int(dc.finalizedDeposits.MerkleTrieIndex + 1)
+	depositInBytess := depositTrie.HashTreeRoot()
+	log.WithField("insertIndex", insertIndex).
+		WithField("initial depositTrie",hexutils.BytesToHex(depositInBytess[:])).
+		WithField("MarkleTrieIndex", dc.finalizedDeposits.MerkleTrieIndex).
+		Debug("InsertFinalizedDeposits")
 	for _, d := range dc.deposits {
 		if d.Index <= dc.finalizedDeposits.MerkleTrieIndex {
 			continue
@@ -124,6 +130,8 @@ func (dc *DepositCache) InsertFinalizedDeposits(ctx context.Context, eth1Deposit
 			break
 		}
 		depHash, err := d.Deposit.Data.HashTreeRoot()
+		log.WithField("d.Index", d.Index).WithField("eth1DepositIndex", eth1DepositIndex).WithField("index", insertIndex).
+			WithField("depHash", hexutils.BytesToHex(depHash[:])).Debug("inside deposits for loop")
 		if err != nil {
 			log.WithError(err).Error("Could not hash deposit data. Finalized deposit cache not updated.")
 			return
@@ -136,6 +144,7 @@ func (dc *DepositCache) InsertFinalizedDeposits(ctx context.Context, eth1Deposit
 		Deposits:        depositTrie,
 		MerkleTrieIndex: eth1DepositIndex,
 	}
+	log.WithField("deposits", dc.finalizedDeposits.Deposits.HashTreeRoot()).WithField("markeTreeIndex", dc.finalizedDeposits.MerkleTrieIndex).Debug("new finalized deposits")
 }
 
 // AllDepositContainers returns all historical deposit containers.
