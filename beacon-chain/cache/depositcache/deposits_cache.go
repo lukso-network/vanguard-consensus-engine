@@ -60,6 +60,9 @@ type DepositCache struct {
 // New instantiates a new deposit cache
 func New() (*DepositCache, error) {
 	finalizedDepositsTrie, err := trieutil.NewTrie(params.BeaconConfig().DepositContractTreeDepth)
+	fd := finalizedDepositsTrie.HashTreeRoot()
+	fdHex := hexutil.Encode(fd[:])
+	log.WithField("finalizedDepositsTrieRoot", fdHex).Debug("In new deposit cache")
 	if err != nil {
 		return nil, err
 	}
@@ -119,8 +122,9 @@ func (dc *DepositCache) InsertFinalizedDeposits(ctx context.Context, eth1Deposit
 	insertIndex := int(dc.finalizedDeposits.MerkleTrieIndex + 1)
 	depositInBytess := depositTrie.HashTreeRoot()
 	log.WithField("insertIndex", insertIndex).
+		WithField("itemsCount", len(dc.finalizedDeposits.Deposits.Items())).
 		WithField("initial depositTrie", hexutil.Encode(depositInBytess[:])).
-		WithField("MarkleTrieIndex", dc.finalizedDeposits.MerkleTrieIndex).
+		WithField("markleTrieIndex", dc.finalizedDeposits.MerkleTrieIndex).
 		Debug("InsertFinalizedDeposits")
 	for _, d := range dc.deposits {
 		if d.Index <= dc.finalizedDeposits.MerkleTrieIndex {
