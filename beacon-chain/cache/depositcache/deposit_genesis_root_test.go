@@ -52,15 +52,31 @@ func TestFinalizeDeposit_TrieRoot(t *testing.T) {
 	depositTrie, err := trieutil.NewTrie(params.BeaconConfig().DepositContractTreeDepth)
 	require.NoError(t, err)
 
+	initialtrieRoot := dc.finalizedDeposits.Deposits.HashTreeRoot()
+	initialtrieRootHex := hexutil.Encode(initialtrieRoot[:])
+	assert.Equal(t, "0xd70a234731285c6804c2a4f56711ddb8c82c99740f207854891028af34e27e5e", initialtrieRootHex)
+
 	deposits, err := generateDepositsFromData(depositDataList, depositTrie)
+	require.NoError(t, err)
+	topTrieRoot := depositTrie.Root()
+	topTrieRootHex := hexutil.Encode(topTrieRoot[:])
+	assert.Equal(t, expectedDepositRootHex, topTrieRootHex)
+
+	trie1, err := trieutil.NewTrie(params.BeaconConfig().DepositContractTreeDepth)
 	require.NoError(t, err)
 	for i := 0; i < len(deposits); i++ {
 		depositRoot, err := deposits[i].Data.HashTreeRoot()
 		require.NoError(t, err)
+
 		depositRootHex := hexutil.Encode(depositRoot[:])
 		actualDepositRootHex := hexutil.Encode(depositDataRoots[i])
 		assert.DeepEqual(t, actualDepositRootHex, depositRootHex)
-		dc.InsertDeposit(ctx, deposits[i], uint64(i), int64(i), depositRoot)
+
+		depositHash, err := deposits[i].Data.HashTreeRoot()
+		require.NoError(t, err)
+		trie1.Insert(depositHash[:], i)
+
+		dc.InsertDeposit(ctx, deposits[i], uint64(i), int64(i), trie.Root())
 		dc.InsertFinalizedDeposits(ctx, int64(i))
 	}
 

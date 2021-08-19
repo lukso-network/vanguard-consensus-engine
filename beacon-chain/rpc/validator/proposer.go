@@ -121,6 +121,9 @@ func (vs *Server) GetBlock(ctx context.Context, req *ethpb.BlockRequest) (*ethpb
 		return nil, status.Errorf(codes.Internal, "Could not calculate proposer index %v", err)
 	}
 
+	log.WithField("eth1DataRoot", hexutil.Encode(eth1Data.DepositRoot)).
+		WithField("ethDataDepositCount", eth1Data.DepositCount).Debug("eth1 data info")
+
 	blk := &ethpb.BeaconBlock{
 		Slot:          req.Slot,
 		ParentRoot:    parentRoot,
@@ -555,6 +558,8 @@ func (vs *Server) depositTrie(ctx context.Context, canonicalEth1DataHeight *big.
 
 	finalizedDeposits := vs.DepositFetcher.FinalizedDeposits(ctx)
 	depositTrie = finalizedDeposits.Deposits
+
+	finalizedDepositsRoot := depositTrie.Root()
 	upToEth1DataDeposits := vs.DepositFetcher.NonFinalizedDeposits(ctx, canonicalEth1DataHeight)
 	insertIndex := finalizedDeposits.MerkleTrieIndex + 1
 
@@ -566,7 +571,10 @@ func (vs *Server) depositTrie(ctx context.Context, canonicalEth1DataHeight *big.
 		depositTrie.Insert(depHash[:], int(insertIndex))
 		insertIndex++
 	}
-
+	latestDepositsRoot := depositTrie.Root()
+	log.WithField("finalizedDepositsRoot", hexutil.Encode(finalizedDepositsRoot[:])).
+		WithField("latestDepositsRoot", hexutil.Encode(latestDepositsRoot[:])).
+		Debug("depositTrie checking in proposer.go")
 	return depositTrie, nil
 }
 

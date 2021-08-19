@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/pkg/errors"
 	types "github.com/prysmaticlabs/eth2-types"
@@ -692,6 +693,12 @@ func ProcessBlockForStateRoot(
 		traceutil.AnnotateError(span, err)
 		return nil, errors.Wrap(err, "could not process eth1 data")
 	}
+
+	eth1Data := state.Eth1Data()
+	log.WithField("eth1DataRoot", hexutil.Encode(eth1Data.DepositRoot)).
+		WithField("eth1DepositCount", eth1Data.DepositCount).
+		WithField("eth1DepositIndex", state.Eth1DepositIndex()).
+		Debug("eth1 data in ProcessBlockForStateRoot")
 
 	state, err = ProcessOperationsNoVerifyAttsSigs(ctx, state, signed)
 	if err != nil {

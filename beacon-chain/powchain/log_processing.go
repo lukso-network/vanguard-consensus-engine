@@ -208,7 +208,7 @@ func (s *Service) ProcessDepositLog(ctx context.Context, depositLog gethTypes.Lo
 			if uint64(index) < genesisState.Eth1Data().DepositCount {
 				s.cfg.DepositCache.InsertFinalizedDeposits(ctx, index)
 				cachedDeposits := s.cfg.DepositCache.FinalizedDeposits(context.Background())
-				finalizedDepositsRoot := cachedDeposits.Deposits.HashTreeRoot()
+				finalizedDepositsRoot := cachedDeposits.Deposits.Root()
 
 				log.WithField("index", index).
 					WithField("genesisDepositRoot", hexutil.Encode(genesisState.Eth1Data().DepositRoot)).
@@ -219,6 +219,11 @@ func (s *Service) ProcessDepositLog(ctx context.Context, depositLog gethTypes.Lo
 				s.cfg.DepositCache.InsertPendingDeposit(ctx, deposit, depositLog.BlockNumber, index, s.depositTrie.Root())
 			}
 		} else {
+			curDepositRoot := s.depositTrie.Root()
+			log.WithField("index", index).
+				WithField("curDepositRoot", hexutil.Encode(curDepositRoot[:])).
+				WithField("depositDataRoot", hexutil.Encode(depositHash[:])).
+				Debug("Storing pending deposits")
 			s.cfg.DepositCache.InsertPendingDeposit(ctx, deposit, depositLog.BlockNumber, index, s.depositTrie.Root())
 		}
 	}

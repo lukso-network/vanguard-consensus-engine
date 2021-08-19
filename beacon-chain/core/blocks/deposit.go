@@ -3,7 +3,7 @@ package blocks
 import (
 	"context"
 	"fmt"
-
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/pkg/errors"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
@@ -206,6 +206,13 @@ func verifyDeposit(beaconState iface.ReadOnlyBeaconState, deposit *ethpb.Deposit
 	if err != nil {
 		return errors.Wrap(err, "could not tree hash deposit data")
 	}
+
+	log.WithField("eth1DataRoot", hexutil.Encode(eth1Data.DepositRoot)).
+		WithField("eth1DepositCount", eth1Data.DepositCount).
+		WithField("eth1DepositIndex", beaconState.Eth1DepositIndex()).
+		WithField("depositDataRoot", hexutil.Encode(leaf[:])).
+		Debug("eth1 data in verifyDeposit")
+
 	if ok := trieutil.VerifyMerkleBranch(
 		receiptRoot,
 		leaf[:],

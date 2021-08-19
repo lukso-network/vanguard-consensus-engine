@@ -120,7 +120,7 @@ func (dc *DepositCache) InsertFinalizedDeposits(ctx context.Context, eth1Deposit
 
 	depositTrie := dc.finalizedDeposits.Deposits
 	insertIndex := int(dc.finalizedDeposits.MerkleTrieIndex + 1)
-	depositInBytess := depositTrie.HashTreeRoot()
+	depositInBytess := depositTrie.Root()
 	log.WithField("insertIndex", insertIndex).
 		WithField("itemsCount", len(dc.finalizedDeposits.Deposits.Items())).
 		WithField("initial depositTrie", hexutil.Encode(depositInBytess[:])).
