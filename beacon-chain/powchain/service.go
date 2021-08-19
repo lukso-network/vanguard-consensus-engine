@@ -965,6 +965,7 @@ func (s *Service) ensureValidPowchainData(ctx context.Context) error {
 	}
 	return nil
 }
+
 // retrieveGenesisPublicKeys
 func (s *Service) retrieveGenesisPublicKeys(ctx context.Context) error {
 	genesisState, err := s.cfg.BeaconDB.GenesisState(ctx)
