@@ -49,35 +49,41 @@ func TestFinalizeDeposit_TrieRoot(t *testing.T) {
 	dc, err := New()
 	require.NoError(t, err)
 
-	depositTrie, err := trieutil.NewTrie(params.BeaconConfig().DepositContractTreeDepth)
-	require.NoError(t, err)
-
-	initialtrieRoot := dc.finalizedDeposits.Deposits.HashTreeRoot()
-	initialtrieRootHex := hexutil.Encode(initialtrieRoot[:])
-	assert.Equal(t, "0xd70a234731285c6804c2a4f56711ddb8c82c99740f207854891028af34e27e5e", initialtrieRootHex)
-
-	deposits, err := generateDepositsFromData(depositDataList, depositTrie)
-	require.NoError(t, err)
-	topTrieRoot := depositTrie.Root()
-	topTrieRootHex := hexutil.Encode(topTrieRoot[:])
-	assert.Equal(t, expectedDepositRootHex, topTrieRootHex)
-
 	trie1, err := trieutil.NewTrie(params.BeaconConfig().DepositContractTreeDepth)
 	require.NoError(t, err)
-	for i := 0; i < len(deposits); i++ {
-		depositRoot, err := deposits[i].Data.HashTreeRoot()
+
+	for i := 0; i < len(depositDataList); i++ {
+		depositData := depositDataList[i]
+		depositHash, err := depositData.HashTreeRoot()
+		require.NoError(t, err)
+
+		trie1.Insert(depositHash[:], i)
+		proof, err := trie1.MerkleProof(i)
+		require.NoError(t, err)
+
+		deposit := &ethpb.Deposit{
+			Data:  depositData,
+			Proof: proof,
+		}
+		depositRoot, err := deposit.Data.HashTreeRoot()
 		require.NoError(t, err)
 
 		depositRootHex := hexutil.Encode(depositRoot[:])
 		actualDepositRootHex := hexutil.Encode(depositDataRoots[i])
 		assert.DeepEqual(t, actualDepositRootHex, depositRootHex)
 
-		depositHash, err := deposits[i].Data.HashTreeRoot()
-		require.NoError(t, err)
-		trie1.Insert(depositHash[:], i)
-
-		dc.InsertDeposit(ctx, deposits[i], uint64(i), int64(i), trie.Root())
+		dc.InsertDeposit(ctx, deposit, uint64(i), int64(i), trie1.Root())
 		dc.InsertFinalizedDeposits(ctx, int64(i))
+
+		fd := dc.FinalizedDeposits(context.Background())
+		finalizedDepositsRoot := fd.Deposits.Root()
+		depositTrieRoot := trie1.Root()
+
+		log.WithField("index", i).
+			WithField("finalizedDepositRoot", hexutil.Encode(finalizedDepositsRoot[:])).
+			WithField("depositDataRoot", hexutil.Encode(depositHash[:])).
+			WithField("trieRoot", hexutil.Encode(depositTrieRoot[:])).
+			Info("Finalized all genesis deposits")
 	}
 
 	actualDepositRoot := dc.finalizedDeposits.Deposits.Root()
