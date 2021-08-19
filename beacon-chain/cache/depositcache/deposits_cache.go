@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"math/big"
 	"sort"
 	"sync"
@@ -60,9 +59,6 @@ type DepositCache struct {
 // New instantiates a new deposit cache
 func New() (*DepositCache, error) {
 	finalizedDepositsTrie, err := trieutil.NewTrie(params.BeaconConfig().DepositContractTreeDepth)
-	fd := finalizedDepositsTrie.HashTreeRoot()
-	fdHex := hexutil.Encode(fd[:])
-	log.WithField("finalizedDepositsTrieRoot", fdHex).Debug("In new deposit cache")
 	if err != nil {
 		return nil, err
 	}
@@ -120,12 +116,6 @@ func (dc *DepositCache) InsertFinalizedDeposits(ctx context.Context, eth1Deposit
 
 	depositTrie := dc.finalizedDeposits.Deposits
 	insertIndex := int(dc.finalizedDeposits.MerkleTrieIndex + 1)
-	depositInBytess := depositTrie.Root()
-	log.WithField("insertIndex", insertIndex).
-		WithField("itemsCount", len(dc.finalizedDeposits.Deposits.Items())).
-		WithField("initial depositTrie", hexutil.Encode(depositInBytess[:])).
-		WithField("markleTrieIndex", dc.finalizedDeposits.MerkleTrieIndex).
-		Debug("InsertFinalizedDeposits")
 	for _, d := range dc.deposits {
 		if d.Index <= dc.finalizedDeposits.MerkleTrieIndex {
 			continue
@@ -134,8 +124,6 @@ func (dc *DepositCache) InsertFinalizedDeposits(ctx context.Context, eth1Deposit
 			break
 		}
 		depHash, err := d.Deposit.Data.HashTreeRoot()
-		log.WithField("d.Index", d.Index).WithField("eth1DepositIndex", eth1DepositIndex).WithField("index", insertIndex).
-			WithField("depHash", hexutil.Encode(depHash[:])).Debug("inside deposits for loop")
 		if err != nil {
 			log.WithError(err).Error("Could not hash deposit data. Finalized deposit cache not updated.")
 			return
@@ -148,11 +136,6 @@ func (dc *DepositCache) InsertFinalizedDeposits(ctx context.Context, eth1Deposit
 		Deposits:        depositTrie,
 		MerkleTrieIndex: eth1DepositIndex,
 	}
-
-	root := dc.finalizedDeposits.Deposits.HashTreeRoot()
-	log.WithField("deposits", hexutil.Encode(root[:])).
-		WithField("markeTreeIndex", dc.finalizedDeposits.MerkleTrieIndex).
-		Debug("new finalized deposits")
 }
 
 // AllDepositContainers returns all historical deposit containers.

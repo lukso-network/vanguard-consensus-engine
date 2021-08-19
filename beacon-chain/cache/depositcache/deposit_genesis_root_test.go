@@ -74,16 +74,6 @@ func TestFinalizeDeposit_TrieRoot(t *testing.T) {
 
 		dc.InsertDeposit(ctx, deposit, uint64(i), int64(i), trie1.Root())
 		dc.InsertFinalizedDeposits(ctx, int64(i))
-
-		fd := dc.FinalizedDeposits(context.Background())
-		finalizedDepositsRoot := fd.Deposits.Root()
-		depositTrieRoot := trie1.Root()
-
-		log.WithField("index", i).
-			WithField("finalizedDepositRoot", hexutil.Encode(finalizedDepositsRoot[:])).
-			WithField("depositDataRoot", hexutil.Encode(depositHash[:])).
-			WithField("trieRoot", hexutil.Encode(depositTrieRoot[:])).
-			Info("Finalized all genesis deposits")
 	}
 
 	actualDepositRoot := dc.finalizedDeposits.Deposits.Root()

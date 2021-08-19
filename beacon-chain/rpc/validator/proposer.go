@@ -64,7 +64,6 @@ func (vs *Server) GetBlock(ctx context.Context, req *ethpb.BlockRequest) (*ethpb
 	// pending queue is not empty that means syncing and verification process does not complete yet so skipped the
 	// slot
 	if vs.EnableVanguardNode {
-		log.WithField("slot", req.Slot).Debug("checking pending queue length before preparing block")
 		if err := vs.PendingQueueFetcher.CanPropose(); err != nil {
 			return nil, status.Errorf(codes.Unavailable, "Pending queue is not fully processed yet")
 		}
@@ -120,9 +119,6 @@ func (vs *Server) GetBlock(ctx context.Context, req *ethpb.BlockRequest) (*ethpb
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not calculate proposer index %v", err)
 	}
-
-	log.WithField("eth1DataRoot", hexutil.Encode(eth1Data.DepositRoot)).
-		WithField("ethDataDepositCount", eth1Data.DepositCount).Debug("eth1 data info")
 
 	blk := &ethpb.BeaconBlock{
 		Slot:          req.Slot,
@@ -245,11 +241,6 @@ func (vs *Server) eth1DataMajorityVote(ctx context.Context, beaconState iface.Be
 	earliestValidTime := votingPeriodStartTime - 2*params.BeaconConfig().SecondsPerETH1Block*eth1FollowDistance
 	latestValidTime := votingPeriodStartTime - params.BeaconConfig().SecondsPerETH1Block*eth1FollowDistance
 
-	log.WithField("blockHash", hexutil.Encode(vs.HeadFetcher.HeadETH1Data().BlockHash)).
-		WithField("depositRoot", hexutil.Encode(vs.HeadFetcher.HeadETH1Data().DepositRoot)).
-		WithField("depositCount", vs.HeadFetcher.HeadETH1Data().GetDepositCount()).
-		Debug("HeadETH1Data")
-
 	lastBlockByEarliestValidTime, err := vs.Eth1BlockFetcher.BlockByTimestamp(ctx, earliestValidTime)
 	if err != nil {
 		log.WithError(err).Error("Could not get last block by earliest valid time")
@@ -274,12 +265,6 @@ func (vs *Server) eth1DataMajorityVote(ctx context.Context, beaconState iface.Be
 	if lastBlockDepositCount == 0 {
 		return vs.ChainStartFetcher.ChainStartEth1Data(), nil
 	}
-
-	log.WithField("earliestValidBlkNum", lastBlockByEarliestValidTime.Number).
-		WithField("latestValidBlkNum", lastBlockByLatestValidTime.Number).
-		WithField("lastBlockDepositCount", lastBlockDepositCount).
-		WithField("lastBlockDepositRoot", hexutil.Encode(lastBlockDepositRoot[:])).
-		Debug("prepared eth1 data")
 
 	if lastBlockDepositCount >= vs.HeadFetcher.HeadETH1Data().DepositCount {
 		hash, err := vs.Eth1BlockFetcher.BlockHashByHeight(ctx, lastBlockByLatestValidTime.Number)
@@ -457,20 +442,12 @@ func (vs *Server) deposits(
 	}
 
 	_, genesisEth1Block := vs.Eth1InfoFetcher.Eth2GenesisPowchainInfo()
-
-	log.WithField("canonicalEth1DataDepositCount", canonicalEth1Data.DepositCount).
-		WithField("canonicalEth1DataBlkHash", hexutil.Encode(canonicalEth1Data.BlockHash)).
-		WithField("canonicalEth1DataDepositRoot", hexutil.Encode(canonicalEth1Data.DepositRoot)).
-		WithField("canonicalEth1DataHeight", canonicalEth1DataHeight).
-		Debug("canonical eth1 data info")
-
 	if genesisEth1Block.Cmp(canonicalEth1DataHeight) == 0 {
 		return []*ethpb.Deposit{}, nil
 	}
 
 	// If there are no pending deposits, exit early.
 	allPendingContainers := vs.PendingDepositsFetcher.PendingContainers(ctx, canonicalEth1DataHeight)
-	log.WithField("allPendingContainersLen", len(allPendingContainers)).Debug("allPendingContainers")
 	if len(allPendingContainers) == 0 {
 		return []*ethpb.Deposit{}, nil
 	}
@@ -484,20 +461,10 @@ func (vs *Server) deposits(
 	// deposits are sorted from lowest to highest.
 	var pendingDeps []*dbpb.DepositContainer
 	for _, dep := range allPendingContainers {
-
-		log.WithField("index", dep.Index).
-			WithField("Eth1BlockHeight", dep.Eth1BlockHeight).
-			WithField("publicKey", hexutil.Encode(dep.Deposit.Data.PublicKey)).
-			WithField("canonicalEth1DataDepositCount", canonicalEth1Data.DepositCount).
-			WithField("Eth1DepositIndex", beaconState.Eth1DepositIndex()).
-			Debug("deposit container info")
-
 		if uint64(dep.Index) >= beaconState.Eth1DepositIndex() && uint64(dep.Index) < canonicalEth1Data.DepositCount {
 			pendingDeps = append(pendingDeps, dep)
 		}
 	}
-
-	log.WithField("pendingDepsContainerLen", len(pendingDeps)).Debug("pendingDeps")
 
 	for i := range pendingDeps {
 		// Don't construct merkle proof if the number of deposits is more than max allowed in block.
@@ -559,7 +526,6 @@ func (vs *Server) depositTrie(ctx context.Context, canonicalEth1DataHeight *big.
 	finalizedDeposits := vs.DepositFetcher.FinalizedDeposits(ctx)
 	depositTrie = finalizedDeposits.Deposits
 
-	finalizedDepositsRoot := depositTrie.Root()
 	upToEth1DataDeposits := vs.DepositFetcher.NonFinalizedDeposits(ctx, canonicalEth1DataHeight)
 	insertIndex := finalizedDeposits.MerkleTrieIndex + 1
 
@@ -571,10 +537,6 @@ func (vs *Server) depositTrie(ctx context.Context, canonicalEth1DataHeight *big.
 		depositTrie.Insert(depHash[:], int(insertIndex))
 		insertIndex++
 	}
-	latestDepositsRoot := depositTrie.Root()
-	log.WithField("finalizedDepositsRoot", hexutil.Encode(finalizedDepositsRoot[:])).
-		WithField("latestDepositsRoot", hexutil.Encode(latestDepositsRoot[:])).
-		Debug("depositTrie checking in proposer.go")
 	return depositTrie, nil
 }
 

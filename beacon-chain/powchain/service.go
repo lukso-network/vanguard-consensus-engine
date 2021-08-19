@@ -149,7 +149,6 @@ type Service struct {
 	lastReceivedMerkleIndex int64 // Keeps track of the last received index to prevent log spam.
 	runError                error
 	preGenesisState         iface.BeaconState
-
 	// vanguard properties
 	genesisPublicKeys map[int64]string
 }
@@ -240,7 +239,6 @@ func NewService(ctx context.Context, config *Web3ServiceConfig) (*Service, error
 			return nil, errors.Wrap(err, "could not initialize caches")
 		}
 	}
-
 	if s.cfg.EnableVanguardNode {
 		if err := s.retrieveGenesisPublicKeys(ctx); err != nil {
 			return nil, errors.Wrap(err, "could not initialize powchain")
@@ -967,7 +965,6 @@ func (s *Service) ensureValidPowchainData(ctx context.Context) error {
 	}
 	return nil
 }
-
 // retrieveGenesisPublicKeys
 func (s *Service) retrieveGenesisPublicKeys(ctx context.Context) error {
 	genesisState, err := s.cfg.BeaconDB.GenesisState(ctx)

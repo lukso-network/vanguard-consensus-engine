@@ -174,12 +174,6 @@ func (s *Service) ProcessDepositLog(ctx context.Context, depositLog gethTypes.Lo
 		Proof: proof,
 	}
 
-	log.WithField("iAmount", amount).
-		WithField("pubkey", hexutil.Encode(pubkey)).
-		WithField("signature", hexutil.Encode(signature)).
-		WithField("withdrawalCredentials", hexutil.Encode(withdrawalCredentials)).
-		WithField("depositAmount", depositData.Amount).Debug("Deposit info")
-
 	// We always store all historical deposits in the DB.
 	s.cfg.DepositCache.InsertDeposit(ctx, deposit, depositLog.BlockNumber, index, s.depositTrie.Root())
 	validData := true
@@ -207,23 +201,10 @@ func (s *Service) ProcessDepositLog(ctx context.Context, depositLog gethTypes.Lo
 			}
 			if uint64(index) < genesisState.Eth1Data().DepositCount {
 				s.cfg.DepositCache.InsertFinalizedDeposits(ctx, index)
-				cachedDeposits := s.cfg.DepositCache.FinalizedDeposits(context.Background())
-				finalizedDepositsRoot := cachedDeposits.Deposits.Root()
-
-				log.WithField("index", index).
-					WithField("genesisDepositRoot", hexutil.Encode(genesisState.Eth1Data().DepositRoot)).
-					WithField("finalizedDepositRoot", hexutil.Encode(finalizedDepositsRoot[:])).
-					WithField("depositDataRoot", hexutil.Encode(depositHash[:])).
-					Debug("Finalized all genesis deposits")
 			} else {
 				s.cfg.DepositCache.InsertPendingDeposit(ctx, deposit, depositLog.BlockNumber, index, s.depositTrie.Root())
 			}
 		} else {
-			curDepositRoot := s.depositTrie.Root()
-			log.WithField("index", index).
-				WithField("curDepositRoot", hexutil.Encode(curDepositRoot[:])).
-				WithField("depositDataRoot", hexutil.Encode(depositHash[:])).
-				Debug("Storing pending deposits")
 			s.cfg.DepositCache.InsertPendingDeposit(ctx, deposit, depositLog.BlockNumber, index, s.depositTrie.Root())
 		}
 	}
