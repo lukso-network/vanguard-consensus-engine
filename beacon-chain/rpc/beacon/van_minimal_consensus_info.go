@@ -32,19 +32,20 @@ func (bs *Server) StreamMinimalConsensusInfo(
 	}
 
 	currentEpoch := helpers.SlotToEpoch(s.Slot())
-	requestedEpoch := req.FromEpoch
-	if requestedEpoch > currentEpoch {
-		log.WithField("curEpoch", currentEpoch).
-			WithField("requestedEpoch", requestedEpoch).
-			Warn("requested epoch is future from current epoch")
-		return status.Errorf(codes.InvalidArgument, errEpoch, currentEpoch, requestedEpoch)
-	}
+	//TODO- Need to propagate epoch info for previous epochs. For now, it only sends epoch info from current epoch
+	//requestedEpoch := req.FromEpoch
+	//if requestedEpoch > currentEpoch {
+	//	log.WithField("curEpoch", currentEpoch).
+	//		WithField("requestedEpoch", requestedEpoch).
+	//		Warn("requested epoch is future from current epoch")
+	//	return status.Errorf(codes.InvalidArgument, errEpoch, currentEpoch, requestedEpoch)
+	//}
 
 	stateChannel := make(chan *feed.Event, 1)
 	stateSub := bs.StateNotifier.StateFeed().Subscribe(stateChannel)
 	defer stateSub.Unsubscribe()
 
-	if err := bs.initialEpochInfoPropagation(requestedEpoch, currentEpoch, stream, stateChannel, stateSub); err != nil {
+	if err := bs.initialEpochInfoPropagation(currentEpoch, stream, stateChannel, stateSub); err != nil {
 		log.WithError(err).Warn("Failed to send initial epoch infos to orchestrator")
 		return err
 	}
@@ -78,7 +79,6 @@ func (bs *Server) StreamMinimalConsensusInfo(
 
 // initialEpochInfoPropagation
 func (bs *Server) initialEpochInfoPropagation(
-	requestedEpoch types.Epoch,
 	currentEpoch types.Epoch,
 	stream ethpb.BeaconChain_StreamMinimalConsensusInfoServer,
 	stateChannel chan *feed.Event,
@@ -162,29 +162,29 @@ func (bs *Server) initialEpochInfoPropagation(
 		}
 	}
 
-	log.WithField("currentEpoch", currentEpoch).Debug("Node is in non-syncing mode")
-	state, err := bs.HeadFetcher.HeadState(bs.Ctx)
-	if err != nil {
-		return err
-	}
-	// sending past proposer assignments info to orchestrator
-	for epoch := requestedEpoch; epoch <= currentEpoch; epoch++ {
-		epochInfo, err := bs.prepareEpochInfo(epoch, state.Copy())
-		if err != nil {
-			log.WithField("epoch", epoch).
-				WithError(err).
-				Warn("Failed to prepare epoch info in non-syncing mode")
-			return status.Errorf(codes.Internal,
-				"Could not prepare epoch info in-sync mode. epoch: %v  err: %v", epoch, err)
-		}
-
-		if err := stream.Send(epochInfo); err != nil {
-			return status.Errorf(codes.Unavailable,
-				"Could not prepare epoch info non-sync mode. epoch: %v  err: %v", epoch, err)
-		}
-
-		alreadySendEpochInfos[epochInfo.Epoch] = true
-	}
+	//log.WithField("currentEpoch", currentEpoch).Debug("Node is in non-syncing mode")
+	//state, err := bs.HeadFetcher.HeadState(bs.Ctx)
+	//if err != nil {
+	//	return err
+	//}
+	//// sending past proposer assignments info to orchestrator
+	//for epoch := requestedEpoch; epoch <= currentEpoch; epoch++ {
+	//	epochInfo, err := bs.prepareEpochInfo(epoch, state.Copy())
+	//	if err != nil {
+	//		log.WithField("epoch", epoch).
+	//			WithError(err).
+	//			Warn("Failed to prepare epoch info in non-syncing mode")
+	//		return status.Errorf(codes.Internal,
+	//			"Could not prepare epoch info in-sync mode. epoch: %v  err: %v", epoch, err)
+	//	}
+	//
+	//	if err := stream.Send(epochInfo); err != nil {
+	//		return status.Errorf(codes.Unavailable,
+	//			"Could not prepare epoch info non-sync mode. epoch: %v  err: %v", epoch, err)
+	//	}
+	//
+	//	alreadySendEpochInfos[epochInfo.Epoch] = true
+	//}
 
 	return nil
 }
