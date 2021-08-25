@@ -49,7 +49,8 @@ func Test_WaitForConnection_ConnErr(t *testing.T) {
 	pandoraService, err := NewService(context.Background(), HttpEndpoint, DialInProcRPCClient)
 	require.NoError(t, err, "Error in preparing pandora mock service")
 
-	status, _ := pandoraService.isPandoraNodeSynced()
+	status, err := pandoraService.isPandoraNodeSynced()
+	require.NoError(t, err)
 	require.Equal(t, true, status, "Should connect to pandora chain")
 }
 

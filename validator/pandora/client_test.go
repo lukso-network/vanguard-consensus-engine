@@ -17,7 +17,10 @@ func TestGetShardBlockHeader_Success(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer mockedPandoraClient.Close()
+	defer func() {
+		err := mockedPandoraClient.Close()
+		require.NoError(t, err)
+	}()
 
 	inputBlock := getDummyBlock()
 	var response *ShardBlockHeaderResponse
@@ -45,7 +48,10 @@ func TestSubmitShardBlockHeader_Success(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer mockedPandoraClient.Close()
+	defer func() {
+		err := mockedPandoraClient.Close()
+		require.NoError(t, err)
+	}()
 
 	block := getDummyBlock()
 	dummySig := [96]byte{}

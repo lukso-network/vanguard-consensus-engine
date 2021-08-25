@@ -1,4 +1,4 @@
-// Package helpers contains helper functions outlined in the eth2 beacon chain spec, such as
+// Package helpers contains helper functions outlined in the Ethereum Beacon Chain spec, such as
 // computing committees, randao, rewards/penalties, and more.
 package helpers
 
@@ -9,10 +9,10 @@ import (
 
 	"github.com/pkg/errors"
 	types "github.com/prysmaticlabs/eth2-types"
-	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/prysmaticlabs/prysm/beacon-chain/cache"
 	iface "github.com/prysmaticlabs/prysm/beacon-chain/state/interface"
+	ethpb "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	"github.com/prysmaticlabs/prysm/shared/hashutil"
 	"github.com/prysmaticlabs/prysm/shared/params"
@@ -34,9 +34,9 @@ var proposerIndicesCache = cache.NewProposerIndicesCache()
 //    """
 //    Return the number of committees in each slot for the given ``epoch``.
 //    """
-//    return max(1, min(
+//    return max(uint64(1), min(
 //        MAX_COMMITTEES_PER_SLOT,
-//        len(get_active_validator_indices(state, epoch)) // SLOTS_PER_EPOCH // TARGET_COMMITTEE_SIZE,
+//        uint64(len(get_active_validator_indices(state, epoch))) // SLOTS_PER_EPOCH // TARGET_COMMITTEE_SIZE,
 //    ))
 func SlotCommitteeCount(activeValidatorCount uint64) uint64 {
 	var committeePerSlot = activeValidatorCount / uint64(params.BeaconConfig().SlotsPerEpoch) / params.BeaconConfig().TargetCommitteeSize
@@ -121,15 +121,15 @@ func BeaconCommittee(
 //
 // Spec pseudocode definition:
 //  def compute_committee(indices: Sequence[ValidatorIndex],
-//                      seed: Hash,
+//                      seed: Bytes32,
 //                      index: uint64,
 //                      count: uint64) -> Sequence[ValidatorIndex]:
 //    """
 //    Return the committee corresponding to ``indices``, ``seed``, ``index``, and committee ``count``.
 //    """
 //    start = (len(indices) * index) // count
-//    end = (len(indices) * (index + 1)) // count
-//    return [indices[compute_shuffled_index(ValidatorIndex(i), len(indices), seed)] for i in range(start, end)
+//    end = (len(indices) * uint64(index + 1)) // count
+//    return [indices[compute_shuffled_index(uint64(i), uint64(len(indices)), seed)] for i in range(start, end)]
 func ComputeCommittee(
 	indices []types.ValidatorIndex,
 	seed [32]byte,

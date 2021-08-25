@@ -3,7 +3,7 @@
 package block
 
 import (
-	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
+	"github.com/prysmaticlabs/prysm/proto/interfaces"
 )
 
 const (
@@ -13,5 +13,5 @@ const (
 
 // ReceivedBlockData is the data sent with ReceivedBlock events.
 type ReceivedBlockData struct {
-	SignedBlock *ethpb.SignedBeaconBlock
+	SignedBlock interfaces.SignedBeaconBlock
 }

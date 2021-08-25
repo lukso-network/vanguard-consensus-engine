@@ -14,7 +14,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/protocol"
 	gcache "github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
-	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/beacon-chain/blockchain"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed"
 	blockfeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/block"
@@ -28,10 +27,12 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/p2p"
 	"github.com/prysmaticlabs/prysm/beacon-chain/state/stategen"
 	"github.com/prysmaticlabs/prysm/cmd/beacon-chain/flags"
+	ethpb "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/shared"
 	"github.com/prysmaticlabs/prysm/shared/abool"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/shared/runutil"
+	"github.com/prysmaticlabs/prysm/shared/slotutil"
 	"github.com/prysmaticlabs/prysm/shared/timeutils"
 )
 
@@ -43,10 +44,16 @@ const seenAttSize = 10000
 const seenExitSize = 100
 const seenProposerSlashingSize = 100
 const badBlockSize = 1000
-
 const syncMetricsInterval = 10 * time.Second
 
-var pendingBlockExpTime = time.Duration(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SecondsPerSlot)) * time.Second // Seconds in one epoch.
+var (
+	// Seconds in one epoch.
+	pendingBlockExpTime = time.Duration(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SecondsPerSlot)) * time.Second
+	// time to allow processing early blocks.
+	earlyBlockProcessingTolerance = slotutil.MultiplySlotBy(2)
+	// time to allow processing early attestations.
+	earlyAttestationProcessingTolerance = params.BeaconNetworkConfig().MaximumGossipClockDisparity
+)
 
 // Config to set up the regular sync service.
 type Config struct {
@@ -271,6 +278,7 @@ func (s *Service) markForChainStart() {
 type Checker interface {
 	Initialized() bool
 	Syncing() bool
+	Synced() bool
 	Status() error
 	Resync() error
 }
