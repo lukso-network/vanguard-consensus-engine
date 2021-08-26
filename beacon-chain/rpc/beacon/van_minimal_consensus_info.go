@@ -194,7 +194,7 @@ func (bs *Server) MinimalConsensusInfo(
 
 	for _, assignment := range assignments.Assignments {
 		for _, slot := range assignment.ProposerSlots {
-			if slot < epochSlotStart || slot > epochSlotEnd {
+			if slot < epochSlotStart || slot >= epochSlotEnd {
 				continue
 			}
 
@@ -208,7 +208,7 @@ func (bs *Server) MinimalConsensusInfo(
 	sort.Float64s(sortedSlotSlice)
 
 	for _, slot := range sortedSlotSlice {
-		if types.Slot(slot) >= epochSlotStart && types.Slot(slot) <= epochSlotEnd {
+		if types.Slot(slot) >= epochSlotStart && types.Slot(slot) < epochSlotEnd {
 			assignmentsSlice = append(assignmentsSlice, slotToPubKey[types.Slot(slot)])
 		}
 	}
@@ -217,10 +217,11 @@ func (bs *Server) MinimalConsensusInfo(
 
 	if len(assignmentsSlice) != expectedValidators {
 		err := fmt.Errorf(
-			"not enough assignments, expected: %d, got: %d, sortedSlice: %d",
+			"not enough assignments, expected: %d, got: %d, sortedSlice: %d, epoch: %d",
 			expectedValidators,
 			len(assignmentsSlice),
 			len(sortedSlotSlice),
+			curEpoch,
 		)
 		log.Errorf("[VAN_SUB] Assignments err = %s", err.Error())
 
