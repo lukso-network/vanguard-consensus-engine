@@ -11,7 +11,7 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/state"
 	iface "github.com/prysmaticlabs/prysm/beacon-chain/state/interface"
-	"github.com/prysmaticlabs/prysm/shared/event"
+	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -26,28 +26,38 @@ func (bs *Server) StreamMinimalConsensusInfo(
 ) error {
 
 	alreadySendEpochInfos = make(map[types.Epoch]bool)
-	s, err := bs.HeadFetcher.HeadState(bs.Ctx)
-	if err != nil {
-		return status.Errorf(codes.Internal, "Could not get head state: %v", err)
-	}
-
-	currentEpoch := helpers.SlotToEpoch(s.Slot())
 	//TODO- Need to propagate epoch info for previous epochs. For now, it only sends epoch info from current epoch
-	//requestedEpoch := req.FromEpoch
-	//if requestedEpoch > currentEpoch {
-	//	log.WithField("curEpoch", currentEpoch).
-	//		WithField("requestedEpoch", requestedEpoch).
-	//		Warn("requested epoch is future from current epoch")
-	//	return status.Errorf(codes.InvalidArgument, errEpoch, currentEpoch, requestedEpoch)
-	//}
-
 	stateChannel := make(chan *feed.Event, 1)
 	stateSub := bs.StateNotifier.StateFeed().Subscribe(stateChannel)
 	defer stateSub.Unsubscribe()
 
-	if err := bs.initialEpochInfoPropagation(currentEpoch, stream, stateChannel, stateSub); err != nil {
-		log.WithError(err).Warn("Failed to send initial epoch infos to orchestrator")
-		return err
+	cp, err := bs.BeaconDB.FinalizedCheckpoint(bs.Ctx)
+	if err != nil {
+		log.Fatalf("Could not fetch finalized cp: %v", err)
+	}
+	r := bytesutil.ToBytes32(cp.Root)
+	beaconState, err := bs.StateGen.StateByRoot(bs.Ctx, r)
+	if err != nil {
+		log.Fatalf("Could not fetch beacon state by root: %v", err)
+	}
+
+	log.WithField("finalizedEpoch", cp.Epoch).
+		WithField("slot", beaconState.Slot()).
+		Info("Sending epoch info from latest finalized epoch")
+
+	if beaconState != nil {
+		currentEpoch := helpers.SlotToEpoch(beaconState.Slot())
+		epochInfo, err := bs.prepareEpochInfo(currentEpoch, beaconState.Copy())
+		if err != nil {
+			log.WithField("epoch", currentEpoch).
+				WithError(err).
+				Warn("Failed to prepare epoch info in-sync mode")
+		} else {
+			if err := stream.Send(epochInfo); err != nil {
+				log.WithError(err).WithField("epoch", currentEpoch).Warn("Could not prepare epoch info in-sync mode")
+			}
+			alreadySendEpochInfos[epochInfo.Epoch] = true
+		}
 	}
 
 	for {
@@ -75,118 +85,6 @@ func (bs *Server) StreamMinimalConsensusInfo(
 			return status.Error(codes.Canceled, "RPC context canceled")
 		}
 	}
-}
-
-// initialEpochInfoPropagation
-func (bs *Server) initialEpochInfoPropagation(
-	currentEpoch types.Epoch,
-	stream ethpb.BeaconChain_StreamMinimalConsensusInfoServer,
-	stateChannel chan *feed.Event,
-	stateSub event.Subscription,
-) error {
-
-	// when initial syncing is true, it starts sending epoch info
-	if bs.SyncChecker.Syncing() {
-		log.WithField("currentEpoch", currentEpoch).Debug("Node is in syncing mode")
-		state, err := bs.HeadFetcher.HeadState(bs.Ctx)
-		if err != nil {
-			return err
-		}
-
-		epochInfo, err := bs.prepareEpochInfo(currentEpoch, state.Copy())
-		if err != nil {
-			log.WithField("epoch", currentEpoch).
-				WithError(err).
-				Warn("Failed to prepare epoch info in-sync mode")
-			return status.Errorf(codes.Internal,
-				"Could not prepare epoch info in-sync mode. epoch: %v  err: %v", currentEpoch, err)
-		}
-
-		if err := stream.Send(epochInfo); err != nil {
-			return status.Errorf(codes.Unavailable,
-				"Could not prepare epoch info in-sync mode. epoch: %v  err: %v", currentEpoch, err)
-		}
-		alreadySendEpochInfos[epochInfo.Epoch] = true
-
-		for {
-			select {
-			case stateEvent := <-stateChannel:
-				if stateEvent.Type == statefeed.BlockVerified {
-					blockVerifiedData, ok := stateEvent.Data.(*statefeed.BlockPreVerifiedData)
-					if !ok {
-						continue
-					}
-
-					if err := bs.sendNextEpochInfo(blockVerifiedData.Slot, stream, blockVerifiedData.CurrentState); err != nil {
-						log.WithField("epoch", helpers.SlotToEpoch(blockVerifiedData.Slot)+1).
-							WithError(err).
-							Warn("Failed to send initial epoch infos to orchestrator in-sync mode")
-						continue
-					}
-
-					if !bs.SyncChecker.Syncing() {
-						s, err := bs.HeadFetcher.HeadState(bs.Ctx)
-						if err != nil {
-							return status.Errorf(codes.Internal, "Could not get head state: %v", err)
-						}
-						currentEpoch := helpers.SlotToEpoch(s.Slot())
-						nextEpoch := currentEpoch + 1
-
-						log.WithField("epoch", currentEpoch).
-							WithField("nextEpoch", nextEpoch).
-							Info("Initial syncing done. sending next epoch info and exiting initial epochInfo propagation loop")
-
-						epochInfo, err := bs.prepareEpochInfo(nextEpoch, s.Copy())
-						if err != nil {
-							log.WithField("epoch", nextEpoch).
-								WithError(err).
-								Warn("Failed to prepare epoch info")
-							return err
-						}
-
-						if err := stream.Send(epochInfo); err != nil {
-							return status.Errorf(codes.Unavailable,
-								"Could not prepare epoch info in-sync mode. epoch: %v  err: %v", epochInfo.Epoch, err)
-						}
-						alreadySendEpochInfos[epochInfo.Epoch] = true
-						return nil
-					}
-				}
-			case <-stateSub.Err():
-				return status.Error(codes.Aborted, "Subscriber closed, exiting initial epochInfo propagation loop")
-			case <-bs.Ctx.Done():
-				return status.Error(codes.Canceled, "Context canceled")
-			case <-stream.Context().Done():
-				return status.Error(codes.Canceled, "Context canceled")
-			}
-		}
-	}
-
-	//log.WithField("currentEpoch", currentEpoch).Debug("Node is in non-syncing mode")
-	//state, err := bs.HeadFetcher.HeadState(bs.Ctx)
-	//if err != nil {
-	//	return err
-	//}
-	//// sending past proposer assignments info to orchestrator
-	//for epoch := requestedEpoch; epoch <= currentEpoch; epoch++ {
-	//	epochInfo, err := bs.prepareEpochInfo(epoch, state.Copy())
-	//	if err != nil {
-	//		log.WithField("epoch", epoch).
-	//			WithError(err).
-	//			Warn("Failed to prepare epoch info in non-syncing mode")
-	//		return status.Errorf(codes.Internal,
-	//			"Could not prepare epoch info in-sync mode. epoch: %v  err: %v", epoch, err)
-	//	}
-	//
-	//	if err := stream.Send(epochInfo); err != nil {
-	//		return status.Errorf(codes.Unavailable,
-	//			"Could not prepare epoch info non-sync mode. epoch: %v  err: %v", epoch, err)
-	//	}
-	//
-	//	alreadySendEpochInfos[epochInfo.Epoch] = true
-	//}
-
-	return nil
 }
 
 // sendNextEpochInfo
