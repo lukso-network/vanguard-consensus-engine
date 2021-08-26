@@ -208,7 +208,9 @@ func (bs *Server) MinimalConsensusInfo(
 	sort.Float64s(sortedSlotSlice)
 
 	for _, slot := range sortedSlotSlice {
-		assignmentsSlice = append(assignmentsSlice, slotToPubKey[types.Slot(slot)])
+		if types.Slot(slot) >= epochSlotStart && types.Slot(slot) <= epochSlotEnd {
+			assignmentsSlice = append(assignmentsSlice, slotToPubKey[types.Slot(slot)])
+		}
 	}
 
 	expectedValidators := int(params.BeaconConfig().SlotsPerEpoch)
