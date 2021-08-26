@@ -172,14 +172,6 @@ func (bs *Server) MinimalConsensusInfo(
 	slotToPubKey := make(map[types.Slot]string)
 	sortedSlotSlice := make([]float64, 0)
 
-	// Slot 0 was never signed by anybody
-	if 0 == curEpoch {
-		publicKeyBytes := make([]byte, params.BeaconConfig().BLSPubkeyLength)
-		currentString := fmt.Sprintf("0x%s", hex.EncodeToString(publicKeyBytes))
-		assignmentsSlice = append(assignmentsSlice, currentString)
-		slotToPubKey[0] = currentString
-	}
-
 	epochSlotStart, err := helpers.StartSlot(curEpoch)
 
 	if nil != err {
@@ -205,6 +197,16 @@ func (bs *Server) MinimalConsensusInfo(
 		}
 	}
 
+	expectedValidators := int(params.BeaconConfig().SlotsPerEpoch)
+
+	// Slot 0 was never signed by anybody
+	if 0 == curEpoch && len(sortedSlotSlice) < expectedValidators {
+		publicKeyBytes := make([]byte, params.BeaconConfig().BLSPubkeyLength)
+		currentString := fmt.Sprintf("0x%s", hex.EncodeToString(publicKeyBytes))
+		assignmentsSlice = append(assignmentsSlice, currentString)
+		slotToPubKey[0] = currentString
+	}
+
 	sort.Float64s(sortedSlotSlice)
 
 	for _, slot := range sortedSlotSlice {
@@ -212,8 +214,6 @@ func (bs *Server) MinimalConsensusInfo(
 			assignmentsSlice = append(assignmentsSlice, slotToPubKey[types.Slot(slot)])
 		}
 	}
-
-	expectedValidators := int(params.BeaconConfig().SlotsPerEpoch)
 
 	if len(assignmentsSlice) != expectedValidators {
 		err := fmt.Errorf(
