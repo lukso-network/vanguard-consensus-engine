@@ -180,9 +180,26 @@ func (bs *Server) MinimalConsensusInfo(
 		slotToPubKey[0] = currentString
 	}
 
+	epochSlotStart, err := helpers.StartSlot(curEpoch)
+
+	if nil != err {
+		return nil, err
+	}
+
+	epochSlotEnd, err := helpers.EndSlot(curEpoch)
+
+	if nil != err {
+		return nil, err
+	}
+
 	for _, assignment := range assignments.Assignments {
 		for _, slot := range assignment.ProposerSlots {
+			if slot < epochSlotStart || slot > epochSlotEnd {
+				continue
+			}
+
 			pubKeyString := fmt.Sprintf("0x%s", hex.EncodeToString(assignment.PublicKey))
+			// If slot does not belong to epoch than dont add
 			slotToPubKey[slot] = pubKeyString
 			sortedSlotSlice = append(sortedSlotSlice, float64(slot))
 		}
