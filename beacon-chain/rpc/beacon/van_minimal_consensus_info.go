@@ -319,9 +319,9 @@ func (bs *Server) StreamMinimalConsensusInfo(
 	req *ethpb.MinimalConsensusInfoRequest,
 	stream ethpb.BeaconChain_StreamMinimalConsensusInfoServer,
 ) error {
-	if bs.SyncChecker.Syncing() {
-		return status.Error(codes.Unavailable, "Syncing to latest head, not ready to respond")
-	}
+	//if bs.SyncChecker.Syncing() {
+	//	return status.Error(codes.Unavailable, "Syncing to latest head, not ready to respond")
+	//}
 
 	// If we are post-genesis time, then set the current epoch to
 	// the number epochs since the genesis time, otherwise 0 by default.
