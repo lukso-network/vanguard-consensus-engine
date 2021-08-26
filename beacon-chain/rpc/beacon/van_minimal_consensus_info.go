@@ -217,9 +217,10 @@ func (bs *Server) MinimalConsensusInfo(
 
 	if len(assignmentsSlice) != expectedValidators {
 		err := fmt.Errorf(
-			"not enough assignments, expected: %d, got: %d",
+			"not enough assignments, expected: %d, got: %d, sortedSlice: %d",
 			expectedValidators,
 			len(assignmentsSlice),
+			len(sortedSlotSlice),
 		)
 		log.Errorf("[VAN_SUB] Assignments err = %s", err.Error())
 
