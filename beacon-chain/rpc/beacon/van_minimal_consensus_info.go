@@ -131,7 +131,12 @@ func (bs *Server) MinimalConsensusInfoRange(
 	consensusInfos = make([]*ethpb.MinimalConsensusInfo, 0)
 	consensusInfos = append(consensusInfos, consensusInfo)
 
-	currentEpoch := helpers.SlotToEpoch(bs.GenesisTimeFetcher.CurrentSlot())
+	s, err := bs.HeadFetcher.HeadState(bs.Ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Could not get head state: %v", err)
+	}
+
+	currentEpoch := helpers.SlotToEpoch(s.Slot())
 
 	for tempEpochIndex := consensusInfo.Epoch; tempEpochIndex <= currentEpoch+1; tempEpochIndex++ {
 		minimalConsensusInfo, currentErr := bs.MinimalConsensusInfo(ctx, tempEpochIndex)
@@ -319,16 +324,14 @@ func (bs *Server) StreamMinimalConsensusInfo(
 	req *ethpb.MinimalConsensusInfoRequest,
 	stream ethpb.BeaconChain_StreamMinimalConsensusInfoServer,
 ) error {
-	// If we are post-genesis time, then set the current epoch to
-	// the number epochs since the genesis time, otherwise 0 by default.
-	genesisTime := bs.GenesisTimeFetcher.GenesisTime()
-	if genesisTime.IsZero() {
-		return status.Error(codes.Unavailable, "genesis time is not set")
+	s, err := bs.HeadFetcher.HeadState(bs.Ctx)
+	if err != nil {
+		return status.Errorf(codes.Internal, "Could not get head state: %v", err)
 	}
 
+	currentEpoch := helpers.SlotToEpoch(s.Slot())
 	requestedFromEpoch := req.FromEpoch
 
-	currentEpoch := helpers.SlotToEpoch(bs.GenesisTimeFetcher.CurrentSlot())
 	if requestedFromEpoch > currentEpoch {
 		return status.Errorf(
 			codes.InvalidArgument,
