@@ -8,13 +8,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/libp2p/go-libp2p-core/peer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	types "github.com/prysmaticlabs/eth2-types"
-	pb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/beacon-chain/p2p"
 	"github.com/prysmaticlabs/prysm/cmd/beacon-chain/flags"
+	pb "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/shared/messagehandler"
 	"github.com/prysmaticlabs/prysm/shared/p2putils"
 	"github.com/prysmaticlabs/prysm/shared/params"
@@ -22,6 +21,7 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/slotutil"
 	"github.com/prysmaticlabs/prysm/shared/traceutil"
 	"go.opencensus.io/trace"
+	"google.golang.org/protobuf/proto"
 )
 
 const pubsubMessageTimeout = 30 * time.Second
@@ -223,7 +223,12 @@ func (s *Service) subscribeStaticWithSubnets(topic string, validator pubsub.Vali
 					if !s.validPeersExist(s.addDigestAndIndexToTopic(topic, i)) {
 						log.Debugf("No peers found subscribed to attestation gossip subnet with "+
 							"committee index %d. Searching network for peers subscribed to the subnet.", i)
-						_, err := s.cfg.P2P.FindPeersWithSubnet(s.ctx, s.addDigestAndIndexToTopic(topic, i), i, params.BeaconNetworkConfig().MinimumPeersInSubnet)
+						_, err := s.cfg.P2P.FindPeersWithSubnet(
+							s.ctx,
+							s.addDigestAndIndexToTopic(topic, i),
+							i,
+							params.BeaconNetworkConfig().MinimumPeersInSubnet,
+						)
 						if err != nil {
 							log.WithError(err).Debug("Could not search for peers")
 							return

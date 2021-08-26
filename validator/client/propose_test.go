@@ -9,11 +9,10 @@ import (
 	"testing"
 	"time"
 
-	ptypes "github.com/gogo/protobuf/types"
 	"github.com/golang/mock/gomock"
 	lru "github.com/hashicorp/golang-lru"
 	types "github.com/prysmaticlabs/eth2-types"
-	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
+	ethpb "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 	validatorpb "github.com/prysmaticlabs/prysm/proto/validator/accounts/v2"
 	"github.com/prysmaticlabs/prysm/shared/bls"
 	"github.com/prysmaticlabs/prysm/shared/bytesutil"
@@ -25,6 +24,8 @@ import (
 	testing2 "github.com/prysmaticlabs/prysm/validator/db/testing"
 	"github.com/prysmaticlabs/prysm/validator/graffiti"
 	logTest "github.com/sirupsen/logrus/hooks/test"
+	grpc "google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type mocks struct {
@@ -44,6 +45,9 @@ func (mockSignature) AggregateVerify([]bls.PublicKey, [][32]byte) bool {
 	return true
 }
 func (mockSignature) FastAggregateVerify([]bls.PublicKey, [32]byte) bool {
+	return true
+}
+func (mockSignature) Eth2FastAggregateVerify([]bls.PublicKey, [32]byte) bool {
 	return true
 }
 func (mockSignature) Marshal() []byte {
@@ -446,7 +450,7 @@ func TestProposeBlock_BroadcastsBlock_WithGraffiti(t *testing.T) {
 	m.validatorClient.EXPECT().ProposeBlock(
 		gomock.Any(), // ctx
 		gomock.AssignableToTypeOf(&ethpb.SignedBeaconBlock{}),
-	).DoAndReturn(func(ctx context.Context, block *ethpb.SignedBeaconBlock) (*ethpb.ProposeResponse, error) {
+	).DoAndReturn(func(ctx context.Context, block *ethpb.SignedBeaconBlock, arg2 ...grpc.CallOption) (*ethpb.ProposeResponse, error) {
 		sentBlock = block
 		return &ethpb.ProposeResponse{BlockRoot: make([]byte, 32)}, nil
 	})
@@ -509,7 +513,7 @@ func TestProposeExit_DomainDataFailed(t *testing.T) {
 		Return(&ethpb.ValidatorIndexResponse{Index: 1}, nil)
 
 	// Any time in the past will suffice
-	genesisTime := &ptypes.Timestamp{
+	genesisTime := &timestamppb.Timestamp{
 		Seconds: time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC).Unix(),
 	}
 
@@ -543,7 +547,7 @@ func TestProposeExit_DomainDataIsNil(t *testing.T) {
 		Return(&ethpb.ValidatorIndexResponse{Index: 1}, nil)
 
 	// Any time in the past will suffice
-	genesisTime := &ptypes.Timestamp{
+	genesisTime := &timestamppb.Timestamp{
 		Seconds: time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC).Unix(),
 	}
 
@@ -576,7 +580,7 @@ func TestProposeBlock_ProposeExitFailed(t *testing.T) {
 		Return(&ethpb.ValidatorIndexResponse{Index: 1}, nil)
 
 	// Any time in the past will suffice
-	genesisTime := &ptypes.Timestamp{
+	genesisTime := &timestamppb.Timestamp{
 		Seconds: time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC).Unix(),
 	}
 
@@ -613,7 +617,7 @@ func TestProposeExit_BroadcastsBlock(t *testing.T) {
 		Return(&ethpb.ValidatorIndexResponse{Index: 1}, nil)
 
 	// Any time in the past will suffice
-	genesisTime := &ptypes.Timestamp{
+	genesisTime := &timestamppb.Timestamp{
 		Seconds: time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC).Unix(),
 	}
 

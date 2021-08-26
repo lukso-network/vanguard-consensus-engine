@@ -24,6 +24,12 @@ jobs:
         uses: ./.github/actions/gofmt
         with:
           path: ./
+      
+      - name: GoImports checker
+        id: goimports
+        uses: Jerome1337/goimports-action@v1.0.2
+        with:
+          goimports-path: ./
 
   build:
     name: Build
@@ -44,9 +50,13 @@ jobs:
 
       - name: Build
         # Use blst tag to allow go and bazel builds for blst.
+<<<<<<< HEAD
         run: |
           mkdir builds &&
           go build -v --tags=blst_enabled -o ./builds ./...
+=======
+        run: go build -v ./...
+>>>>>>> develop
 
 #      # Tests run via Bazel for now...
 #      - name: Test

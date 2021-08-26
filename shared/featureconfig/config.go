@@ -41,7 +41,6 @@ type Flags struct {
 	// Feature related flags.
 	WriteSSZStateTransitions           bool // WriteSSZStateTransitions to tmp directory.
 	SkipBLSVerify                      bool // Skips BLS verification across the runtime.
-	EnableBlst                         bool // Enables new BLS library from supranational.
 	SlasherProtection                  bool // SlasherProtection protects validator fron sending over a slashable offense over the network using external slasher.
 	EnablePeerScorer                   bool // EnablePeerScorer enables experimental peer scoring in p2p.
 	EnableLargerGossipHistory          bool // EnableLargerGossipHistory increases the gossip history we store in our caches.
@@ -49,7 +48,8 @@ type Flags struct {
 	DisableAttestingHistoryDBCache     bool // DisableAttestingHistoryDBCache for the validator client increases disk reads/writes.
 	UpdateHeadTimely                   bool // UpdateHeadTimely updates head right after state transition.
 	ProposerAttsSelectionUsingMaxCover bool // ProposerAttsSelectionUsingMaxCover enables max-cover algorithm when selecting attestations for proposing.
-
+	EnableOptimizedBalanceUpdate       bool // EnableOptimizedBalanceUpdate uses an updated method of performing balance updates.
+	EnableDoppelGanger                 bool // EnableDoppelGanger enables doppelganger protection on startup for the validator.
 	// Logging related toggles.
 	DisableGRPCConnectionLogs bool // Disables logging when a new grpc client has connected.
 
@@ -129,7 +129,7 @@ func configureTestnet(ctx *cli.Context, cfg *Flags) {
 		params.UsePraterConfig()
 		params.UsePraterNetworkConfig()
 	} else {
-		log.Warn("Running on ETH2 Mainnet")
+		log.Warn("Running on Ethereum Consensus Mainnet")
 		params.UseMainnetConfig()
 	}
 }
@@ -171,11 +171,6 @@ func ConfigureBeaconChain(ctx *cli.Context) {
 	if ctx.Bool(checkPtInfoCache.Name) {
 		log.Warn("Advance check point info cache is no longer supported and will soon be deleted")
 	}
-	cfg.EnableBlst = true
-	if ctx.Bool(disableBlst.Name) {
-		log.WithField(disableBlst.Name, disableBlst.Usage).Warn(enabledFeatureFlag)
-		cfg.EnableBlst = false
-	}
 	if ctx.Bool(enableLargerGossipHistory.Name) {
 		log.WithField(enableLargerGossipHistory.Name, enableLargerGossipHistory.Usage).Warn(enabledFeatureFlag)
 		cfg.EnableLargerGossipHistory = true
@@ -192,9 +187,14 @@ func ConfigureBeaconChain(ctx *cli.Context) {
 		log.WithField(updateHeadTimely.Name, updateHeadTimely.Usage).Warn(enabledFeatureFlag)
 		cfg.UpdateHeadTimely = true
 	}
-	if ctx.Bool(proposerAttsSelectionUsingMaxCover.Name) {
-		log.WithField(proposerAttsSelectionUsingMaxCover.Name, proposerAttsSelectionUsingMaxCover.Usage).Warn(enabledFeatureFlag)
-		cfg.ProposerAttsSelectionUsingMaxCover = true
+	cfg.ProposerAttsSelectionUsingMaxCover = true
+	if ctx.Bool(disableProposerAttsSelectionUsingMaxCover.Name) {
+		log.WithField(disableProposerAttsSelectionUsingMaxCover.Name, disableProposerAttsSelectionUsingMaxCover.Usage).Warn(enabledFeatureFlag)
+		cfg.ProposerAttsSelectionUsingMaxCover = false
+	}
+	if ctx.Bool(enableOptimizedBalanceUpdate.Name) {
+		log.WithField(enableOptimizedBalanceUpdate.Name, enableOptimizedBalanceUpdate.Usage).Warn(enabledFeatureFlag)
+		cfg.EnableOptimizedBalanceUpdate = true
 	}
 	Init(cfg)
 }
@@ -231,11 +231,6 @@ func ConfigureValidator(ctx *cli.Context) {
 		log.WithField(disableAttestingHistoryDBCache.Name, disableAttestingHistoryDBCache.Usage).Warn(enabledFeatureFlag)
 		cfg.DisableAttestingHistoryDBCache = true
 	}
-	cfg.EnableBlst = true
-	if ctx.Bool(disableBlst.Name) {
-		log.WithField(disableBlst.Name, disableBlst.Usage).Warn(enabledFeatureFlag)
-		cfg.EnableBlst = false
-	}
 	if ctx.Bool(attestTimely.Name) {
 		log.WithField(attestTimely.Name, attestTimely.Usage).Warn(enabledFeatureFlag)
 		cfg.AttestTimely = true
@@ -243,6 +238,10 @@ func ConfigureValidator(ctx *cli.Context) {
 	if ctx.Bool(enableSlashingProtectionPruning.Name) {
 		log.WithField(enableSlashingProtectionPruning.Name, enableSlashingProtectionPruning.Usage).Warn(enabledFeatureFlag)
 		cfg.EnableSlashingProtectionPruning = true
+	}
+	if ctx.Bool(enableDoppelGangerProtection.Name) {
+		log.WithField(enableDoppelGangerProtection.Name, enableDoppelGangerProtection.Usage).Warn(enabledFeatureFlag)
+		cfg.EnableDoppelGanger = true
 	}
 	cfg.KeystoreImportDebounceInterval = ctx.Duration(dynamicKeyReloadDebounceInterval.Name)
 	Init(cfg)

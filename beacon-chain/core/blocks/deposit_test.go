@@ -5,11 +5,11 @@ import (
 	"testing"
 
 	types "github.com/prysmaticlabs/eth2-types"
-	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/blocks"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state/stateV0"
+	"github.com/prysmaticlabs/prysm/beacon-chain/state/v1"
 	pb "github.com/prysmaticlabs/prysm/proto/beacon/p2p/v1"
+	ethpb "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/shared/bls"
 	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	"github.com/prysmaticlabs/prysm/shared/params"
@@ -21,7 +21,7 @@ import (
 
 func TestProcessDeposits_SameValidatorMultipleDepositsSameBlock(t *testing.T) {
 	// Same validator created 3 valid deposits within the same block
-	testutil.ResetCache()
+
 	dep, _, err := testutil.DeterministicDepositsAndKeysSameValidator(3)
 	require.NoError(t, err)
 	eth1Data, err := testutil.DeterministicEth1Data(len(dep))
@@ -40,7 +40,7 @@ func TestProcessDeposits_SameValidatorMultipleDepositsSameBlock(t *testing.T) {
 		},
 	}
 	balances := []uint64{0}
-	beaconState, err := stateV0.InitializeFromProto(&pb.BeaconState{
+	beaconState, err := v1.InitializeFromProto(&pb.BeaconState{
 		Validators: registry,
 		Balances:   balances,
 		Eth1Data:   eth1Data,
@@ -50,7 +50,7 @@ func TestProcessDeposits_SameValidatorMultipleDepositsSameBlock(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	newState, err := blocks.ProcessDeposits(context.Background(), beaconState, b)
+	newState, err := blocks.ProcessDeposits(context.Background(), beaconState, b.Block.Body.Deposits)
 	require.NoError(t, err, "Expected block deposits to process correctly")
 
 	assert.Equal(t, 2, len(newState.Validators()), "Incorrect validator count")
@@ -80,7 +80,7 @@ func TestProcessDeposits_MerkleBranchFailsVerification(t *testing.T) {
 			Deposits: []*ethpb.Deposit{deposit},
 		},
 	}
-	beaconState, err := stateV0.InitializeFromProto(&pb.BeaconState{
+	beaconState, err := v1.InitializeFromProto(&pb.BeaconState{
 		Eth1Data: &ethpb.Eth1Data{
 			DepositRoot: []byte{0},
 			BlockHash:   []byte{1},
@@ -88,7 +88,7 @@ func TestProcessDeposits_MerkleBranchFailsVerification(t *testing.T) {
 	})
 	require.NoError(t, err)
 	want := "deposit root did not verify"
-	_, err = blocks.ProcessDeposits(context.Background(), beaconState, b)
+	_, err = blocks.ProcessDeposits(context.Background(), beaconState, b.Block.Body.Deposits)
 	assert.ErrorContains(t, want, err)
 }
 
@@ -111,7 +111,7 @@ func TestProcessDeposits_AddsNewValidatorDeposit(t *testing.T) {
 		},
 	}
 	balances := []uint64{0}
-	beaconState, err := stateV0.InitializeFromProto(&pb.BeaconState{
+	beaconState, err := v1.InitializeFromProto(&pb.BeaconState{
 		Validators: registry,
 		Balances:   balances,
 		Eth1Data:   eth1Data,
@@ -121,7 +121,7 @@ func TestProcessDeposits_AddsNewValidatorDeposit(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	newState, err := blocks.ProcessDeposits(context.Background(), beaconState, b)
+	newState, err := blocks.ProcessDeposits(context.Background(), beaconState, b.Block.Body.Deposits)
 	require.NoError(t, err, "Expected block deposits to process correctly")
 	if newState.Balances()[1] != dep[0].Data.Amount {
 		t.Errorf(
@@ -174,7 +174,7 @@ func TestProcessDeposits_RepeatedDeposit_IncreasesValidatorBalance(t *testing.T)
 	}
 	balances := []uint64{0, 50}
 	root := depositTrie.Root()
-	beaconState, err := stateV0.InitializeFromProto(&pb.BeaconState{
+	beaconState, err := v1.InitializeFromProto(&pb.BeaconState{
 		Validators: registry,
 		Balances:   balances,
 		Eth1Data: &ethpb.Eth1Data{
@@ -183,7 +183,7 @@ func TestProcessDeposits_RepeatedDeposit_IncreasesValidatorBalance(t *testing.T)
 		},
 	})
 	require.NoError(t, err)
-	newState, err := blocks.ProcessDeposits(context.Background(), beaconState, b)
+	newState, err := blocks.ProcessDeposits(context.Background(), beaconState, b.Block.Body.Deposits)
 	require.NoError(t, err, "Process deposit failed")
 	assert.Equal(t, uint64(1000+50), newState.Balances()[1], "Expected balance at index 1 to be 1050")
 }
@@ -202,7 +202,7 @@ func TestProcessDeposit_AddsNewValidatorDeposit(t *testing.T) {
 		},
 	}
 	balances := []uint64{0}
-	beaconState, err := stateV0.InitializeFromProto(&pb.BeaconState{
+	beaconState, err := v1.InitializeFromProto(&pb.BeaconState{
 		Validators: registry,
 		Balances:   balances,
 		Eth1Data:   eth1Data,
@@ -244,7 +244,7 @@ func TestProcessDeposit_SkipsInvalidDeposit(t *testing.T) {
 		},
 	}
 	balances := []uint64{0}
-	beaconState, err := stateV0.InitializeFromProto(&pb.BeaconState{
+	beaconState, err := v1.InitializeFromProto(&pb.BeaconState{
 		Validators: registry,
 		Balances:   balances,
 		Eth1Data:   eth1Data,
@@ -275,10 +275,9 @@ func TestProcessDeposit_SkipsInvalidDeposit(t *testing.T) {
 }
 
 func TestPreGenesisDeposits_SkipInvalidDeposit(t *testing.T) {
-	testutil.ResetCache()
+
 	dep, _, err := testutil.DeterministicDepositsAndKeys(100)
 	require.NoError(t, err)
-	defer testutil.ResetCache()
 	dep[0].Data.Signature = make([]byte, 96)
 	trie, _, err := testutil.DepositTrieFromDeposits(dep)
 	require.NoError(t, err)
@@ -300,7 +299,7 @@ func TestPreGenesisDeposits_SkipInvalidDeposit(t *testing.T) {
 		},
 	}
 	balances := []uint64{0}
-	beaconState, err := stateV0.InitializeFromProto(&pb.BeaconState{
+	beaconState, err := v1.InitializeFromProto(&pb.BeaconState{
 		Validators: registry,
 		Balances:   balances,
 		Eth1Data:   eth1Data,

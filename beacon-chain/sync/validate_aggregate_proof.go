@@ -8,13 +8,13 @@ import (
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/pkg/errors"
 	types "github.com/prysmaticlabs/eth2-types"
-	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/blocks"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed/operation"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/state"
 	iface "github.com/prysmaticlabs/prysm/beacon-chain/state/interface"
+	ethpb "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/shared/bls"
 	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	"github.com/prysmaticlabs/prysm/shared/params"
@@ -67,7 +67,11 @@ func (s *Service) validateAggregateAndProof(ctx context.Context, pid peer.ID, ms
 	if err := helpers.ValidateSlotTargetEpoch(m.Message.Aggregate.Data); err != nil {
 		return pubsub.ValidationReject
 	}
-	if err := helpers.ValidateAttestationTime(m.Message.Aggregate.Data.Slot, s.cfg.Chain.GenesisTime()); err != nil {
+
+	// Attestation's slot is within ATTESTATION_PROPAGATION_SLOT_RANGE and early attestation
+	// processing tolerance.
+	if err := helpers.ValidateAttestationTime(m.Message.Aggregate.Data.Slot, s.cfg.Chain.GenesisTime(),
+		earlyAttestationProcessingTolerance); err != nil {
 		traceutil.AnnotateError(span, err)
 		return pubsub.ValidationIgnore
 	}
@@ -241,7 +245,13 @@ func validateIndexInCommittee(ctx context.Context, bs iface.ReadOnlyBeaconState,
 
 // This validates selection proof by validating it's from the correct validator index of the slot.
 // It does not verify the selection proof, it returns the signature set of selection proof which can be used for batch verify.
-func validateSelectionIndex(ctx context.Context, bs iface.ReadOnlyBeaconState, data *ethpb.AttestationData, validatorIndex types.ValidatorIndex, proof []byte) (*bls.SignatureSet, error) {
+func validateSelectionIndex(
+	ctx context.Context,
+	bs iface.ReadOnlyBeaconState,
+	data *ethpb.AttestationData,
+	validatorIndex types.ValidatorIndex,
+	proof []byte,
+) (*bls.SignatureSet, error) {
 	_, span := trace.StartSpan(ctx, "sync.validateSelectionIndex")
 	defer span.End()
 

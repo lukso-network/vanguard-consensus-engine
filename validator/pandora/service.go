@@ -191,7 +191,6 @@ func (s *Service) GetShardBlockHeader(
 		log.WithError(ConnectionError).Error("Pandora chain is not connected")
 		return nil, common.Hash{}, nil, ConnectionError
 	}
-
 	response, err := s.pandoraClient.GetShardBlockHeader(ctx, parentHash, nextBlockNumber, slot, epoch)
 	if err != nil {
 		log.WithError(err).Error("Pandora block preparation failed")
@@ -212,7 +211,6 @@ func (s *Service) GetShardBlockHeader(
 // This method returns a boolean status
 func (s *Service) SubmitShardBlockHeader(ctx context.Context, blockNonce uint64,
 	headerHash common.Hash, sig [96]byte) (bool, error) {
-
 	if !s.connected {
 		log.WithError(ConnectionError).Error("Pandora chain is not connected")
 		return false, ConnectionError

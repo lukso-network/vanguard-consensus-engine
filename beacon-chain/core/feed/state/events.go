@@ -8,7 +8,7 @@ import (
 	"time"
 
 	types "github.com/prysmaticlabs/eth2-types"
-	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
+	"github.com/prysmaticlabs/prysm/proto/interfaces"
 )
 
 const (
@@ -25,6 +25,10 @@ const (
 	Reorg
 	// BlockVerified is sent when new block is validated by orchestrator
 	BlockVerified
+	// FinalizedCheckpoint event.
+	FinalizedCheckpoint
+	// NewHead of the chain event.
+	NewHead
 )
 
 // BlockProcessedData is the data sent with BlockProcessed events.
@@ -34,7 +38,7 @@ type BlockProcessedData struct {
 	// BlockRoot of the processed block.
 	BlockRoot [32]byte
 	// SignedBlock is the physical processed block.
-	SignedBlock *ethpb.SignedBeaconBlock
+	SignedBlock interfaces.SignedBeaconBlock
 	// Verified is true if the block's BLS contents have been verified.
 	Verified bool
 }

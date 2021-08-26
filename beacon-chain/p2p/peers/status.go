@@ -1,4 +1,4 @@
-// Package peers provides information about peers at the eth2 protocol level.
+// Package peers provides information about peers at the Ethereum consensus protocol level.
 //
 // "Protocol level" is the level above the network level, so this layer never sees or interacts with
 // (for example) hosts that are uncontactable due to being down, firewalled, etc. Instead, this works
@@ -24,11 +24,11 @@ package peers
 
 import (
 	"context"
+	"math"
 	"sort"
 	"time"
 
 	"github.com/ethereum/go-ethereum/p2p/enr"
-	"github.com/gogo/protobuf/proto"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 	ma "github.com/multiformats/go-multiaddr"
@@ -39,7 +39,9 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/p2p/peers/peerdata"
 	"github.com/prysmaticlabs/prysm/beacon-chain/p2p/peers/scorers"
 	pb "github.com/prysmaticlabs/prysm/proto/beacon/p2p/v1"
+	"github.com/prysmaticlabs/prysm/shared/interfaces"
 	"github.com/prysmaticlabs/prysm/shared/params"
+	"github.com/prysmaticlabs/prysm/shared/rand"
 	"github.com/prysmaticlabs/prysm/shared/timeutils"
 )
 
@@ -63,6 +65,13 @@ const (
 
 	// InboundRatio is the proportion of our connected peer limit at which we will allow inbound peers.
 	InboundRatio = float64(0.8)
+
+	// MinBackOffDuration minimum amount (in milliseconds) to wait before peer is re-dialed.
+	// When node and peer are dialing each other simultaneously connection may fail. In order, to break
+	// of constant dialing, peer is assigned some backoff period, and only dialed again once that backoff is up.
+	MinBackOffDuration = 100
+	// MaxBackOffDuration maximum amount (in milliseconds) to wait before peer is re-dialed.
+	MaxBackOffDuration = 5000
 )
 
 // Status is the structure holding the peer status information.
@@ -71,6 +80,7 @@ type Status struct {
 	scorers   *scorers.Service
 	store     *peerdata.Store
 	ipTracker map[string]uint64
+	rand      *rand.Rand
 }
 
 // StatusConfig represents peer status service params.
@@ -91,6 +101,9 @@ func NewStatus(ctx context.Context, config *StatusConfig) *Status {
 		store:     store,
 		scorers:   scorers.NewService(ctx, store, config.ScorerParams),
 		ipTracker: map[string]uint64{},
+		// Random generator used to calculate dial backoff period.
+		// It is ok to use deterministic generator, no need for true entropy.
+		rand: rand.NewDeterministicGenerator(),
 	}
 }
 
@@ -217,7 +230,7 @@ func (p *Status) InboundLimit() int {
 }
 
 // SetMetadata sets the metadata of the given remote peer.
-func (p *Status) SetMetadata(pid peer.ID, metaData *pb.MetaData) {
+func (p *Status) SetMetadata(pid peer.ID, metaData interfaces.Metadata) {
 	p.store.Lock()
 	defer p.store.Unlock()
 
@@ -227,12 +240,15 @@ func (p *Status) SetMetadata(pid peer.ID, metaData *pb.MetaData) {
 
 // Metadata returns a copy of the metadata corresponding to the provided
 // peer id.
-func (p *Status) Metadata(pid peer.ID) (*pb.MetaData, error) {
+func (p *Status) Metadata(pid peer.ID) (interfaces.Metadata, error) {
 	p.store.RLock()
 	defer p.store.RUnlock()
 
 	if peerData, ok := p.store.PeerData(pid); ok {
-		return proto.Clone(peerData.MetaData).(*pb.MetaData), nil
+		if peerData.MetaData == nil || peerData.MetaData.IsNil() {
+			return nil, nil
+		}
+		return peerData.MetaData.Copy(), nil
 	}
 	return nil, peerdata.ErrPeerUnknown
 }
@@ -243,10 +259,10 @@ func (p *Status) CommitteeIndices(pid peer.ID) ([]uint64, error) {
 	defer p.store.RUnlock()
 
 	if peerData, ok := p.store.PeerData(pid); ok {
-		if peerData.Enr == nil || peerData.MetaData == nil {
+		if peerData.Enr == nil || peerData.MetaData == nil || peerData.MetaData.IsNil() {
 			return []uint64{}, nil
 		}
-		return indicesFromBitfield(peerData.MetaData.Attnets), nil
+		return indicesFromBitfield(peerData.MetaData.AttnetsBitfield()), nil
 	}
 	return nil, peerdata.ErrPeerUnknown
 }
@@ -261,8 +277,8 @@ func (p *Status) SubscribedToSubnet(index uint64) []peer.ID {
 	for pid, peerData := range p.store.Peers() {
 		// look at active peers
 		connectedStatus := peerData.ConnState == PeerConnecting || peerData.ConnState == PeerConnected
-		if connectedStatus && peerData.MetaData != nil && peerData.MetaData.Attnets != nil {
-			indices := indicesFromBitfield(peerData.MetaData.Attnets)
+		if connectedStatus && peerData.MetaData != nil && !peerData.MetaData.IsNil() && peerData.MetaData.AttnetsBitfield() != nil {
+			indices := indicesFromBitfield(peerData.MetaData.AttnetsBitfield())
 			for _, idx := range indices {
 				if idx == index {
 					peers = append(peers, pid)
@@ -334,6 +350,22 @@ func (p *Status) SetNextValidTime(pid peer.ID, nextTime time.Time) {
 
 	peerData := p.store.PeerDataGetOrCreate(pid)
 	peerData.NextValidTime = nextTime
+}
+
+// RandomizeBackOff adds extra backoff period during which peer will not be dialed.
+func (p *Status) RandomizeBackOff(pid peer.ID) {
+	p.store.Lock()
+	defer p.store.Unlock()
+
+	peerData := p.store.PeerDataGetOrCreate(pid)
+
+	// No need to add backoff period, if the previous one hasn't expired yet.
+	if !time.Now().After(peerData.NextValidTime) {
+		return
+	}
+
+	duration := time.Duration(math.Max(MinBackOffDuration, float64(p.rand.Intn(MaxBackOffDuration)))) * time.Millisecond
+	peerData.NextValidTime = time.Now().Add(duration)
 }
 
 // IsReadyToDial checks where the given peer is ready to be

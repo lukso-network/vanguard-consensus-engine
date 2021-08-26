@@ -7,17 +7,17 @@ import (
 )
 
 var (
-	// ToledoTestnet flag for the multiclient eth2 testnet.
+	// ToledoTestnet flag for the multiclient Ethereum consensus testnet.
 	ToledoTestnet = &cli.BoolFlag{
 		Name:  "toledo",
 		Usage: "This defines the flag through which we can run on the Toledo Multiclient Testnet",
 	}
-	// PyrmontTestnet flag for the multiclient eth2 testnet.
+	// PyrmontTestnet flag for the multiclient Ethereum consensus testnet.
 	PyrmontTestnet = &cli.BoolFlag{
 		Name:  "pyrmont",
 		Usage: "This defines the flag through which we can run on the Pyrmont Multiclient Testnet",
 	}
-	// PraterTestnet flag for the multiclient eth2 testnet.
+	// PraterTestnet flag for the multiclient Ethereum consensus testnet.
 	PraterTestnet = &cli.BoolFlag{
 		Name:  "prater",
 		Usage: "Run Prysm configured for the Prater test network",
@@ -26,7 +26,7 @@ var (
 	Mainnet = &cli.BoolFlag{
 		Value: true,
 		Name:  "mainnet",
-		Usage: "Run on Ethereum 2.0 Main Net. This is the default and can be omitted.",
+		Usage: "Run on Ethereum Beacon Chain Main Net. This is the default and can be omitted.",
 	}
 	devModeFlag = &cli.BoolFlag{
 		Name:  "dev",
@@ -61,10 +61,6 @@ var (
 	forceOptMaxCoverAggregationStategy = &cli.BoolFlag{
 		Name:  "attestation-aggregation-force-opt-maxcover",
 		Usage: "When enabled, forces --attestation-aggregation-strategy=opt_max_cover setting.",
-	}
-	disableBlst = &cli.BoolFlag{
-		Name:  "disable-blst",
-		Usage: "Disables the new BLS library, blst, from Supranational",
 	}
 	disableAccountsV2 = &cli.BoolFlag{
 		Name:  "disable-accounts-v2",
@@ -114,13 +110,23 @@ var (
 		Name:  "update-head-timely",
 		Usage: "Improves update head time by updating head right after state transition",
 	}
-	proposerAttsSelectionUsingMaxCover = &cli.BoolFlag{
-		Name:  "proposer-atts-selection-using-max-cover",
-		Usage: "Rely on max-cover algorithm when selecting attestations for proposer",
+	disableProposerAttsSelectionUsingMaxCover = &cli.BoolFlag{
+		Name:  "disable-proposer-atts-selection-using-max-cover",
+		Usage: "Disable max-cover algorithm when selecting attestations for proposer",
 	}
 	enableSlashingProtectionPruning = &cli.BoolFlag{
 		Name:  "enable-slashing-protection-pruning",
 		Usage: "Enables the pruning of the validator client's slashing protectin database",
+	}
+	enableOptimizedBalanceUpdate = &cli.BoolFlag{
+		Name:  "enable-optimized-balance-update",
+		Usage: "Enables the optimized method of updating validator balances.",
+	}
+	enableDoppelGangerProtection = &cli.BoolFlag{
+		Name: "enable-doppelganger",
+		Usage: "Enables the validator to perform a doppelganger check. (Warning): This is not " +
+			"a foolproof method to find duplicate instances in the network. Your validator will still be" +
+			" vulnerable if it is being run in unsafe configurations.",
 	}
 )
 
@@ -130,7 +136,7 @@ var devModeFlags = []cli.Flag{
 	enableNextSlotStateCache,
 	forceOptMaxCoverAggregationStategy,
 	updateHeadTimely,
-	proposerAttsSelectionUsingMaxCover,
+	enableOptimizedBalanceUpdate,
 }
 
 // ValidatorFlags contains a list of all the feature flags that apply to the validator client.
@@ -143,10 +149,10 @@ var ValidatorFlags = append(deprecatedFlags, []cli.Flag{
 	PraterTestnet,
 	Mainnet,
 	disableAccountsV2,
-	disableBlst,
 	dynamicKeyReloadDebounceInterval,
 	attestTimely,
 	enableSlashingProtectionPruning,
+	enableDoppelGangerProtection,
 }...)
 
 // SlasherFlags contains a list of all the feature flags that apply to the slasher client.
@@ -159,7 +165,9 @@ var SlasherFlags = append(deprecatedFlags, []cli.Flag{
 }...)
 
 // E2EValidatorFlags contains a list of the validator feature flags to be tested in E2E.
-var E2EValidatorFlags = make([]string, 0)
+var E2EValidatorFlags = []string{
+	"--enable-doppelganger",
+}
 
 // BeaconChainFlags contains a list of all the feature flags that apply to the beacon-chain client.
 var BeaconChainFlags = append(deprecatedFlags, []cli.Flag{
@@ -172,7 +180,6 @@ var BeaconChainFlags = append(deprecatedFlags, []cli.Flag{
 	PyrmontTestnet,
 	PraterTestnet,
 	Mainnet,
-	disableBlst,
 	enablePeerScorer,
 	enableLargerGossipHistory,
 	checkPtInfoCache,
@@ -180,7 +187,8 @@ var BeaconChainFlags = append(deprecatedFlags, []cli.Flag{
 	enableNextSlotStateCache,
 	forceOptMaxCoverAggregationStategy,
 	updateHeadTimely,
-	proposerAttsSelectionUsingMaxCover,
+	disableProposerAttsSelectionUsingMaxCover,
+	enableOptimizedBalanceUpdate,
 }...)
 
 // E2EBeaconChainFlags contains a list of the beacon chain feature flags to be tested in E2E.
