@@ -14,15 +14,20 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"sort"
+	"time"
 )
 
 // FutureEpochProposerList retrieves the validator assignments for future epoch (n + 1)
 func (bs *Server) FutureEpochProposerList(
 	ctx context.Context,
 ) (minimalConsensusInfo *ethpb.MinimalConsensusInfo, err error) {
-	currentSlot := bs.GenesisTimeFetcher.CurrentSlot()
+	s, err := bs.HeadFetcher.HeadState(bs.Ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Could not get head state: %v", err)
+	}
+
 	// Add logic for epoch + 1
-	recentState, err := bs.StateGen.StateBySlot(ctx, currentSlot)
+	recentState, err := bs.StateGen.StateBySlot(ctx, s.Slot())
 
 	if nil != err {
 		return
@@ -95,10 +100,8 @@ func (bs *Server) FutureEpochProposerList(
 		publicKeyList = make([]string, 0)
 	}
 
-	genesisTimeFetcher := bs.GenesisTimeFetcher
-	genesisTime := genesisTimeFetcher.GenesisTime()
-
-	futureEpochSlotStartTime, err := helpers.SlotToTime(uint64(genesisTime.Unix()), futureEpochSlotStart)
+	genesisTime := s.GenesisTime()
+	futureEpochSlotStartTime, err := helpers.SlotToTime(genesisTime, futureEpochSlotStart)
 
 	if nil != err {
 		return
@@ -212,13 +215,18 @@ func (bs *Server) MinimalConsensusInfo(
 		return nil, err
 	}
 
-	genesisTime := bs.GenesisTimeFetcher.GenesisTime()
+	s, err := bs.HeadFetcher.HeadState(bs.Ctx)
+
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Could not get head state: %v", err)
+	}
+
 	startSlot, err := helpers.StartSlot(curEpoch)
 	if nil != err {
 		log.Errorf("[VAN_SUB] StartSlot err = %s", err.Error())
 		return nil, err
 	}
-	epochStartTime, err := helpers.SlotToTime(uint64(genesisTime.Unix()), startSlot)
+	epochStartTime, err := helpers.SlotToTime(s.GenesisTime(), startSlot)
 	if nil != err {
 		log.Errorf("[VAN_SUB] SlotToTime err = %s", err.Error())
 		return nil, err
@@ -353,7 +361,8 @@ func (bs *Server) StreamMinimalConsensusInfo(
 	}
 
 	secondsPerEpoch := params.BeaconConfig().SecondsPerSlot * uint64(params.BeaconConfig().SlotsPerEpoch)
-	epochTicker := slotutil.NewSlotTicker(bs.GenesisTimeFetcher.GenesisTime(), secondsPerEpoch)
+	genesisTime := time.Unix(int64(s.GenesisTime()), 0)
+	epochTicker := slotutil.NewSlotTicker(genesisTime, secondsPerEpoch)
 
 	for {
 		select {
