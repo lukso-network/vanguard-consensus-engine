@@ -22,6 +22,11 @@ var (
 		Name:  "prater",
 		Usage: "Run Prysm configured for the Prater test network",
 	}
+	// L15Testnet flag for the lukso testnet.
+	L15Testnet = &cli.BoolFlag{
+		Name:  "l15",
+		Usage: "Runs the l15 network config.",
+	}
 	// Mainnet flag for easier tooling, no-op
 	Mainnet = &cli.BoolFlag{
 		Value: true,
@@ -141,6 +146,7 @@ var ValidatorFlags = append(deprecatedFlags, []cli.Flag{
 	ToledoTestnet,
 	PyrmontTestnet,
 	PraterTestnet,
+	L15Testnet,
 	Mainnet,
 	disableAccountsV2,
 	disableBlst,
@@ -155,6 +161,7 @@ var SlasherFlags = append(deprecatedFlags, []cli.Flag{
 	ToledoTestnet,
 	PyrmontTestnet,
 	PraterTestnet,
+	L15Testnet,
 	Mainnet,
 }...)
 
@@ -171,6 +178,7 @@ var BeaconChainFlags = append(deprecatedFlags, []cli.Flag{
 	ToledoTestnet,
 	PyrmontTestnet,
 	PraterTestnet,
+	L15Testnet,
 	Mainnet,
 	disableBlst,
 	enablePeerScorer,
