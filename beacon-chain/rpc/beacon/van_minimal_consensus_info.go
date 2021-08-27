@@ -217,11 +217,13 @@ func (bs *Server) MinimalConsensusInfo(
 
 	if len(assignmentsSlice) != expectedValidators {
 		err := fmt.Errorf(
-			"not enough assignments, expected: %d, got: %d, sortedSlice: %d, epoch: %d",
+			"not enough assignments, expected: %d, got: %d, sortedSlice: %d, epoch: %d, start: %d, end: %d",
 			expectedValidators,
 			len(assignmentsSlice),
 			len(sortedSlotSlice),
 			curEpoch,
+			epochSlotStart,
+			epochSlotEnd,
 		)
 		log.Errorf("[VAN_SUB] Assignments err = %s", err.Error())
 
@@ -229,12 +231,7 @@ func (bs *Server) MinimalConsensusInfo(
 	}
 
 	genesisTime := bs.GenesisTimeFetcher.GenesisTime()
-	startSlot, err := helpers.StartSlot(curEpoch)
-	if nil != err {
-		log.Errorf("[VAN_SUB] StartSlot err = %s", err.Error())
-		return nil, err
-	}
-	epochStartTime, err := helpers.SlotToTime(uint64(genesisTime.Unix()), startSlot)
+	epochStartTime, err := helpers.SlotToTime(uint64(genesisTime.Unix()), epochSlotStart)
 	if nil != err {
 		log.Errorf("[VAN_SUB] SlotToTime err = %s", err.Error())
 		return nil, err

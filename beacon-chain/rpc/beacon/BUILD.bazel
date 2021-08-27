@@ -78,10 +78,13 @@ go_test(
         "validators_stream_test.go",
         "validators_test.go",
         "van_pending_blocks_test.go",
-        "van_minimal_consensus_info_test.go"
+        "van_minimal_consensus_info_test.go",
     ],
     embed = [":go_default_library"],
     shard_count = 4,
+    data = [
+            "l15-genesis.ssz",
+        ],
     deps = [
         "//beacon-chain/blockchain/testing:go_default_library",
         "//beacon-chain/core/epoch/precompute:go_default_library",
@@ -120,5 +123,6 @@ go_test(
         "@com_github_prysmaticlabs_ethereumapis//eth/v1alpha1:go_default_library",
         "@com_github_prysmaticlabs_go_bitfield//:go_default_library",
         "@in_gopkg_d4l3k_messagediff_v1//:go_default_library",
+        "@com_github_ethereum_go_ethereum//common/hexutil:go_default_library",
     ],
 )
