@@ -29,6 +29,8 @@ func L15Config() *BeaconChainConfig {
 	cfg.ConfigName = ConfigNames[L15]
 	cfg.GenesisForkVersion = []byte{0x83, 0xa5, 0x53, 0x17}
 	cfg.SecondsPerETH1Block = 6
+	cfg.SlotsPerEpoch = 32
+	cfg.SecondsPerSlot = 6
 	cfg.DepositChainID = 808080
 	cfg.DepositNetworkID = 808080
 	cfg.DepositContractAddress = "0x000000000000000000000000000000000000cafe"

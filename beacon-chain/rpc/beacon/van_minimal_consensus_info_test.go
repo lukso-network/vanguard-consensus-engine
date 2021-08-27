@@ -25,7 +25,7 @@ func TestServer_StreamMinimalConsensusInfo_FromL15(t *testing.T) {
 
 	config := params.BeaconConfig().Copy()
 	oldConfig := config.Copy()
-	params.UseL15Config()
+	config = params.L15Config()
 
 	params.OverrideBeaconConfig(config)
 	defer func() {
@@ -72,6 +72,10 @@ func TestServer_StreamMinimalConsensusInfo_FromL15(t *testing.T) {
 
 	require.NoError(t, db.SaveState(server.Ctx, beaconState, blockRoot))
 	require.NoError(t, db.SaveGenesisBlockRoot(server.Ctx, blockRoot))
+
+	resp, err := server.MinimalConsensusInfoRange(ctx, 0)
+	require.NoError(t, err)
+	assert.Equal(t, 2, len(resp))
 }
 
 //
