@@ -229,11 +229,13 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []*ethpb.SignedBeaconBl
 	}
 	var set *bls.SignatureSet
 	boundaries := make(map[[32]byte]iface.BeaconState)
+	preStates := make(map[[32]byte]iface.BeaconState)
 	for i, b := range blks {
 		set, preState, err = state.ExecuteStateTransitionNoVerifyAnySig(ctx, preState, b)
 		if err != nil {
 			return nil, nil, err
 		}
+		preStates[blockRoots[i]] = preState.Copy()
 		// Save potential boundary states.
 		if helpers.IsEpochStart(preState.Slot()) {
 			boundaries[blockRoots[i]] = preState.Copy()
@@ -255,8 +257,8 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []*ethpb.SignedBeaconBl
 	// Vanguard: Validated by vanguard node. Now intercepting the execution and publishing the block
 	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
 	if s.enableVanguardNode {
-		for _, b := range blks {
-			if err := s.publishAndWaitForOrcConfirmation(ctx, b, preState); err != nil {
+		for i, b := range blks {
+			if err := s.publishAndWaitForOrcConfirmation(ctx, b, preStates[blockRoots[i]]); err != nil {
 				return nil, nil, errors.Wrap(err, "could not publish and verified by orchestrator client onBlockBatch")
 			}
 		}

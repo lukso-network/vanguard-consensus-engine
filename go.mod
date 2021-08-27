@@ -131,5 +131,5 @@ replace (
 	github.com/ferranbt/fastssz => github.com/atif-konasl/fastssz v0.0.0-20210705113036-087ec0cbb160
 	github.com/json-iterator/go => github.com/prestonvanloon/go v1.1.7-0.20190722034630-4f2e55fcf87b
 	github.com/prysmaticlabs/ethereumapis => github.com/lukso-network/vanguard-apis v0.0.1-alpha.0.20210722113136-ab16e7d38cad
-	github.com/prysmaticlabs/prysm => github.com/lukso-network/vanguard-consensus-engine v1.3.3
+	github.com/prysmaticlabs/prysm => ./
 )
