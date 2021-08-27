@@ -174,6 +174,14 @@ func (bs *Server) MinimalConsensusInfo(
 
 	epochSlotStart, err := helpers.StartSlot(curEpoch)
 
+	// Slot 0 was never signed by anybody
+	if 0 == curEpoch {
+		publicKeyBytes := make([]byte, params.BeaconConfig().BLSPubkeyLength)
+		currentString := fmt.Sprintf("0x%s", hex.EncodeToString(publicKeyBytes))
+		assignmentsSlice = append(assignmentsSlice, currentString)
+		slotToPubKey[0] = currentString
+	}
+
 	if nil != err {
 		return nil, err
 	}
@@ -186,44 +194,41 @@ func (bs *Server) MinimalConsensusInfo(
 
 	for _, assignment := range assignments.Assignments {
 		for _, slot := range assignment.ProposerSlots {
-			if slot < epochSlotStart || slot >= epochSlotEnd {
+			if slot < epochSlotStart || slot > epochSlotEnd {
 				continue
 			}
 
 			pubKeyString := fmt.Sprintf("0x%s", hex.EncodeToString(assignment.PublicKey))
 			// If slot does not belong to epoch than dont add
-			slotToPubKey[slot] = pubKeyString
-			sortedSlotSlice = append(sortedSlotSlice, float64(slot))
+			_, exists := slotToPubKey[slot]
+
+			if !exists {
+				slotToPubKey[slot] = pubKeyString
+				sortedSlotSlice = append(sortedSlotSlice, float64(slot))
+			}
 		}
 	}
 
 	expectedValidators := int(params.BeaconConfig().SlotsPerEpoch)
 
-	// Slot 0 was never signed by anybody
-	if 0 == curEpoch && len(sortedSlotSlice) < expectedValidators {
-		publicKeyBytes := make([]byte, params.BeaconConfig().BLSPubkeyLength)
-		currentString := fmt.Sprintf("0x%s", hex.EncodeToString(publicKeyBytes))
-		assignmentsSlice = append(assignmentsSlice, currentString)
-		slotToPubKey[0] = currentString
-	}
-
 	sort.Float64s(sortedSlotSlice)
 
 	for _, slot := range sortedSlotSlice {
-		if types.Slot(slot) >= epochSlotStart && types.Slot(slot) < epochSlotEnd {
+		if types.Slot(slot) >= epochSlotStart && types.Slot(slot) <= epochSlotEnd {
 			assignmentsSlice = append(assignmentsSlice, slotToPubKey[types.Slot(slot)])
 		}
 	}
 
 	if len(assignmentsSlice) != expectedValidators {
 		err := fmt.Errorf(
-			"not enough assignments, expected: %d, got: %d, sortedSlice: %d, epoch: %d, start: %d, end: %d",
+			"invalid len of assignments, expected: %d, got: %d, sortedSlice: %d, epoch: %d, start: %d, end: %d, sortedSlots: %v",
 			expectedValidators,
 			len(assignmentsSlice),
 			len(sortedSlotSlice),
 			curEpoch,
 			epochSlotStart,
 			epochSlotEnd,
+			sortedSlotSlice,
 		)
 		log.Errorf("[VAN_SUB] Assignments err = %s", err.Error())
 
