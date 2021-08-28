@@ -128,8 +128,8 @@ require (
 
 replace (
 	github.com/ethereum/go-ethereum => github.com/prysmaticlabs/bazel-go-ethereum v0.0.0-20210311182818-b9c0d847ae7b
-	github.com/ferranbt/fastssz => github.com/atif-konasl/fastssz v0.0.0-20210705113036-087ec0cbb160
+	github.com/ferranbt/fastssz => github.com/atif-konasl/fastssz v0.0.0-20210825113045-242c536f4f90
 	github.com/json-iterator/go => github.com/prestonvanloon/go v1.1.7-0.20190722034630-4f2e55fcf87b
-	github.com/prysmaticlabs/ethereumapis => github.com/lukso-network/vanguard-apis v0.0.1-alpha.0.20210722113136-ab16e7d38cad
+	github.com/prysmaticlabs/ethereumapis => github.com/lukso-network/vanguard-apis v0.0.1-alpha.0.20210828053509-18da5043454c
 	github.com/prysmaticlabs/prysm => ./
 )
