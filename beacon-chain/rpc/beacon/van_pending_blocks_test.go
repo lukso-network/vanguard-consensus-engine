@@ -113,7 +113,7 @@ func TestServer_StreamNewPendingBlocks_CheckPreviousBlocksSending(t *testing.T) 
 				assert.ErrorContains(tt, test.res, err)
 			}(t)
 
-			for i := test.req.FromSlot; i < 25; i++ {
+			for i := test.req.FromSlot; i < 23; i++ {
 				<-exitRoutine
 			}
 			// Send in a loop to ensure it is delivered (busy wait for the service to subscribe to the state feed).
@@ -123,7 +123,7 @@ func TestServer_StreamNewPendingBlocks_CheckPreviousBlocksSending(t *testing.T) 
 					Data: &blockfeed.UnConfirmedBlockData{Block: blks[99].Block},
 				})
 			}
-			for i := 25; i <= 100; i++ {
+			for i := 0; i <= 75; i++ {
 				<-exitRoutine
 			}
 		})

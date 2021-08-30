@@ -31,7 +31,7 @@ func (bs *Server) StreamNewPendingBlocks(request *ethpb.StreamPendingBlocksReque
 	}
 
 	if requestedSlot < latestFinalizedEndSlot {
-		if err := bs.sendBlocksToLatestedFinalizedEpoch(requestedSlot, latestFinalizedEpoch, stream); err != nil {
+		if err := bs.sendBlocksToLatestFinalizedEpoch(requestedSlot, latestFinalizedEpoch, stream); err != nil {
 			return status.Errorf(codes.Internal,
 				"Could not send previous blocks from requested slot to latest finalized epoch: %v", err)
 		}
@@ -104,7 +104,7 @@ func (bs *Server) StreamNewPendingBlocks(request *ethpb.StreamPendingBlocksReque
 }
 
 // sendBlocksToLatestedFinalizedEpoch
-func (bs *Server) sendBlocksToLatestedFinalizedEpoch(
+func (bs *Server) sendBlocksToLatestFinalizedEpoch(
 	requestedSlot types.Slot,
 	finalizedEpoch types.Epoch,
 	stream ethpb.BeaconChain_StreamNewPendingBlocksServer,
@@ -118,6 +118,11 @@ func (bs *Server) sendBlocksToLatestedFinalizedEpoch(
 			return err
 		}
 		for _, blk := range retrievedBlks {
+			// we do not send block #0 to orchestrator
+			if blk.Block.Slot == 0 {
+				continue
+			}
+
 			if err := stream.Send(blk.Block); err != nil {
 				return status.Errorf(codes.Unavailable, "Could not send previous blocks over stream: %v", err)
 			}
