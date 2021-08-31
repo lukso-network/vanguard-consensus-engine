@@ -11,7 +11,6 @@ import (
 	iface "github.com/prysmaticlabs/prysm/beacon-chain/state/interface"
 	"github.com/prysmaticlabs/prysm/shared/event"
 	vanTypes "github.com/prysmaticlabs/prysm/shared/params"
-	"go.opencensus.io/trace"
 	"sort"
 	"time"
 )
@@ -47,7 +46,6 @@ func (s *Service) CanPropose() error {
 	if err != nil {
 		return errors.Wrap(err, "Could not retrieve cached unconfirmed blocks from cache")
 	}
-
 	if len(blks) > 0 {
 		log.WithField("unprocessedBlockLen", len(blks)).WithError(err).Error("Pending queue is not nil")
 		return errPendingQueueUnprocessed
@@ -61,86 +59,67 @@ func (s *Service) SortedUnConfirmedBlocksFromCache() ([]*ethpb.BeaconBlock, erro
 	if err != nil {
 		return nil, errors.Wrap(err, "Could not retrieve cached unconfirmed blocks from cache")
 	}
-
 	sort.Slice(blks, func(i, j int) bool {
 		return blks[i].Slot < blks[j].Slot
 	})
-
 	return blks, nil
 }
 
-// publishAndWaitForOrcConfirmation publish the block to orchestrator and store the block into pending queue cache
-func (s *Service) publishAndWaitForOrcConfirmation(
-	ctx context.Context,
-	pendingBlk *ethpb.SignedBeaconBlock,
-	curState iface.BeaconState,
-) error {
+// publishBlock publishes downloaded blocks to orchestrator
+func (s *Service) publishBlock(signedBlk *ethpb.SignedBeaconBlock, curState iface.BeaconState) {
+	s.blockNotifier.BlockFeed().Send(&feed.Event{
+		Type: blockfeed.UnConfirmedBlock,
+		Data: &blockfeed.UnConfirmedBlockData{Block: signedBlk.Block},
+	})
 
 	// Send notification of the processed block to the state feed.
 	s.cfg.StateNotifier.StateFeed().Send(&feed.Event{
 		Type: statefeed.BlockVerified,
 		Data: &statefeed.BlockPreVerifiedData{
-			Slot:         pendingBlk.Block.Slot,
+			Slot:         signedBlk.Block.Slot,
 			CurrentState: curState.Copy(),
 		},
 	})
-
-	// Send the incoming block acknowledge to orchestrator and store the pending block to cache
-	if err := s.publishAndStorePendingBlock(ctx, pendingBlk.Block); err != nil {
-		log.WithError(err).Warn("could not publish un-confirmed block or cache it")
-		return err
-	}
-	// Wait for final confirmation from orchestrator node
-	if err := s.waitForConfirmationBlock(ctx, pendingBlk); err != nil {
-		log.WithError(err).WithField("slot", pendingBlk.Block.Slot).Warn(
-			"could not validate by orchestrator so discard the block")
-		return err
-	}
-	return nil
 }
 
-// publishAndStorePendingBlock method publishes and stores the pending block for final confirmation check
-func (s *Service) publishAndStorePendingBlock(ctx context.Context, pendingBlk *ethpb.BeaconBlock) error {
-	ctx, span := trace.StartSpan(ctx, "blockChain.publishAndStorePendingBlock")
-	defer span.End()
-
-	// Sending pending block feed to streaming api
-	log.WithField("slot", pendingBlk.Slot).Debug("Unconfirmed block sends for publishing")
-	s.blockNotifier.BlockFeed().Send(&feed.Event{
-		Type: blockfeed.UnConfirmedBlock,
-		Data: &blockfeed.UnConfirmedBlockData{Block: pendingBlk},
-	})
-
+// publishAndWaitForOrcConfirmation publish the block to orchestrator and store the block into pending queue cache
+func (s *Service) waitForConfirmation(
+	ctx context.Context,
+	signedBlk *ethpb.SignedBeaconBlock,
+) error {
 	// Storing pending block into pendingBlockCache
-	if err := s.pendingBlockCache.AddPendingBlock(pendingBlk); err != nil {
-		return errors.Wrapf(err, "could not cache block of slot %d", pendingBlk.Slot)
+	if err := s.pendingBlockCache.AddPendingBlock(signedBlk.Block); err != nil {
+		return errors.Wrapf(err, "could not cache block of slot %d", signedBlk.Block.Slot)
 	}
-
+	// Wait for final confirmation from orchestrator node
+	if err := s.waitForConfirmationBlock(ctx, signedBlk); err != nil {
+		log.WithError(err).
+			WithField("slot", signedBlk.Block.Slot).
+			Warn("could not validate by orchestrator so discard the block")
+		return err
+	}
 	return nil
 }
 
 // processOrcConfirmation runs every certain interval and fetch confirmation from orchestrator periodically and
 // publish the confirmation status to its subscriber methods. This loop will run in separate go routine when blockchain
 // service starts.
-func (s *Service) processOrcConfirmationLoop(ctx context.Context) {
+func (s *Service) processOrcConfirmationRoutine() {
 	ticker := time.NewTicker(confirmationStatusFetchingInverval)
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				log.WithField("function", "processOrcConfirmation").Trace("running")
-				if err := s.fetchConfirmations(ctx); err != nil {
-					log.WithError(err).Error("got error when calling fetchOrcConfirmations method. exiting!")
-					return
-				}
-				continue
-			case <-ctx.Done():
-				log.WithField("function", "processOrcConfirmation").Debug("context is closed, exiting")
-				ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			if err := s.fetchConfirmations(s.ctx); err != nil {
+				log.WithError(err).Error("got error when calling fetchOrcConfirmations method. exiting!")
 				return
 			}
+			continue
+		case <-s.ctx.Done():
+			log.WithField("function", "processOrcConfirmation").Debug("context is closed, exiting")
+			ticker.Stop()
+			return
 		}
-	}()
+	}
 }
 
 // fetchOrcConfirmations process confirmation for pending blocks

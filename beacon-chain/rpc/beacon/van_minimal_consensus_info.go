@@ -11,7 +11,6 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/state"
 	iface "github.com/prysmaticlabs/prysm/beacon-chain/state/interface"
-	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -38,18 +37,7 @@ func (bs *Server) StreamMinimalConsensusInfo(
 	if err != nil {
 		log.Fatalf("Could not fetch finalized cp: %v", err)
 	}
-	r := bytesutil.ToBytes32(cp.Root)
-	beaconState, err := bs.StateGen.StateByRoot(bs.Ctx, r)
-	if err != nil {
-		log.Fatalf("Could not fetch beacon state by root: %v", err)
-	}
 	latestFinalizedEpoch := cp.Epoch
-
-	log.WithField("finalizedEpoch", latestFinalizedEpoch).
-		WithField("requestedEpoch", req.FromEpoch).
-		WithField("slot", beaconState.Slot()).
-		Info("Sending epoch infos from requested to latest finalized epoch")
-
 	if req.FromEpoch <= latestFinalizedEpoch {
 		if err := bs.sendPrevEpochInfoBatch(req.FromEpoch, latestFinalizedEpoch, stream); err != nil {
 			return status.Errorf(codes.Internal, "Could not retrieve archived epoch info. %v", err)
