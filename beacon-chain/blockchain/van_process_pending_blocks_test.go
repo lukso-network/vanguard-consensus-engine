@@ -176,22 +176,21 @@ func TestService_waitForConfirmationBlock(t *testing.T) {
 			var mockedOrcClient *van_mock.MockClient
 			ctrl := gomock.NewController(t)
 			mockedOrcClient = van_mock.NewMockClient(ctrl)
-
 			cfg := &Config{
 				BlockNotifier:      &blockchainTesting.MockBlockNotifier{},
 				OrcRPCClient:       mockedOrcClient,
 				EnableVanguardNode: true,
 			}
+			s, err := NewService(ctx, cfg)
+			require.NoError(t, err)
+			go s.processOrcConfirmationRoutine()
 			mockedOrcClient.EXPECT().ConfirmVanBlockHashes(
 				gomock.Any(),
 				gomock.Any(),
 			).AnyTimes().Return(tt.confirmationStatus, nil)
-			s, err := NewService(ctx, cfg)
-			require.NoError(t, err)
 			for i := 0; i < len(tt.pendingBlocksInQueue); i++ {
 				require.NoError(t, s.pendingBlockCache.AddPendingBlock(tt.pendingBlocksInQueue[i].Block))
 			}
-
 			if tt.expectedOutput == "" {
 				require.NoError(t, s.waitForConfirmationBlock(ctx, tt.incomingBlock))
 			} else {
