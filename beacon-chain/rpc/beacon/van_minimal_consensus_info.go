@@ -37,6 +37,7 @@ func (bs *Server) StreamMinimalConsensusInfo(
 				return status.Errorf(codes.Unavailable,
 					"Could not send over stream: %v  err: %v", epoch, err)
 			}
+			log.WithField("epoch", epoch).Debug("Successfully send epoch info")
 			alreadySendEpochInfos[epochInfo.Epoch] = true
 		}
 		return nil
@@ -98,10 +99,15 @@ func (bs *Server) StreamMinimalConsensusInfo(
 				if firstTime {
 					firstTime = false
 					if endEpoch+1 < curEpoch {
+
 						startEpoch = endEpoch + 1
 						endEpoch = curEpoch
-						if err := batchSender(startEpoch, endEpoch); err != nil {
-							return err
+						curState := blockVerifiedData.CurrentState
+
+						for i := startEpoch; i <= endEpoch; i++ {
+							if err := sender(i, curState); err != nil {
+								return err
+							}
 						}
 					}
 				}

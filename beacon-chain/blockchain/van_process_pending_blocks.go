@@ -106,20 +106,22 @@ func (s *Service) waitForConfirmation(
 // service starts.
 func (s *Service) processOrcConfirmationRoutine() {
 	ticker := time.NewTicker(confirmationStatusFetchingInverval)
-	for {
-		select {
-		case <-ticker.C:
-			if err := s.fetchConfirmations(s.ctx); err != nil {
-				log.WithError(err).Error("got error when calling fetchOrcConfirmations method. exiting!")
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				if err := s.fetchConfirmations(s.ctx); err != nil {
+					log.WithError(err).Error("got error when calling fetchOrcConfirmations method. exiting!")
+					return
+				}
+				continue
+			case <-s.ctx.Done():
+				log.WithField("function", "processOrcConfirmation").Debug("context is closed, exiting")
+				ticker.Stop()
 				return
 			}
-			continue
-		case <-s.ctx.Done():
-			log.WithField("function", "processOrcConfirmation").Debug("context is closed, exiting")
-			ticker.Stop()
-			return
 		}
-	}
+	}()
 }
 
 // fetchOrcConfirmations process confirmation for pending blocks

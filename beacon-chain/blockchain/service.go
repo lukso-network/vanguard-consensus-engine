@@ -120,6 +120,11 @@ func NewService(ctx context.Context, cfg *Config) (*Service, error) {
 		orcRPCClient:       cfg.OrcRPCClient,
 		enableVanguardNode: cfg.EnableVanguardNode,
 	}
+	// vanguard: loop for getting confirmation from orchestrator node
+	if s.enableVanguardNode {
+		go s.processOrcConfirmationRoutine()
+	}
+
 	return s, nil
 }
 
@@ -260,10 +265,6 @@ func (s *Service) Start() {
 	}
 
 	go s.processAttestationsRoutine(attestationProcessorSubscribed)
-	// vanguard: loop for getting confirmation from orchestrator node
-	if s.enableVanguardNode {
-		go s.processOrcConfirmationRoutine()
-	}
 }
 
 // processChainStartTime initializes a series of deposits from the ChainStart deposits in the eth1

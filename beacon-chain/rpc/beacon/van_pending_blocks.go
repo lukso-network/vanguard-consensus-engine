@@ -16,6 +16,11 @@ func (bs *Server) StreamNewPendingBlocks(request *ethpb.StreamPendingBlocksReque
 	batchSender := func(start, end types.Epoch) error {
 		for i := start; i <= end; i++ {
 			blks, _, err := bs.BeaconDB.Blocks(bs.Ctx, filters.NewFilter().SetStartEpoch(i).SetEndEpoch(i))
+
+			log.WithField("blocksLen", len(blks)).
+				WithField("startEpoch", start).WithField("endEpoch", end).
+				Debug("blocks from batch sender")
+
 			if err != nil {
 				return status.Errorf(codes.Internal,
 					"Could not send over stream: %v", err)
@@ -39,6 +44,11 @@ func (bs *Server) StreamNewPendingBlocks(request *ethpb.StreamPendingBlocksReque
 		if err != nil {
 			return err
 		}
+
+		log.WithField("blocksLen", len(blks)).
+			WithField("startEpoch", start).WithField("endEpoch", end).
+			Debug("blocks from sender")
+
 		for _, blk := range blks {
 			if err := stream.Send(blk.Block); err != nil {
 				return status.Errorf(codes.Unavailable,
@@ -74,8 +84,8 @@ func (bs *Server) StreamNewPendingBlocks(request *ethpb.StreamPendingBlocksReque
 		return status.Errorf(codes.Internal,
 			"Could not retrieve end slot number: %v", err)
 	}
-	startSlot = startSlot.Add(1)
-	endSlot := pBlocks[0].Slot
+
+	endSlot := types.Slot(0)
 
 	if len(pBlocks) > 0 {
 		for _, blk := range pBlocks {
@@ -84,7 +94,8 @@ func (bs *Server) StreamNewPendingBlocks(request *ethpb.StreamPendingBlocksReque
 					"Could not send over stream: %v", err)
 			}
 		}
-		if startSlot < endSlot {
+		endSlot = pBlocks[0].Slot
+		if startSlot+1 < endSlot {
 			if err := sender(startSlot, endSlot); err != nil {
 				return err
 			}
