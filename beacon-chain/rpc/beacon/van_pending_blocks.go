@@ -18,8 +18,9 @@ func (bs *Server) StreamNewPendingBlocks(request *ethpb.StreamPendingBlocksReque
 			blks, _, err := bs.BeaconDB.Blocks(bs.Ctx, filters.NewFilter().SetStartEpoch(i).SetEndEpoch(i))
 
 			log.WithField("blocksLen", len(blks)).
-				WithField("startEpoch", start).WithField("endEpoch", end).
-				Debug("blocks from batch sender")
+				WithField("startEpoch", start).
+				WithField("endEpoch", end).
+				Debug("Sending previous blocks to orchestrator")
 
 			if err != nil {
 				return status.Errorf(codes.Internal,
@@ -36,6 +37,10 @@ func (bs *Server) StreamNewPendingBlocks(request *ethpb.StreamPendingBlocksReque
 				}
 			}
 		}
+
+		log.WithField("startEpoch", start).
+			WithField("endEpoch", end).
+			Debug("Sent previous blocks to orchestrator")
 		return nil
 	}
 
@@ -46,8 +51,9 @@ func (bs *Server) StreamNewPendingBlocks(request *ethpb.StreamPendingBlocksReque
 		}
 
 		log.WithField("blocksLen", len(blks)).
-			WithField("startEpoch", start).WithField("endEpoch", end).
-			Debug("blocks from sender")
+			WithField("startSlot", start).
+			WithField("endSlot", end).
+			Debug("Sending previous blocks to orchestrator")
 
 		for _, blk := range blks {
 			if err := stream.Send(blk.Block); err != nil {
@@ -55,6 +61,12 @@ func (bs *Server) StreamNewPendingBlocks(request *ethpb.StreamPendingBlocksReque
 					"Could not send over stream: %v", err)
 			}
 		}
+
+		log.WithField("blocksLen", len(blks)).
+			WithField("startSlot", start).
+			WithField("endSlot", end).
+			Info("Sent previous blocks to orchestrator")
+
 		return nil
 	}
 
@@ -85,7 +97,7 @@ func (bs *Server) StreamNewPendingBlocks(request *ethpb.StreamPendingBlocksReque
 			"Could not retrieve end slot number: %v", err)
 	}
 
-	endSlot := types.Slot(0)
+	endSlot := startSlot
 
 	if len(pBlocks) > 0 {
 		for _, blk := range pBlocks {
@@ -94,6 +106,7 @@ func (bs *Server) StreamNewPendingBlocks(request *ethpb.StreamPendingBlocksReque
 					"Could not send over stream: %v", err)
 			}
 		}
+		// sending till unconfirmed first block's slot
 		endSlot = pBlocks[0].Slot
 		if startSlot+1 < endSlot {
 			if err := sender(startSlot, endSlot); err != nil {
@@ -132,8 +145,8 @@ func (bs *Server) StreamNewPendingBlocks(request *ethpb.StreamPendingBlocksReque
 						"Could not send over stream: %v", err)
 				}
 
-				log.WithField("slot", data.Block.Slot).Debug(
-					"New pending block has been published successfully")
+				log.WithField("slot", data.Block.Slot).Info(
+					"Sent block to orchestrator")
 			}
 		case <-pBlockSub.Err():
 			return status.Error(codes.Aborted, "Subscriber closed, exiting goroutine")

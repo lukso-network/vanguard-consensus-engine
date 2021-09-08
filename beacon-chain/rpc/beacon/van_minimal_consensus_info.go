@@ -37,7 +37,7 @@ func (bs *Server) StreamMinimalConsensusInfo(
 				return status.Errorf(codes.Unavailable,
 					"Could not send over stream: %v  err: %v", epoch, err)
 			}
-			log.WithField("epoch", epoch).Debug("Successfully send epoch info")
+			log.WithField("epoch", epoch).Info("Sent epoch info to orchestrator")
 			alreadySendEpochInfos[epochInfo.Epoch] = true
 		}
 		return nil
