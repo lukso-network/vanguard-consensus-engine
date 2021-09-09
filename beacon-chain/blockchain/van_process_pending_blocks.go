@@ -3,6 +3,7 @@ package blockchain
 import (
 	"context"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed"
@@ -19,15 +20,17 @@ var (
 	// Getting confirmation status from orchestrator after each confirmationStatusFetchingInverval
 	confirmationStatusFetchingInverval = 500 * time.Millisecond
 	// maxPendingBlockTryLimit is the maximum limit for pending status of a block
-	maxPendingBlockTryLimit       = 10
-	errInvalidBlock               = errors.New("invalid block found, discarded block batch")
-	errPendingBlockCtxIsDone      = errors.New("pending block confirmation context is done, reinitialize")
-	errEmptyBlocksBatch           = errors.New("empty length of the batch of incoming blocks")
-	errPendingBlockTryLimitExceed = errors.New("maximum wait is exceeded and orchestrator can not verify the block")
-	errUnknownStatus              = errors.New("invalid status from orchestrator")
-	errInvalidRPCClient           = errors.New("invalid orchestrator rpc client or no client initiated")
-	errPendingQueueUnprocessed    = errors.New("pending queue is un-processed")
-	errSkippedStatus              = errors.New("skipped status from orchestrator")
+	maxPendingBlockTryLimit          = 40
+	errInvalidBlock                  = errors.New("invalid block found, discarded block batch")
+	errPendingBlockCtxIsDone         = errors.New("pending block confirmation context is done, reinitialize")
+	errEmptyBlocksBatch              = errors.New("empty length of the batch of incoming blocks")
+	errPendingBlockTryLimitExceed    = errors.New("maximum wait is exceeded and orchestrator can not verify the block")
+	errUnknownStatus                 = errors.New("invalid status from orchestrator")
+	errInvalidRPCClient              = errors.New("invalid orchestrator rpc client or no client initiated")
+	errPendingQueueUnprocessed       = errors.New("pending queue is un-processed")
+	errSkippedStatus                 = errors.New("skipped status from orchestrator")
+	errInvalidPandoraShardInfo       = errors.New("invalid pandora shard info")
+	errInvalidPandoraShardInfoLength = errors.New("invalid pandora shard info length")
 )
 
 // PendingBlocksFetcher retrieves the cached un-confirmed beacon blocks from cache
@@ -287,4 +290,22 @@ func (s *Service) sortedPendingSlots() ([]*vanTypes.ConfirmationReqData, error) 
 	})
 
 	return reqData, nil
+}
+
+func (s *Service) verifyPandoraShardInfo(signedBlk *ethpb.SignedBeaconBlock) error {
+	if len(signedBlk.Block.Body.PandoraShard) == 0 {
+		return errInvalidPandoraShardInfoLength
+	}
+	headBlk := s.headBlock()
+	if headBlk != nil && len(headBlk.Block.Body.PandoraShard) > 0 {
+		canonicalHash := common.BytesToHash(headBlk.Block.Body.PandoraShard[0].Hash)
+		canonicalBlkNum := headBlk.Block.Body.PandoraShard[0].BlockNumber
+		parentHash := common.BytesToHash(signedBlk.Block.Body.PandoraShard[0].Hash)
+		blockNumber := signedBlk.Block.Body.PandoraShard[0].BlockNumber
+
+		if parentHash != canonicalHash && blockNumber != canonicalBlkNum {
+			return errInvalidPandoraShardInfo
+		}
+	}
+	return nil
 }

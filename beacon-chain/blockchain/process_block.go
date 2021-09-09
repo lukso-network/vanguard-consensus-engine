@@ -108,9 +108,12 @@ func (s *Service) onBlock(ctx context.Context, signed *ethpb.SignedBeaconBlock, 
 	// Vanguard: Validated by vanguard node. Now intercepting the execution and publishing the block
 	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
 	if s.enableVanguardNode {
+		if err := s.verifyPandoraShardInfo(signed); err != nil {
+			log.WithError(err).Error("Failed to process block")
+			return err
+		}
 		// publish block to orchestrator and rpc service for sending minimal consensus info
 		s.publishBlock(signed, preState)
-
 		// waiting for orchestrator confirmation in live-sync mode
 		if err := s.waitForConfirmation(ctx, signed); err != nil {
 			return errors.Wrap(err, "could not publish and verified by orchestrator client onBlock")
