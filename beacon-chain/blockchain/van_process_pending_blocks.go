@@ -301,10 +301,17 @@ func (s *Service) verifyPandoraShardInfo(signedBlk *ethpb.SignedBeaconBlock) err
 		canonicalHash := common.BytesToHash(headBlk.Block.Body.PandoraShard[0].Hash)
 		canonicalBlkNum := headBlk.Block.Body.PandoraShard[0].BlockNumber
 
-		parentHash := common.BytesToHash(signedBlk.Block.Body.PandoraShard[0].Hash)
+		parentHash := common.BytesToHash(signedBlk.Block.Body.PandoraShard[0].ParentHash)
 		blockNumber := signedBlk.Block.Body.PandoraShard[0].BlockNumber
 
 		if parentHash != canonicalHash && blockNumber != canonicalBlkNum+1 {
+			log.WithField("slot", signedBlk.Block.Slot).
+				WithField("canonicalHash", canonicalHash).
+				WithField("canonicalBlkNum", canonicalBlkNum).
+				WithField("parentHash", parentHash).
+				WithField("blockNumber", blockNumber).
+				WithError(errInvalidPandoraShardInfo).
+				Error("Failed to process block")
 			return errInvalidPandoraShardInfo
 		}
 	}
