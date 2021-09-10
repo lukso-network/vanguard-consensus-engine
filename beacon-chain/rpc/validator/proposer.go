@@ -201,6 +201,11 @@ func (vs *Server) ProposeBlock(ctx context.Context, blk *ethpb.SignedBeaconBlock
 		"blockRoot": hex.EncodeToString(root[:]),
 	}).Debug("Broadcasting block")
 
+	if vs.EnableVanguardNode && !vs.PendingQueueFetcher.OrcVerification() {
+		log.WithField("slot", blk.Block.Slot).Info("Activating orchestrator verification")
+		vs.PendingQueueFetcher.ActivateOrcVerification()
+	}
+
 	if err := vs.BlockReceiver.ReceiveBlock(ctx, blk, root); err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not process beacon block: %v", err)
 	}

@@ -114,9 +114,11 @@ func (s *Service) onBlock(ctx context.Context, signed *ethpb.SignedBeaconBlock, 
 		}
 		// publish block to orchestrator and rpc service for sending minimal consensus info
 		s.publishBlock(signed, preState)
-		// waiting for orchestrator confirmation in live-sync mode
-		if err := s.waitForConfirmation(ctx, signed); err != nil {
-			return errors.Wrap(err, "could not publish and verified by orchestrator client onBlock")
+		if s.orcVerification {
+			// waiting for orchestrator confirmation in live-sync mode
+			if err := s.waitForConfirmation(ctx, signed); err != nil {
+				return errors.Wrap(err, "could not publish and verified by orchestrator client onBlock")
+			}
 		}
 	}
 

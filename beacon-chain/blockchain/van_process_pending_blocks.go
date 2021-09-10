@@ -41,6 +41,9 @@ type PendingBlocksFetcher interface {
 // BlockProposal interface use when validator calls GetBlock api for proposing new beancon block
 type PendingQueueFetcher interface {
 	CanPropose() error
+	ActivateOrcVerification()
+	DeactivateOrcVerification()
+	OrcVerification() bool
 }
 
 // CanPropose
@@ -66,6 +69,25 @@ func (s *Service) SortedUnConfirmedBlocksFromCache() ([]*ethpb.BeaconBlock, erro
 		return blks[i].Slot < blks[j].Slot
 	})
 	return blks, nil
+}
+
+// ActivateOrcVerification
+func (s *Service) ActivateOrcVerification() {
+	s.headLock.RLock()
+	defer s.headLock.RUnlock()
+	s.orcVerification = true
+}
+
+// DeactivateOrcVerification
+func (s *Service) DeactivateOrcVerification() {
+	s.headLock.RLock()
+	defer s.headLock.RUnlock()
+	s.orcVerification = false
+}
+
+// OrcVerification
+func (s *Service) OrcVerification() bool {
+	return s.orcVerification
 }
 
 // publishBlock publishes downloaded blocks to orchestrator

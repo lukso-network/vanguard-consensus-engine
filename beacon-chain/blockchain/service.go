@@ -72,6 +72,7 @@ type Service struct {
 
 	// Vanguard: unconfirmed blocks need to store in cache for waiting final confirmation from orchestrator
 	enableVanguardNode bool
+	orcVerification    bool
 	pendingBlockCache  *cache.PendingBlocksCache
 	confirmedBlockCh   chan *ethpb.SignedBeaconBlock
 	orcRPCClient       orchestrator.Client
