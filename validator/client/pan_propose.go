@@ -65,8 +65,7 @@ func (v *validator) processPandoraShardHeader(
 	}
 
 	// Request for pandora chain header
-	header, headerHash, extraData, err := v.pandoraService.GetShardBlockHeader(
-		ctx, latestPandoraHash, latestPandoraBlkNum+1, uint64(slot), uint64(epoch))
+	header, headerHash, extraData, err := v.pandoraService.GetShardBlockHeader(ctx, latestPandoraHash, latestPandoraBlkNum+1, uint64(slot), uint64(epoch))
 	if err != nil {
 		log.WithField("blockSlot", slot).
 			WithField("fmtKey", fmtKey).
@@ -173,15 +172,17 @@ func (v *validator) verifyPandoraShardHeader(
 	canonicalBlockNum uint64,
 ) error {
 
-	// verify parent hash
-	if canonicalBlockNum != 0 && canonicalHash != header.ParentHash {
-		log.WithError(errInvalidParentHash).Error("invalid parent hash from pandora chain")
-		return errInvalidParentHash
-	}
+	// verify parent hash and block number
+	if canonicalBlockNum > 0 {
+		if canonicalHash != header.ParentHash {
+			log.WithError(errInvalidParentHash).Error("invalid parent hash from pandora chain")
+			return errInvalidParentHash
+		}
 
-	if canonicalBlockNum != 0 && canonicalBlockNum+1 != header.Number.Uint64() {
-		log.WithError(errInvalidBlockNumber).Error("invalid block number from pandora chain")
-		return errInvalidBlockNumber
+		if canonicalBlockNum+1 != header.Number.Uint64() {
+			log.WithError(errInvalidBlockNumber).Error("invalid block number from pandora chain")
+			return errInvalidBlockNumber
+		}
 	}
 
 	// verify header hash
@@ -205,8 +206,6 @@ func (v *validator) verifyPandoraShardHeader(
 	if nil != err {
 		return err
 	}
-
-	// TODO(Atif): Need to check pandora block number and parent hash with canonical sharding info
 
 	// verify slot number
 	if extraData.Slot != uint64(slot) {

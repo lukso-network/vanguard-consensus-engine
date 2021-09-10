@@ -300,10 +300,11 @@ func (s *Service) verifyPandoraShardInfo(signedBlk *ethpb.SignedBeaconBlock) err
 	if headBlk != nil && len(headBlk.Block.Body.PandoraShard) > 0 {
 		canonicalHash := common.BytesToHash(headBlk.Block.Body.PandoraShard[0].Hash)
 		canonicalBlkNum := headBlk.Block.Body.PandoraShard[0].BlockNumber
+
 		parentHash := common.BytesToHash(signedBlk.Block.Body.PandoraShard[0].Hash)
 		blockNumber := signedBlk.Block.Body.PandoraShard[0].BlockNumber
 
-		if parentHash != canonicalHash && blockNumber != canonicalBlkNum {
+		if parentHash != canonicalHash && blockNumber != canonicalBlkNum+1 {
 			return errInvalidPandoraShardInfo
 		}
 	}
