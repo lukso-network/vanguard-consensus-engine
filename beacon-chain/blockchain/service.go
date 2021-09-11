@@ -120,6 +120,7 @@ func NewService(ctx context.Context, cfg *Config) (*Service, error) {
 		confirmedBlockCh:   make(chan *ethpb.SignedBeaconBlock),
 		orcRPCClient:       cfg.OrcRPCClient,
 		enableVanguardNode: cfg.EnableVanguardNode,
+		orcVerification:    true,
 	}
 	// vanguard: loop for getting confirmation from orchestrator node
 	if s.enableVanguardNode {

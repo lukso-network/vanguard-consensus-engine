@@ -146,7 +146,7 @@ func TestService_waitForConfirmationBlock(t *testing.T) {
 					Status: vanTypes.Verified,
 				},
 			},
-			expectedOutput: "invalid block found, discarded block batch",
+			expectedOutput: "invalid block found in orchestrator",
 		},
 		{
 			name:                 "Retry for the block with pending status",

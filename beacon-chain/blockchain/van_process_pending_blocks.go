@@ -21,14 +21,12 @@ var (
 	confirmationStatusFetchingInverval = 500 * time.Millisecond
 	// maxPendingBlockTryLimit is the maximum limit for pending status of a block
 	maxPendingBlockTryLimit          = 40
-	errInvalidBlock                  = errors.New("invalid block found, discarded block batch")
+	errInvalidBlock                  = errors.New("invalid block found in orchestrator")
 	errPendingBlockCtxIsDone         = errors.New("pending block confirmation context is done, reinitialize")
-	errEmptyBlocksBatch              = errors.New("empty length of the batch of incoming blocks")
 	errPendingBlockTryLimitExceed    = errors.New("maximum wait is exceeded and orchestrator can not verify the block")
 	errUnknownStatus                 = errors.New("invalid status from orchestrator")
 	errInvalidRPCClient              = errors.New("invalid orchestrator rpc client or no client initiated")
 	errPendingQueueUnprocessed       = errors.New("pending queue is un-processed")
-	errSkippedStatus                 = errors.New("skipped status from orchestrator")
 	errInvalidPandoraShardInfo       = errors.New("invalid pandora shard info")
 	errInvalidPandoraShardInfoLength = errors.New("invalid pandora shard info length")
 )
@@ -131,22 +129,19 @@ func (s *Service) waitForConfirmation(
 // service starts.
 func (s *Service) processOrcConfirmationRoutine() {
 	ticker := time.NewTicker(confirmationStatusFetchingInverval)
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				if err := s.fetchConfirmations(s.ctx); err != nil {
-					log.WithError(err).Error("got error when calling fetchOrcConfirmations method. exiting!")
-					return
-				}
-				continue
-			case <-s.ctx.Done():
-				log.WithField("function", "processOrcConfirmation").Debug("context is closed, exiting")
-				ticker.Stop()
-				return
+	for {
+		select {
+		case <-ticker.C:
+			if err := s.fetchConfirmations(s.ctx); err != nil {
+				log.WithError(err).Error("Could not fetch confirmation from orchestrator")
 			}
+			continue
+		case <-s.ctx.Done():
+			log.WithField("function", "processOrcConfirmation").Debug("context is closed, exiting")
+			ticker.Stop()
+			return
 		}
-	}()
+	}
 }
 
 // fetchOrcConfirmations process confirmation for pending blocks
@@ -161,22 +156,17 @@ func (s *Service) fetchConfirmations(ctx context.Context) error {
 		log.WithError(err).Error("got error when preparing sorted confirmation request data")
 		return err
 	}
-
 	if len(reqData) == 0 {
 		return nil
 	}
-
 	if s.orcRPCClient == nil {
 		log.WithError(errInvalidRPCClient).Error("orchestrator rpc client is nil")
 		return nil
 	}
-
 	resData, err := s.orcRPCClient.ConfirmVanBlockHashes(ctx, reqData)
 	if err != nil {
-		log.WithError(err).Error("got error when fetching confirmations from orchestrator")
 		return err
 	}
-
 	for i := 0; i < len(resData); i++ {
 		log.WithField("slot", resData[i].Slot).WithField(
 			"status", resData[i].Status).Debug("got confirmation status from orchestrator")
@@ -190,7 +180,6 @@ func (s *Service) fetchConfirmations(ctx context.Context) error {
 			},
 		})
 	}
-
 	return nil
 }
 
@@ -260,15 +249,6 @@ func (s *Service) waitForConfirmationBlock(ctx context.Context, b *ethpb.SignedB
 							return err
 						}
 						return errInvalidBlock
-					case vanTypes.Skipped:
-						log.WithError(errSkippedStatus).WithField("slot", data.Slot).WithField(
-							"status", "skipped").Error(
-							"got skipped status from orchestrator and discarding the block, exiting goroutine")
-						if err := s.pendingBlockCache.Delete(data.Slot); err != nil {
-							log.WithError(err).Error("couldn't delete the skipped block from cache")
-							return err
-						}
-						return errSkippedStatus
 					default:
 						log.WithError(errUnknownStatus).WithField("slot", data.Slot).WithField(
 							"status", "unknown").Error(

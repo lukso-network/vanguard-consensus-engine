@@ -30,7 +30,10 @@ const maxPeerRequest = 50
 const numOfTries = 5
 const maxBlocksPerSlot = 3
 
-var errPendingBlockTryLimitExceed = errors.New("maximum wait is exceeded and orchestrator can not verify the block")
+var (
+	errPendingBlockTryLimitExceed = errors.New("maximum wait is exceeded and orchestrator can not verify the block")
+	errInvalidBlock               = errors.New("invalid block found in orchestrator")
+)
 
 // processes pending blocks queue on every processPendingBlocksPeriod
 func (s *Service) processPendingBlocksQueue() {
@@ -147,6 +150,8 @@ func (s *Service) processPendingBlocks(ctx context.Context) error {
 			if err := s.cfg.Chain.ReceiveBlock(ctx, b, blkRoot); err != nil {
 				switch {
 				case errors.Is(err, errPendingBlockTryLimitExceed):
+					log.WithError(err).Debug("Block is not processed")
+				case errors.Is(err, errInvalidBlock):
 					log.WithError(err).Debug("Block is not processed")
 				default:
 					log.Debugf("Could not process block from slot %d: %v", b.Block.Slot, err)

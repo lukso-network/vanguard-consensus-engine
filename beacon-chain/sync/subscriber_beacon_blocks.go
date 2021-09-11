@@ -34,6 +34,8 @@ func (s *Service) beaconBlockSubscriber(ctx context.Context, msg proto.Message) 
 		switch {
 		case errors.Is(err, errPendingBlockTryLimitExceed):
 			log.WithError(err).Debug("Block is not processed")
+		case errors.Is(err, errInvalidBlock):
+			log.WithError(err).Debug("Block is not processed")
 		default:
 			log.Debugf("Could not process block from slot %d: %v", block.Slot, err)
 			s.setBadBlock(ctx, root)
