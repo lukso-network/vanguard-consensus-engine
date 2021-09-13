@@ -78,7 +78,9 @@ func (bs *Server) StreamNewPendingBlocks(request *ethpb.StreamPendingBlocksReque
 
 	epochStart := helpers.SlotToEpoch(request.FromSlot)
 	epochEnd := cp.Epoch
-
+	log.WithField("startEpoch", epochStart).
+		WithField("endEpoch", epochEnd).
+		Debug("Sending previous block in batch")
 	if epochStart <= epochEnd {
 		if err := batchSender(epochStart, epochEnd); err != nil {
 			return err
@@ -133,6 +135,9 @@ func (bs *Server) StreamNewPendingBlocks(request *ethpb.StreamPendingBlocksReque
 					firstTime = false
 					startSlot = endSlot + 1
 					endSlot = data.Block.Slot
+					log.WithField("startSlot", startSlot).
+						WithField("endSlot", endSlot).
+						Debug("Sending left over epoch infos")
 					if startSlot < endSlot {
 						if err := sender(startSlot, endSlot); err != nil {
 							return err

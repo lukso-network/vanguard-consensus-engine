@@ -73,6 +73,9 @@ func (bs *Server) StreamMinimalConsensusInfo(
 	startEpoch := req.FromEpoch
 	endEpoch := cp.Epoch
 	alreadySendEpochInfos = make(map[types.Epoch]bool)
+	log.WithField("startEpoch", startEpoch).
+		WithField("endEpoch", endEpoch).
+		Debug("Sending previous epoch infos")
 	if startEpoch <= endEpoch {
 		if err := batchSender(startEpoch, endEpoch); err != nil {
 			return err
@@ -98,6 +101,9 @@ func (bs *Server) StreamMinimalConsensusInfo(
 				// Executes for a single time
 				if firstTime {
 					firstTime = false
+					log.WithField("startEpoch", endEpoch+1).
+						WithField("endEpoch", curEpoch).
+						Debug("Sending left over epoch infos")
 					if endEpoch+1 < curEpoch {
 
 						startEpoch = endEpoch + 1
