@@ -73,6 +73,7 @@ func (bs *Server) StreamMinimalConsensusInfo(
 	startEpoch := req.FromEpoch
 	endEpoch := cp.Epoch
 	alreadySendEpochInfos = make(map[types.Epoch]bool)
+	hasSendPrevEpochs := false
 	log.WithField("startEpoch", startEpoch).
 		WithField("endEpoch", endEpoch).
 		Debug("Sending previous epoch infos")
@@ -80,6 +81,7 @@ func (bs *Server) StreamMinimalConsensusInfo(
 		if err := batchSender(startEpoch, endEpoch); err != nil {
 			return err
 		}
+		hasSendPrevEpochs = true
 	}
 
 	stateChannel := make(chan *feed.Event, 1)
@@ -99,17 +101,15 @@ func (bs *Server) StreamMinimalConsensusInfo(
 				curEpoch := helpers.SlotToEpoch(blockVerifiedData.Slot)
 				nextEpoch := curEpoch + 1
 				// Executes for a single time
-				if firstTime {
+				if firstTime && hasSendPrevEpochs {
 					firstTime = false
 					log.WithField("startEpoch", endEpoch+1).
 						WithField("endEpoch", curEpoch).
 						Debug("Sending left over epoch infos")
 					if endEpoch+1 < curEpoch {
-
 						startEpoch = endEpoch + 1
 						endEpoch = curEpoch
 						curState := blockVerifiedData.CurrentState
-
 						for i := startEpoch; i <= endEpoch; i++ {
 							if err := sender(i, curState); err != nil {
 								return err
@@ -117,8 +117,10 @@ func (bs *Server) StreamMinimalConsensusInfo(
 						}
 					}
 				}
-				if err := sender(nextEpoch, blockVerifiedData.CurrentState); err != nil {
-					return err
+				if hasSendPrevEpochs {
+					if err := sender(nextEpoch, blockVerifiedData.CurrentState); err != nil {
+						return err
+					}
 				}
 			}
 		case <-stateSub.Err():

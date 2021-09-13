@@ -137,7 +137,7 @@ func (bs *Server) StreamNewPendingBlocks(request *ethpb.StreamPendingBlocksReque
 					endSlot = data.Block.Slot
 					log.WithField("startSlot", startSlot).
 						WithField("endSlot", endSlot).
-						Debug("Sending left over epoch infos")
+						Debug("Sending left over blocks")
 					if startSlot < endSlot {
 						if err := sender(startSlot, endSlot); err != nil {
 							return err
