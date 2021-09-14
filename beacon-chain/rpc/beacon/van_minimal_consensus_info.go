@@ -73,11 +73,11 @@ func (bs *Server) StreamMinimalConsensusInfo(
 	startEpoch := req.FromEpoch
 	endEpoch := cp.Epoch
 	alreadySendEpochInfos = make(map[types.Epoch]bool)
-	hasSendPrevEpochs := false
+	hasSendPrevEpochs := startEpoch > endEpoch
 	log.WithField("startEpoch", startEpoch).
 		WithField("endEpoch", endEpoch).
 		Debug("Sending previous epoch infos")
-	if startEpoch <= endEpoch {
+	if !hasSendPrevEpochs {
 		if err := batchSender(startEpoch, endEpoch); err != nil {
 			return err
 		}
