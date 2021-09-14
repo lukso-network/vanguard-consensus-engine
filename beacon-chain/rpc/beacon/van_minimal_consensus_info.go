@@ -56,7 +56,7 @@ func (bs *Server) StreamMinimalConsensusInfo(
 					"Could not send over stream: %v", err)
 			}
 			if state != nil {
-				if err := sender(i, state); err != nil {
+				if err := sender(i, state.Copy()); err != nil {
 					return err
 				}
 			}
