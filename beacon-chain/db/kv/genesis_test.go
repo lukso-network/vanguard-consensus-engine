@@ -70,6 +70,46 @@ func TestLoadGenesisFromFile(t *testing.T) {
 	assert.NoError(t, db.LoadGenesis(context.Background(), r))
 }
 
+func TestLoadGenesisFromFile2(t *testing.T) {
+	fp := "testdata/vanguard.genesis.ssz"
+	rfp, err := bazel.Runfile(fp)
+	if err == nil {
+		fp = rfp
+	}
+
+	oldCfg := params.BeaconConfig().Copy()
+	cfg := params.BeaconConfig()
+	cfg.GenesisForkVersion = []byte{0x83, 0xa5, 0x53, 0x17}
+	params.OverrideBeaconConfig(cfg)
+
+	defer func() {
+		params.OverrideBeaconConfig(oldCfg)
+	}()
+
+	r, err := os.Open(fp)
+	assert.NoError(t, err)
+	defer func() {
+		assert.NoError(t, r.Close())
+	}()
+
+	db := setupDB(t)
+	assert.NoError(t, db.LoadGenesis(context.Background(), r))
+	testGenesisDataSaved(t, db)
+
+	// Loading the same genesis again should not throw an error
+	_, err = r.Seek(0, 0)
+	assert.NoError(t, err)
+	assert.NoError(t, db.LoadGenesis(context.Background(), r))
+	assert.NoError(t, db.EnsureEmbeddedGenesis(context.Background()))
+	state, err := db.GenesisState(context.Background())
+	assert.NoError(t, err)
+
+	ethChainData, err := db.PowchainData(context.Background())
+	assert.NoError(t, err)
+	assert.Equal(t, "", ethChainData)
+	assert.Equal(t, "", state.Eth1Data())
+}
+
 func TestLoadGenesisFromFile_mismatchedForkVersion(t *testing.T) {
 	fp := "testdata/altona.genesis.ssz"
 	rfp, err := bazel.Runfile(fp)

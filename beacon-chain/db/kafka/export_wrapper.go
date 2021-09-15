@@ -5,12 +5,14 @@ package kafka
 import (
 	"bytes"
 	"context"
+	types "github.com/prysmaticlabs/eth2-types"
 
 	fssz "github.com/ferranbt/fastssz"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
 	eth "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/beacon-chain/db/iface"
+	iface2 "github.com/prysmaticlabs/prysm/beacon-chain/state/interface"
 	"github.com/prysmaticlabs/prysm/shared/featureconfig"
 	"github.com/prysmaticlabs/prysm/shared/traceutil"
 	"go.opencensus.io/trace"
@@ -26,6 +28,10 @@ var marshaler = &jsonpb.Marshaler{}
 type Exporter struct {
 	db iface.Database
 	p  *kafka.Producer
+}
+
+func (e Exporter) VanHighestSlotStatesBelow(ctx context.Context, slot types.Slot) ([]iface2.BeaconState, error) {
+	panic("implement me")
 }
 
 // Wrap the db with kafka exporter. If the feature flag is not enabled, this service does not wrap

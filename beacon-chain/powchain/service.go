@@ -709,7 +709,6 @@ func (s *Service) handleETH1FollowDistance() {
 }
 
 func (s *Service) initPOWService() {
-
 	// Run in a select loop to retry in the event of any failures.
 	for {
 		select {
@@ -749,6 +748,7 @@ func (s *Service) initPOWService() {
 					s.retryETH1Node(err)
 					continue
 				}
+
 				s.chainStartData.GenesisBlock = genHeader.Number.Uint64()
 				if err := s.savePowchainData(ctx); err != nil {
 					log.Errorf("Unable to save powchain data: %v", err)
