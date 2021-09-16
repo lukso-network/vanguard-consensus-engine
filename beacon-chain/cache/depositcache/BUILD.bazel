@@ -9,7 +9,10 @@ go_library(
         "pending_deposits.go",
     ],
     importpath = "github.com/prysmaticlabs/prysm/beacon-chain/cache/depositcache",
-    visibility = ["//beacon-chain:__subpackages__"],
+    visibility = [
+        "//beacon-chain:__subpackages__",
+        "//cmd/pandora-trie:__subpackages__",
+    ],
     deps = [
         "//proto/beacon/db:go_default_library",
         "//shared/bytesutil:go_default_library",

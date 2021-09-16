@@ -27,6 +27,7 @@ go_library(
     visibility = [
         "//beacon-chain:__subpackages__",
         "//cmd/beacon-chain:__subpackages__",
+        "//cmd/pandora-trie:__subpackages__",
         "//fuzz:__pkg__",
         "//tools:__subpackages__",
     ],

@@ -4,10 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	ethpb "github.com/prysmaticlabs/ethereumapis/eth/v1alpha1"
-	"github.com/prysmaticlabs/prysm/beacon-chain/state/stateV0"
-	protodb "github.com/prysmaticlabs/prysm/proto/beacon/db"
-	"github.com/prysmaticlabs/prysm/shared/trieutil"
 	"io"
 	"io/ioutil"
 
@@ -93,58 +89,6 @@ func (s *Store) LoadGenesis(ctx context.Context, r io.Reader) error {
 		return fmt.Errorf("loaded genesis fork version (%#x) does not match config genesis "+
 			"fork version (%#x)", gs.Fork().CurrentVersion, params.BeaconConfig().GenesisForkVersion)
 	}
-	//
-	powChainData, err := s.PowchainData(ctx)
-
-	if nil != err {
-		return err
-	}
-
-	depositTrie, err := trieutil.NewTrie(params.BeaconConfig().DepositContractTreeDepth)
-
-	if nil != err {
-		return err
-	}
-
-	// TODO:
-	// Recreate deposit trie
-	for index := uint64(0); index < gs.Eth1DepositIndex(); index++ {
-	}
-
-	// Recreate deposit containers
-	// Insert them into database as eth1data
-
-	if nil == powChainData {
-		powChainData = &protodb.ETH1ChainData{
-			CurrentEth1Data: &protodb.LatestETH1Data{
-				BlockHeight: 0,
-				BlockTime:   gs.GenesisTime(),
-				// This is missing, can we recreate it somehow or pass it via flag?
-				BlockHash:          st.Eth1Data.BlockHash,
-				LastRequestedBlock: 0,
-			},
-			ChainstartData: &protodb.ChainStartData{
-				Chainstarted: false,
-				GenesisTime:  gs.GenesisTime(),
-				GenesisBlock: 0,
-				Eth1Data:     gs.Eth1Data(),
-				// TODO: how to achieve chain start deposits?
-				ChainstartDeposits: nil,
-			},
-			BeaconState:       st,
-			Trie:              depositTrie.ToProto(),
-			DepositContainers: s.cfg.DepositCache.AllDepositContainers(ctx),
-		}
-	}
-	//
-	//
-	//
-	//
-	//err = s.SavePowchainData(ctx, eth1DataFromGs)
-	//
-	//if nil != err {
-	//	return err
-	//}
 
 	return s.SaveGenesisData(ctx, gs)
 }

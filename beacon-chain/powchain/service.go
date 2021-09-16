@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"reflect"
 	"runtime/debug"
+	"strconv"
 	"sync"
 	"time"
 
@@ -706,6 +707,142 @@ func (s *Service) handleETH1FollowDistance() {
 	if s.runError != nil {
 		s.runError = nil
 	}
+}
+
+// RecreateDepositTrieFromRemote will try to fetch all the states from the endpoint in block 0x0 if prealloc was done
+// under `Storage` in genesis.json (pandora). This is inefficient in terms of network calls and CPU
+// but I can't find any straightforward way to include that from genesis.ssz or yaml config file
+// without introducing breaking changes to the system
+func (s *Service) RecreateDepositTrieFromRemote() (err error, depositTrie *trieutil.SparseMerkleTrie) {
+	depositContractAddr := s.cfg.DepositContract
+	method := "eth_getStorageAt"
+	const (
+		maxDepositsRecreationLength = 0x800
+		zeroTrieKey                 = "0x0000000000000000000000000000000000000000000000000000000000000000"
+	)
+	rpcClient := s.rpcClient
+
+	var (
+		batchCallArgs []gethRPC.BatchElem
+		results       [maxDepositsRecreationLength]string
+		batchErrors   [maxDepositsRecreationLength]error
+		paddedErrors  []error
+	)
+
+	rootFromCall, err := s.depositContractCaller.GetDepositRoot(nil)
+
+	if nil != err {
+		return
+	}
+
+	depositCount, err := s.depositContractCaller.GetDepositCount(nil)
+
+	if nil != err {
+		return
+	}
+
+	count := bytesutil.FromBytes8(depositCount)
+
+	fmt.Printf("deposit count: %d \n", count)
+
+	paddedResults := map[string][]byte{}
+
+	for i := 0x0; i < int(count); i++ {
+		args := make([]interface{}, 3)
+		args[0] = depositContractAddr
+		args[1] = strconv.FormatInt(int64(i), 10)
+		args[2] = "latest"
+
+		batchCallArgs = append(batchCallArgs, gethRPC.BatchElem{
+			Method: method,
+			Args:   args,
+			Result: &results[i],
+			Error:  batchErrors[i],
+		})
+	}
+
+	if nil == rpcClient {
+		err = fmt.Errorf("rpcClient is nil")
+
+		return
+	}
+
+	err = rpcClient.BatchCall(batchCallArgs)
+
+	if nil != err {
+		return
+	}
+
+	for key, batchErr := range batchErrors {
+		if nil == batchErr {
+
+			continue
+		}
+
+		fmt.Printf("got error during batch key: %d, batchErr: %s", key, err)
+		paddedErrors = append(paddedErrors, batchErr)
+	}
+
+	if len(paddedErrors) > 0 {
+		err = fmt.Errorf("got errors during trie recreation: %v", paddedErrors)
+
+		return
+	}
+
+	depositTrie, err = trieutil.NewTrie(params.BeaconConfig().DepositContractTreeDepth)
+
+	if nil != err {
+		return
+	}
+
+	for key, result := range results {
+		if zeroTrieKey == result || "" == result {
+			continue
+		}
+
+		fmt.Printf("decoded result: %s\n", result)
+
+		decodedResult := hexutil.MustDecode(result)
+		strKey := strconv.FormatInt(int64(key), 16)
+		paddedKey := s.padZeroes(strKey)
+		paddedResults[paddedKey] = decodedResult
+		depositTrie.Insert(decodedResult, key)
+	}
+
+	root := depositTrie.Root()
+
+	if rootFromCall != root {
+		err = fmt.Errorf(
+			"root doesn't match, expected: %s, got: %s",
+			hexutil.Encode(rootFromCall[:]),
+			hexutil.Encode(root[:]),
+		)
+
+		return
+	}
+
+	fmt.Printf(
+		"\n results: %v, \n errors: %v \n, root: %s \n",
+		paddedResults,
+		paddedErrors,
+		hexutil.Encode(root[:]),
+	)
+
+	return
+}
+
+// I follow hackmd, Must consult why this was done in js.
+func (s *Service) padZeroes(key string) (paddedKey string) {
+	padString := ""
+	zeroes := 64 - len(key)
+
+	for index := 0; index < zeroes; index++ {
+		padString = fmt.Sprintf("%s0", padString)
+	}
+
+	paddedKey = fmt.Sprintf("0x%s%s", padString, key)
+
+	return
 }
 
 func (s *Service) initPOWService() {

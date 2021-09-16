@@ -508,6 +508,23 @@ func TestNewService_EarliestVotingBlock(t *testing.T) {
 
 }
 
+func TestService_RecreateDepositTrieFromRemote(t *testing.T) {
+	beaconDB := dbutil.SetupDB(t)
+	remoteEndpoint := "http://34.141.25.249:8545"
+
+	s1, err := NewService(context.Background(), &Web3ServiceConfig{
+		HTTPEndpoints:   []string{remoteEndpoint},
+		DepositContract: common.HexToAddress("0x000000000000000000000000000000000000cafe"),
+		BeaconDB:        beaconDB,
+	})
+
+	require.NoError(t, err, "unable to setup web3 ETH1.0 chain service")
+	require.NoError(t, s1.connectToPowChain(), "unable to connect to powChainClient")
+
+	err = s1.RecreateDepositTrieFromRemote()
+	require.NoError(t, err, "unable to recreate deposit from remote")
+}
+
 func TestNewService_Eth1HeaderRequLimit(t *testing.T) {
 	testAcc, err := contracts.Setup()
 	require.NoError(t, err, "Unable to set up simulated backend")

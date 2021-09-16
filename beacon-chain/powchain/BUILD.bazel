@@ -15,6 +15,7 @@ go_library(
     visibility = [
         "//beacon-chain:__subpackages__",
         "//contracts:__subpackages__",
+        "//cmd/pandora-trie:__subpackages__",
     ],
     deps = [
         "//beacon-chain/cache/depositcache:go_default_library",
