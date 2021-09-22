@@ -128,11 +128,11 @@ require (
 	k8s.io/utils v0.0.0-20200520001619-278ece378a50 // indirect
 )
 
-replace github.com/ethereum/go-ethereum => github.com/prysmaticlabs/bazel-go-ethereum v0.0.0-20210707101027-e8523651bf6f
-
-replace github.com/json-iterator/go => github.com/prestonvanloon/go v1.1.7-0.20190722034630-4f2e55fcf87b
-
-// See https://github.com/prysmaticlabs/grpc-gateway/issues/2
-replace github.com/grpc-ecosystem/grpc-gateway/v2 => github.com/prysmaticlabs/grpc-gateway/v2 v2.3.1-0.20210622145107-ca3041e1b380
-
-replace github.com/ferranbt/fastssz => github.com/rauljordan/fastssz v0.0.0-20210622230010-a131010e198f
+replace (
+	github.com/ethereum/go-ethereum => github.com/prysmaticlabs/bazel-go-ethereum v0.0.0-20210707101027-e8523651bf6f
+	github.com/ferranbt/fastssz => github.com/atif-konasl/fastssz v0.0.0-20210921140807-706ef3f49459
+	// See https://github.com/prysmaticlabs/grpc-gateway/issues/2
+	github.com/grpc-ecosystem/grpc-gateway/v2 => github.com/prysmaticlabs/grpc-gateway/v2 v2.3.1-0.20210622145107-ca3041e1b380
+	github.com/json-iterator/go => github.com/prestonvanloon/go v1.1.7-0.20190722034630-4f2e55fcf87b
+	github.com/prysmaticlabs/prysm => ./
+)
