@@ -745,7 +745,7 @@ func (s *Service) RecreateDepositTrieFromRemote() (err error, depositTrie *trieu
 
 	fmt.Printf("deposit count: %d \n", count)
 
-	paddedResults := map[string][]byte{}
+	paddedResults := map[string]string{}
 
 	for i := 0x0; i < int(count); i++ {
 		args := make([]interface{}, 3)
@@ -800,14 +800,14 @@ func (s *Service) RecreateDepositTrieFromRemote() (err error, depositTrie *trieu
 			continue
 		}
 
-		fmt.Printf("decoded result: %s\n", result)
-
 		decodedResult := hexutil.MustDecode(result)
 		strKey := strconv.FormatInt(int64(key), 16)
 		paddedKey := s.padZeroes(strKey)
-		paddedResults[paddedKey] = decodedResult
+		paddedResults[paddedKey] = hexutil.Encode(decodedResult)
 		depositTrie.Insert(decodedResult, key)
 	}
+
+	fmt.Printf("padded results: %v, \n", paddedResults)
 
 	root := depositTrie.Root()
 
