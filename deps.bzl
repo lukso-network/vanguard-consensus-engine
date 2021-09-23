@@ -2462,6 +2462,7 @@ def prysm_deps():
         sum = "h1:y5//uYreIhSUg3J1GEMiLbxo1LJaP8RfCpH6pymGZus=",
         version = "v0.0.0-20140419014527-cca7078d478f",
     )
+
     go_repository(
         name = "com_github_naoina_go_stringutil",
         importpath = "github.com/naoina/go-stringutil",
@@ -2512,6 +2513,7 @@ def prysm_deps():
         sum = "h1:AREM5mwr4u1ORQBMvzfzBgpsctsbQikCVpvC+tX285E=",
         version = "v0.0.0-20180912185939-ae427f1e4c1d",
     )
+
     go_repository(
         name = "com_github_nishanths_predeclared",
         importpath = "github.com/nishanths/predeclared",
@@ -3044,8 +3046,8 @@ def prysm_deps():
     go_repository(
         name = "com_github_stackexchange_wmi",
         importpath = "github.com/StackExchange/wmi",
-        sum = "h1:5sXbqlSomvdjlRbWyNqkPsJ3Fg+tQZCbgeX1VGljbQY=",
-        version = "v0.0.0-20210224194228-fe8f1750fd46",
+        sum = "h1:fLjPD/aNc3UIOA6tDi6QXUemppXK3P9BI7mr2hd6gx8=",
+        version = "v0.0.0-20180116203802-5d049714c4a6",
     )
     go_repository(
         name = "com_github_status_im_keycard_go",
@@ -3098,8 +3100,8 @@ def prysm_deps():
     go_repository(
         name = "com_github_syndtr_goleveldb",
         importpath = "github.com/syndtr/goleveldb",
-        sum = "h1:xQdMZ1WLrgkkvOZ/LDQxjVxMLdby7osSh4ZEVa5sIjs=",
-        version = "v1.0.1-0.20210305035536-64b5b1c73954",
+        sum = "h1:Ld/zXl5t4+D69SiV4JoN7kkfvJdOWlPpfxrzxpLMoUk=",
+        version = "v1.0.1-0.20200815110645-5c35d600f0ca",
     )
 
     go_repository(

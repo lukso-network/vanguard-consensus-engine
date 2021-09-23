@@ -23,6 +23,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	eth2types "github.com/prysmaticlabs/eth2-types"
 	"github.com/prysmaticlabs/prysm/beacon-chain/cache/depositcache"
 	statefeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/state"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
@@ -148,18 +149,21 @@ type Service struct {
 	runError                error
 	preGenesisState         iface.BeaconState
 	bsUpdater               BeaconNodeStatsUpdater
+	// vanguard properties
+	genesisPublicKeys map[int64]string
 }
 
 // Web3ServiceConfig defines a config struct for web3 service to use through its life cycle.
 type Web3ServiceConfig struct {
-	HttpEndpoints          []string
+	EnableVanguardNode     bool // Vanguard: checking vanguard client
 	DepositContract        common.Address
-	BeaconDB               db.HeadAccessDatabase
-	DepositCache           *depositcache.DepositCache
-	StateNotifier          statefeed.Notifier
 	StateGen               *stategen.State
+	DepositCache           *depositcache.DepositCache
 	Eth1HeaderReqLimit     uint64
 	BeaconNodeStatsUpdater BeaconNodeStatsUpdater
+	StateNotifier          statefeed.Notifier
+	BeaconDB               db.HeadAccessDatabase
+	HttpEndpoints          []string
 }
 
 // NewService sets up a new instance with an ethclient when
@@ -232,7 +236,11 @@ func NewService(ctx context.Context, config *Web3ServiceConfig) (*Service, error
 	if err := s.initializeEth1Data(ctx, eth1Data); err != nil {
 		return nil, err
 	}
-
+	if s.cfg.EnableVanguardNode {
+		if err := s.retrieveGenesisPublicKeys(ctx); err != nil {
+			return nil, errors.Wrap(err, "could not initialize powchain")
+		}
+	}
 	return s, nil
 }
 
@@ -770,7 +778,9 @@ func (s *Service) initPOWService() {
 			// Handle edge case with embedded genesis state by fetching genesis header to determine
 			// its height.
 			if s.chainStartData.Chainstarted && s.chainStartData.GenesisBlock == 0 {
-				genHeader, err := s.eth1DataFetcher.HeaderByHash(ctx, common.BytesToHash(s.chainStartData.Eth1Data.BlockHash))
+				// This changes for only vanguard client
+				//genHeader, err := s.eth1DataFetcher.HeaderByHash(ctx, common.BytesToHash(s.chainStartData.Eth1Data.BlockHash))
+				genHeader, err := s.eth1DataFetcher.HeaderByNumber(ctx, big.NewInt(0))
 				if err != nil {
 					log.Errorf("Unable to retrieve genesis ETH1.0 chain header: %v", err)
 					s.retryETH1Node(err)
@@ -1041,6 +1051,26 @@ func (s *Service) ensureValidPowchainData(ctx context.Context) error {
 			DepositContainers: s.cfg.DepositCache.AllDepositContainers(ctx),
 		}
 		return s.cfg.BeaconDB.SavePowchainData(ctx, eth1Data)
+	}
+	return nil
+}
+
+// retrieveGenesisPublicKeys
+func (s *Service) retrieveGenesisPublicKeys(ctx context.Context) error {
+	genesisState, err := s.cfg.BeaconDB.GenesisState(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to retrieve genesis public keys")
+	}
+	// Exit early if no genesis state is saved.
+	if genesisState == nil || genesisState.IsNil() {
+		return nil
+	}
+
+	s.genesisPublicKeys = make(map[int64]string, genesisState.NumValidators())
+	for i := 0; i < genesisState.NumValidators(); i++ {
+		pubKey := genesisState.PubkeyAtIndex(eth2types.ValidatorIndex(i))
+		pubKeyHex := hexutil.Encode(pubKey[:])
+		s.genesisPublicKeys[int64(i)] = pubKeyHex
 	}
 	return nil
 }

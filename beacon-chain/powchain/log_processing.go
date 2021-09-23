@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/pkg/errors"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed"
@@ -110,6 +111,26 @@ func (s *Service) ProcessDepositLog(ctx context.Context, depositLog gethTypes.Lo
 	// ETH1.0 network, and prevents us from updating our trie
 	// with the same log twice, causing an inconsistent state root.
 	index := int64(binary.LittleEndian.Uint64(merkleTreeIndex))
+	log.WithField("index", index).
+		WithField("pubKey", hexutil.Encode(pubkey)).
+		WithField("pubKeyInGenesis", s.genesisPublicKeys[index]).
+		WithField("lastReceivedMerkleIndex", s.lastReceivedMerkleIndex).
+		Debug("Incoming deposit info")
+	if s.cfg.EnableVanguardNode {
+		genesisState, err := s.cfg.BeaconDB.GenesisState(ctx)
+		if err != nil {
+			return err
+		}
+		// Exit early if no genesis state is saved.
+		if genesisState == nil || genesisState.IsNil() {
+			return nil
+		}
+		pubKeyHex := hexutil.Encode(pubkey)
+		if uint64(index) < genesisState.Eth1Data().DepositCount && s.genesisPublicKeys[index] != pubKeyHex {
+			log.Warn("Failed to process deposit due index and public key mis-match")
+			return errors.New("Genesis deposit sequence incorrect. Index and genesis public key mis-matched")
+		}
+	}
 	if index <= s.lastReceivedMerkleIndex {
 		return nil
 	}
@@ -170,7 +191,24 @@ func (s *Service) ProcessDepositLog(ctx context.Context, depositLog gethTypes.Lo
 			validData = false
 		}
 	} else {
-		s.cfg.DepositCache.InsertPendingDeposit(ctx, deposit, depositLog.BlockNumber, index, s.depositTrie.Root())
+		// if vanguard flag is enable, then executes the below code
+		if s.cfg.EnableVanguardNode {
+			genesisState, err := s.cfg.BeaconDB.GenesisState(ctx)
+			if err != nil {
+				return err
+			}
+			// Exit early if no genesis state is saved.
+			if genesisState == nil || genesisState.IsNil() {
+				return nil
+			}
+			if uint64(index) < genesisState.Eth1Data().DepositCount {
+				s.cfg.DepositCache.InsertFinalizedDeposits(ctx, index)
+			} else {
+				s.cfg.DepositCache.InsertPendingDeposit(ctx, deposit, depositLog.BlockNumber, index, s.depositTrie.Root())
+			}
+		} else {
+			s.cfg.DepositCache.InsertPendingDeposit(ctx, deposit, depositLog.BlockNumber, index, s.depositTrie.Root())
+		}
 	}
 	if validData {
 		log.WithFields(logrus.Fields{

@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"github.com/prysmaticlabs/prysm/validator/pandora"
 	"io"
 	"strconv"
 	"strings"
@@ -58,6 +59,7 @@ type validator struct {
 	useWeb                             bool
 	emitAccountMetrics                 bool
 	logDutyCountDown                   bool
+	enableVanguardNode                 bool // Vanguard: bool used for checking vanguard chain
 	domainDataLock                     sync.Mutex
 	attLogsLock                        sync.Mutex
 	aggregatedSlotCommitteeIDCacheLock sync.Mutex
@@ -85,6 +87,7 @@ type validator struct {
 	graffitiStruct                     *graffiti.Graffiti
 	graffitiOrderedIndex               uint64
 	eipImportBlacklistedPublicKeys     map[[48]byte]bool
+	pandoraService                     pandora.PandoraService // Vanguard: Pandora service is needed for vanguard chain
 }
 
 type validatorStatus struct {

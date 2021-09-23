@@ -299,3 +299,24 @@ func CopySyncCommitteeContribution(c *prysmv2.SyncCommitteeContribution) *prysmv
 		Signature:         bytesutil.SafeCopyBytes(c.Signature),
 	}
 }
+
+// CopyPandoraShard copies PandoraShard
+func CopyPandoraShard(pShards []*ethpb.PandoraShard) []*ethpb.PandoraShard {
+	if len(pShards) == 0 {
+		return nil
+	}
+	pandoraShards := make([]*ethpb.PandoraShard, 1)
+	ps := pShards[0]
+	pandoraShard := &ethpb.PandoraShard{
+		BlockNumber: ps.BlockNumber,
+		Hash:        ps.Hash,
+		ParentHash:  ps.ParentHash,
+		StateRoot:   ps.StateRoot,
+		TxHash:      ps.TxHash,
+		ReceiptHash: ps.ReceiptHash,
+		SealHash:    ps.SealHash,
+		Signature:   ps.Signature,
+	}
+	pandoraShards[0] = pandoraShard
+	return pandoraShards
+}

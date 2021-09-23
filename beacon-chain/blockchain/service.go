@@ -14,6 +14,7 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/cache"
 	"github.com/prysmaticlabs/prysm/beacon-chain/cache/depositcache"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed"
+	blockfeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/block"
 	statefeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/state"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/state"
@@ -23,6 +24,7 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/operations/attestations"
 	"github.com/prysmaticlabs/prysm/beacon-chain/operations/slashings"
 	"github.com/prysmaticlabs/prysm/beacon-chain/operations/voluntaryexits"
+	"github.com/prysmaticlabs/prysm/beacon-chain/orchestrator"
 	"github.com/prysmaticlabs/prysm/beacon-chain/p2p"
 	"github.com/prysmaticlabs/prysm/beacon-chain/powchain"
 	iface "github.com/prysmaticlabs/prysm/beacon-chain/state/interface"
@@ -51,6 +53,8 @@ type Service struct {
 	genesisTime           time.Time
 	head                  *head
 	headLock              sync.RWMutex
+	stateNotifier         statefeed.Notifier
+	blockNotifier         blockfeed.Notifier
 	genesisRoot           [32]byte
 	justifiedCheckpt      *ethpb.Checkpoint
 	prevJustifiedCheckpt  *ethpb.Checkpoint
@@ -65,6 +69,13 @@ type Service struct {
 	justifiedBalances     []uint64
 	justifiedBalancesLock sync.RWMutex
 	wsVerified            bool
+
+	// Vanguard: unconfirmed blocks need to store in cache for waiting final confirmation from orchestrator
+	enableVanguardNode bool
+	orcVerification    bool
+	pendingBlockCache  *cache.PendingBlocksCache
+	confirmedBlockCh   chan *ethpb.SignedBeaconBlock
+	orcRPCClient       orchestrator.Client
 }
 
 // Config options for the service.
@@ -83,21 +94,39 @@ type Config struct {
 	AttService              *attestations.Service
 	StateGen                *stategen.State
 	WeakSubjectivityCheckpt *ethpb.Checkpoint
+
+	// Vanguard: orchestrator client reference to get confirmation status
+	BlockNotifier      blockfeed.Notifier
+	OrcRPCClient       orchestrator.Client
+	EnableVanguardNode bool
 }
 
 // NewService instantiates a new block service instance that will
 // be registered into a running beacon node.
 func NewService(ctx context.Context, cfg *Config) (*Service, error) {
 	ctx, cancel := context.WithCancel(ctx)
-	return &Service{
+	s := &Service{
 		cfg:                  cfg,
 		ctx:                  ctx,
 		cancel:               cancel,
+		blockNotifier:        cfg.BlockNotifier,
 		boundaryRoots:        [][32]byte{},
 		checkpointStateCache: cache.NewCheckpointStateCache(),
 		initSyncBlocks:       make(map[[32]byte]interfaces.SignedBeaconBlock),
 		justifiedBalances:    make([]uint64, 0),
-	}, nil
+
+		pendingBlockCache:  cache.NewPendingBlocksCache(), // Vanguard: Initialize pending block cache
+		confirmedBlockCh:   make(chan *ethpb.SignedBeaconBlock),
+		orcRPCClient:       cfg.OrcRPCClient,
+		enableVanguardNode: cfg.EnableVanguardNode,
+		orcVerification:    true,
+	}
+	// vanguard: loop for getting confirmation from orchestrator node
+	if s.enableVanguardNode {
+		go s.processOrcConfirmationRoutine()
+	}
+
+	return s, nil
 }
 
 // Start a blockchain service's main event loop.

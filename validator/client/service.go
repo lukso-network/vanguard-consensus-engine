@@ -26,6 +26,7 @@ import (
 	"github.com/prysmaticlabs/prysm/validator/graffiti"
 	"github.com/prysmaticlabs/prysm/validator/keymanager"
 	"github.com/prysmaticlabs/prysm/validator/keymanager/imported"
+	"github.com/prysmaticlabs/prysm/validator/pandora"
 	slashingiface "github.com/prysmaticlabs/prysm/validator/slashing-protection/iface"
 	"go.opencensus.io/plugin/ocgrpc"
 	"google.golang.org/grpc"
@@ -52,6 +53,7 @@ type ValidatorService struct {
 	emitAccountMetrics    bool
 	logValidatorBalances  bool
 	logDutyCountDown      bool
+	enableVanguardNode    bool // Vanguard: enableVanguardNode is needed for vanguard chain
 	conn                  *grpc.ClientConn
 	grpcRetryDelay        time.Duration
 	grpcRetries           uint
@@ -69,6 +71,7 @@ type ValidatorService struct {
 	grpcHeaders           []string
 	graffiti              []byte
 	graffitiStruct        *graffiti.Graffiti
+	pandoraService        pandora.PandoraService // Vanguard: Pandora service is needed for vanguard chain
 }
 
 // Config for the validator service.
@@ -77,6 +80,7 @@ type Config struct {
 	LogValidatorBalances       bool
 	EmitAccountMetrics         bool
 	LogDutyCountDown           bool
+	EnableVanguardNode         bool // Vanguard: Boolean flag for checking vanguard chain
 	WalletInitializedFeed      *event.Feed
 	GrpcRetriesFlag            uint
 	GrpcRetryDelay             time.Duration
@@ -91,6 +95,8 @@ type Config struct {
 	DataDir                    string
 	GrpcHeadersFlag            string
 	GraffitiStruct             *graffiti.Graffiti
+	PandoraService             pandora.PandoraService // Vanguard: Pandora service is needed for vanguard chain
+
 }
 
 // NewValidatorService creates a new validator service for the service
@@ -118,6 +124,8 @@ func NewValidatorService(ctx context.Context, cfg *Config) (*ValidatorService, e
 		useWeb:                cfg.UseWeb,
 		graffitiStruct:        cfg.GraffitiStruct,
 		logDutyCountDown:      cfg.LogDutyCountDown,
+		pandoraService:        cfg.PandoraService,
+		enableVanguardNode:    cfg.EnableVanguardNode,
 	}, nil
 }
 
@@ -200,6 +208,9 @@ func (v *ValidatorService) Start() {
 		graffitiOrderedIndex:           graffitiOrderedIndex,
 		eipImportBlacklistedPublicKeys: slashablePublicKeys,
 		logDutyCountDown:               v.logDutyCountDown,
+		// vanguard: initialization for vanguard validator chain
+		pandoraService:     v.pandoraService,
+		enableVanguardNode: v.enableVanguardNode,
 	}
 	go run(v.ctx, v.validator)
 	go v.recheckKeys(v.ctx)

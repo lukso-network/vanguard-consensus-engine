@@ -182,4 +182,9 @@ var (
 		Usage: "Load a genesis state from ssz file. Testnet genesis files can be found in the " +
 			"eth2-clients/eth2-testnets repository on github.",
 	}
+	// OrcRpcProviderFlag defines a orchestrator node RPC endpoint
+	OrcRpcProviderFlag = &cli.StringFlag{
+		Name:  "orc-http-provider",
+		Usage: "A orchestrator string rpc endpoint. This is our orchestrator client http endpoint.",
+	}
 )

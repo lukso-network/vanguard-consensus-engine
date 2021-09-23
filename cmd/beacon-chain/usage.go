@@ -73,6 +73,7 @@ var appHelpFlagGroups = []flagGroup{
 			cmd.RestoreSourceFileFlag,
 			cmd.RestoreTargetDirFlag,
 			cmd.BoltMMapInitialSizeFlag,
+			cmd.VanguardNetwork,
 		},
 	},
 	{
@@ -120,6 +121,7 @@ var appHelpFlagGroups = []flagGroup{
 			flags.NetworkID,
 			flags.WeakSubjectivityCheckpt,
 			flags.Eth1HeaderReqLimit,
+			flags.OrcRpcProviderFlag,
 			flags.GenesisStatePath,
 		},
 	},

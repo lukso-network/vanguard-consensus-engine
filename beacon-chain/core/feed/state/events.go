@@ -7,6 +7,7 @@ import (
 	"time"
 
 	types "github.com/prysmaticlabs/eth2-types"
+	iface "github.com/prysmaticlabs/prysm/beacon-chain/state/interface"
 	"github.com/prysmaticlabs/prysm/proto/interfaces"
 )
 
@@ -26,6 +27,8 @@ const (
 	FinalizedCheckpoint
 	// NewHead of the chain event.
 	NewHead
+	// BlockVerified is sent when new block is validated by orchestrator
+	BlockVerified
 )
 
 // BlockProcessedData is the data sent with BlockProcessed events.
@@ -58,4 +61,12 @@ type InitializedData struct {
 	StartTime time.Time
 	// GenesisValidatorsRoot represents state.validators.HashTreeRoot().
 	GenesisValidatorsRoot []byte
+}
+
+// BlockPreVerifiedData is the data sent for orchestrator minimal consensus info
+type BlockPreVerifiedData struct {
+	// Slot is the slot of the processed block.
+	Slot types.Slot
+	// CurrentState of the processed block.
+	CurrentState iface.BeaconState
 }

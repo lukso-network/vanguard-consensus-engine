@@ -101,6 +101,22 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 	if err != nil {
 		return err
 	}
+	// Vanguard: Validated by vanguard node. Now intercepting the execution and publishing the block
+	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
+	if s.enableVanguardNode {
+		//if err := s.verifyPandoraShardInfo(signed); err != nil {
+		//	log.WithError(err).Error("Failed to process block")
+		//	return err
+		//}
+		// publish block to orchestrator and rpc service for sending minimal consensus info
+		s.publishBlock(signed, preState)
+		if s.orcVerification {
+			// waiting for orchestrator confirmation in live-sync mode
+			if err := s.waitForConfirmation(ctx, signed); err != nil {
+				return errors.Wrap(err, "could not publish and verified by orchestrator client onBlock")
+			}
+		}
+	}
 
 	if err := s.savePostStateInfo(ctx, blockRoot, signed, postState, false /* reg sync */); err != nil {
 		return err
@@ -233,11 +249,13 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 	}
 	var set *bls.SignatureSet
 	boundaries := make(map[[32]byte]iface.BeaconState)
+	preStates := make(map[[32]byte]iface.BeaconState)
 	for i, b := range blks {
 		set, preState, err = state.ExecuteStateTransitionNoVerifyAnySig(ctx, preState, b)
 		if err != nil {
 			return nil, nil, err
 		}
+		preStates[blockRoots[i]] = preState.Copy()
 		// Save potential boundary states.
 		if helpers.IsEpochStart(preState.Slot()) {
 			boundaries[blockRoots[i]] = preState.Copy()
@@ -255,6 +273,14 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 	}
 	if !verify {
 		return nil, nil, errors.New("batch block signature verification failed")
+	}
+	// Vanguard: Validated by vanguard node. Now intercepting the execution and publishing the block
+	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
+	if s.enableVanguardNode {
+		for i, b := range blks {
+			// publish block to orchestrator and rpc service for sending minimal consensus info
+			s.publishBlock(b, preStates[blockRoots[i]])
+		}
 	}
 	for r, st := range boundaries {
 		if err := s.cfg.StateGen.SaveState(ctx, r, st); err != nil {
