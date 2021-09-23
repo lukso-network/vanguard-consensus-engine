@@ -21,7 +21,7 @@ var (
 	PraterTestnet = &cli.BoolFlag{
 		Name:  "prater",
 		Usage: "Run Prysm configured for the Prater test network",
-	} // PraterTestnet flag for the multiclient eth2 testnet.
+	}
 	L15TestNet = &cli.BoolFlag{
 		Name:  "l15",
 		Usage: "Run Vanguard configured for the L15 LUKSO test network",
