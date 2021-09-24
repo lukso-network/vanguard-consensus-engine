@@ -49,7 +49,7 @@ var pollingPeriod = 6 * time.Second
 var refreshRate = slotutil.DivideSlotBy(2)
 
 // maxBadResponses is the maximum number of bad responses from a peer before we stop talking to it.
-const maxBadResponses = 5
+const maxBadResponses = 150
 
 // maxDialTimeout is the timeout for a single peer dial.
 var maxDialTimeout = params.BeaconNetworkConfig().RespTimeout
@@ -165,7 +165,7 @@ func NewService(ctx context.Context, cfg *Config) (*Service, error) {
 		ScorerParams: &scorers.Config{
 			BadResponsesScorerConfig: &scorers.BadResponsesScorerConfig{
 				Threshold:     maxBadResponses,
-				DecayInterval: time.Hour,
+				DecayInterval: scorers.DefaultBadResponsesDecayInterval,
 			},
 		},
 	})
