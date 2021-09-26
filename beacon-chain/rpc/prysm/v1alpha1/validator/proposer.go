@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"math/big"
 	"reflect"
 	"time"
@@ -60,6 +61,15 @@ func (vs *Server) GetBlock(ctx context.Context, req *ethpb.BlockRequest) (*ethpb
 
 	if vs.SyncChecker.Syncing() {
 		return nil, status.Errorf(codes.Unavailable, "Syncing to latest head, not ready to respond")
+	}
+
+	// vanguard: If vanguard chain flag is enabled then we need to check the length of pending queue size. if
+	// pending queue is not empty that means syncing and verification process does not complete yet so skipped the
+	// slot
+	if vs.EnableVanguardNode {
+		if err := vs.PendingQueueFetcher.CanPropose(); err != nil {
+			return nil, status.Errorf(codes.Unavailable, "Pending queue is not fully processed yet")
+		}
 	}
 
 	// Retrieve the parent block as the current head of the canonical chain.
@@ -138,6 +148,33 @@ func (vs *Server) GetBlock(ctx context.Context, req *ethpb.BlockRequest) (*ethpb
 	}
 	blk.StateRoot = stateRoot
 
+	// If vanguard chain is enabled, we set the latest pandora sharding info into beacon block so that
+	// we do not need to make another api call for getting latest sharding info
+	if vs.EnableVanguardNode {
+		headBlk, err := vs.HeadFetcher.HeadBlock(ctx)
+		if err != nil {
+			log.WithField("slot", blk.Slot).Debug("Failed to retrieve head block")
+			return nil, status.Errorf(codes.Internal, "Could not get head block: %v", err)
+		}
+
+		if headBlk == nil || headBlk.Block().IsNil() {
+			log.WithField("slot", blk.Slot).Debug("Head block of chain was nil")
+			return blk, nil
+		}
+
+		canonicalPandoraShards := headBlk.Block().Body().PandoraShards()
+		if len(canonicalPandoraShards) > 0 {
+			log.WithField("slot", headBlk.Block().Slot).
+				WithField("blockNumber", canonicalPandoraShards[0].BlockNumber).
+				WithField("hash", hexutil.Encode(canonicalPandoraShards[0].Hash)).
+				WithField("sealHash", hexutil.Encode(canonicalPandoraShards[0].SealHash)).
+				WithField("StateRoot", hexutil.Encode(canonicalPandoraShards[0].StateRoot)).
+				WithField("signature", hexutil.Encode(canonicalPandoraShards[0].Signature)).
+				Debug("pandora canonical sharding info")
+		}
+		blk.Body.PandoraShard = canonicalPandoraShards
+	}
+
 	return blk, nil
 }
 
@@ -167,6 +204,12 @@ func (vs *Server) ProposeBlock(ctx context.Context, rBlk *ethpb.SignedBeaconBloc
 	log.WithFields(logrus.Fields{
 		"blockRoot": hex.EncodeToString(root[:]),
 	}).Debug("Broadcasting block")
+
+	//Vanguard: Activating orchestrator verification in live sync mode when pandora client will be also in live sync mode
+	if vs.EnableVanguardNode && !vs.PendingQueueFetcher.OrcVerification() {
+		log.WithField("slot", blk.Block().Slot()).Info("Activating orchestrator verification in live sync mode")
+		vs.PendingQueueFetcher.ActivateOrcVerification()
+	}
 
 	if err := vs.BlockReceiver.ReceiveBlock(ctx, blk, root); err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not process beacon block: %v", err)

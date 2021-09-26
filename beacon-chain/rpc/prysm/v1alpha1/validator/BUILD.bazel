@@ -13,6 +13,7 @@ go_library(
         "proposer_sync_aggregate.go",
         "server.go",
         "status.go",
+        "van_proposer.go",
     ],
     importpath = "github.com/prysmaticlabs/prysm/beacon-chain/rpc/prysm/v1alpha1/validator",
     visibility = ["//beacon-chain:__subpackages__"],
@@ -67,6 +68,7 @@ go_library(
         "@org_golang_google_grpc//codes:go_default_library",
         "@org_golang_google_grpc//status:go_default_library",
         "@org_golang_google_protobuf//types/known/emptypb:go_default_library",
+        "@com_github_ethereum_go_ethereum//common/hexutil:go_default_library",
     ],
 )
 
@@ -85,6 +87,7 @@ go_test(
         "server_test.go",
         "status_test.go",
         "validator_test.go",
+        "van_proposer_test.go",
     ],
     embed = [":go_default_library"],
     deps = [
