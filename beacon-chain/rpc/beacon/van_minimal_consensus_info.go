@@ -16,9 +16,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-var (
-	alreadySendEpochInfos map[types.Epoch]bool
-)
+// latestSendEpoch tracks last sent epoch number
+var latestSendEpoch types.Epoch
 
 // StreamMinimalConsensusInfo to orchestrator client every single time an unconfirmed block is received by the beacon node.
 func (bs *Server) StreamMinimalConsensusInfo(
@@ -27,7 +26,7 @@ func (bs *Server) StreamMinimalConsensusInfo(
 ) error {
 
 	sender := func(epoch types.Epoch, state iface.BeaconState) error {
-		if !alreadySendEpochInfos[epoch] {
+		if latestSendEpoch == 0 || latestSendEpoch == epoch-1 {
 			epochInfo, err := bs.prepareEpochInfo(epoch, state)
 			if err != nil {
 				return status.Errorf(codes.Internal,
@@ -38,7 +37,7 @@ func (bs *Server) StreamMinimalConsensusInfo(
 					"Could not send over stream: %v  err: %v", epoch, err)
 			}
 			log.WithField("epoch", epoch).Info("Sent epoch info to orchestrator")
-			alreadySendEpochInfos[epochInfo.Epoch] = true
+			latestSendEpoch = epoch
 		}
 		return nil
 	}
@@ -72,16 +71,16 @@ func (bs *Server) StreamMinimalConsensusInfo(
 
 	startEpoch := req.FromEpoch
 	endEpoch := cp.Epoch
-	alreadySendEpochInfos = make(map[types.Epoch]bool)
-	hasSendPrevEpochs := startEpoch > endEpoch
+	latestSendEpoch = req.FromEpoch
+
 	log.WithField("startEpoch", startEpoch).
 		WithField("endEpoch", endEpoch).
 		Debug("Sending previous epoch infos")
-	if !hasSendPrevEpochs {
+
+	if startEpoch == 0 || startEpoch < endEpoch {
 		if err := batchSender(startEpoch, endEpoch); err != nil {
 			return err
 		}
-		hasSendPrevEpochs = true
 	}
 
 	stateChannel := make(chan *feed.Event, 1)
@@ -101,26 +100,24 @@ func (bs *Server) StreamMinimalConsensusInfo(
 				curEpoch := helpers.SlotToEpoch(blockVerifiedData.Slot)
 				nextEpoch := curEpoch + 1
 				// Executes for a single time
-				if firstTime && hasSendPrevEpochs {
+				if firstTime {
 					firstTime = false
-					log.WithField("startEpoch", endEpoch+1).
+					log.WithField("startEpoch", latestSendEpoch+1).
 						WithField("endEpoch", curEpoch).
 						Debug("Sending left over epoch infos")
-					if endEpoch+1 < curEpoch {
-						startEpoch = endEpoch + 1
-						endEpoch = curEpoch
-						curState := blockVerifiedData.CurrentState
-						for i := startEpoch; i <= endEpoch; i++ {
-							if err := sender(i, curState); err != nil {
-								return err
-							}
+
+					startEpoch = latestSendEpoch + 1
+					endEpoch = curEpoch
+					curState := blockVerifiedData.CurrentState
+
+					for i := startEpoch; i <= endEpoch; i++ {
+						if err := sender(i, curState); err != nil {
+							return err
 						}
 					}
 				}
-				if hasSendPrevEpochs {
-					if err := sender(nextEpoch, blockVerifiedData.CurrentState); err != nil {
-						return err
-					}
+				if err := sender(nextEpoch, blockVerifiedData.CurrentState); err != nil {
+					return err
 				}
 			}
 		case <-stateSub.Err():
