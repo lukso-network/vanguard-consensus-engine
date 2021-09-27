@@ -3701,7 +3701,7 @@ def prysm_deps():
     # Note: The keep directives help gazelle leave this alone.
     go_repository(
         name = "com_github_prysmaticlabs_ethereumapis",
-        commit = "18da5043454ccae5ac1c45cb1c795b5c0f6194eb",  # keep
+        commit = "3f5c49ea8d57cca054aa4cfe5378c3912e96241f",  # keep
         importpath = "github.com/prysmaticlabs/ethereumapis",  # keep
         # Note: go-ethereum is not bazel-friendly with regards to cgo. We have a
         # a fork that has resolved these issues by disabling HID/USB support and
