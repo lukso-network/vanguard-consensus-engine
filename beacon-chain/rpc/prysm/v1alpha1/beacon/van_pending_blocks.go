@@ -171,7 +171,7 @@ func (bs *Server) StreamNewPendingBlocks(request *ethpb.StreamPendingBlocksReque
 						"Could not send over stream: %v", err)
 				}
 
-				log.WithField("slot", data.Block.Slot).Info(
+				log.WithField("slot", data.Block.Slot()).Info(
 					"Sent block to orchestrator")
 			}
 		case <-pBlockSub.Err():

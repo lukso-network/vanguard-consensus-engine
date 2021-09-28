@@ -109,6 +109,7 @@ func CopyBeaconBlockBody(body *ethpb.BeaconBlockBody) *ethpb.BeaconBlockBody {
 		Attestations:      CopyAttestations(body.Attestations),
 		Deposits:          CopyDeposits(body.Deposits),
 		VoluntaryExits:    CopySignedVoluntaryExits(body.VoluntaryExits),
+		PandoraShard:      CopyPandoraShard(body.PandoraShard),
 	}
 }
 
