@@ -26,7 +26,7 @@ func (bs *Server) StreamMinimalConsensusInfo(
 ) error {
 
 	sender := func(epoch types.Epoch, state iface.BeaconState) error {
-		if latestSendEpoch == 0 || latestSendEpoch == epoch-1 {
+		if latestSendEpoch == 0 || latestSendEpoch != epoch {
 			epochInfo, err := bs.prepareEpochInfo(epoch, state)
 			if err != nil {
 				return status.Errorf(codes.Internal,
@@ -72,6 +72,9 @@ func (bs *Server) StreamMinimalConsensusInfo(
 	startEpoch := req.FromEpoch
 	endEpoch := cp.Epoch
 	latestSendEpoch = req.FromEpoch
+	if latestSendEpoch > 0 {
+		latestSendEpoch--
+	}
 
 	log.WithField("startEpoch", startEpoch).
 		WithField("endEpoch", endEpoch).
