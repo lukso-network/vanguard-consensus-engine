@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
+	types "github.com/prysmaticlabs/eth2-types"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed"
 	blockfeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/block"
 	statefeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/state"
@@ -89,20 +90,23 @@ func (s *Service) OrcVerification() bool {
 	return s.orcVerification
 }
 
+// triggerEpochInfoPublisher publishes slot and state for publishing epoch info
+func (s *Service) triggerEpochInfoPublisher(headSlot types.Slot, curState iface.BeaconState) {
+	// Send notification of the processed block to the state feed.
+	s.cfg.StateNotifier.StateFeed().Send(&feed.Event{
+		Type: statefeed.BlockVerified,
+		Data: &statefeed.BlockPreVerifiedData{
+			Slot:         headSlot,
+			CurrentState: curState.Copy(),
+		},
+	})
+}
+
 // publishBlock publishes downloaded blocks to orchestrator
 func (s *Service) publishBlock(signedBlk interfaces.SignedBeaconBlock, curState iface.BeaconState) {
 	s.blockNotifier.BlockFeed().Send(&feed.Event{
 		Type: blockfeed.UnConfirmedBlock,
 		Data: &blockfeed.UnConfirmedBlockData{Block: signedBlk.Block()},
-	})
-
-	// Send notification of the processed block to the state feed.
-	s.cfg.StateNotifier.StateFeed().Send(&feed.Event{
-		Type: statefeed.BlockVerified,
-		Data: &statefeed.BlockPreVerifiedData{
-			Slot:         signedBlk.Block().Slot(),
-			CurrentState: curState.Copy(),
-		},
 	})
 }
 
