@@ -122,9 +122,9 @@ func NewService(ctx context.Context, cfg *Config) (*Service, error) {
 		orcVerification:    true,
 	}
 	// vanguard: loop for getting confirmation from orchestrator node
-	if s.enableVanguardNode {
-		go s.processOrcConfirmationRoutine()
-	}
+	//if s.enableVanguardNode {
+	//	go s.processOrcConfirmationRoutine()
+	//}
 
 	return s, nil
 }

@@ -103,16 +103,16 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 	}
 	// Vanguard: Validated by vanguard node. Now intercepting the execution and publishing the block
 	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
-	if s.enableVanguardNode {
-		// publish block to orchestrator and rpc service for sending minimal consensus info
-		s.publishBlock(signed, preState)
-		if s.orcVerification {
-			// waiting for orchestrator confirmation in live-sync mode
-			if err := s.waitForConfirmation(ctx, signed); err != nil {
-				return errors.Wrap(err, "could not publish and verified by orchestrator client onBlock")
-			}
-		}
-	}
+	//if s.enableVanguardNode {
+	//	// publish block to orchestrator and rpc service for sending minimal consensus info
+	//	s.publishBlock(signed, preState)
+	//	if s.orcVerification {
+	//		// waiting for orchestrator confirmation in live-sync mode
+	//		if err := s.waitForConfirmation(ctx, signed); err != nil {
+	//			return errors.Wrap(err, "could not publish and verified by orchestrator client onBlock")
+	//		}
+	//	}
+	//}
 
 	if err := s.savePostStateInfo(ctx, blockRoot, signed, postState, false /* reg sync */); err != nil {
 		return err
@@ -272,13 +272,13 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 	}
 	// Vanguard: Validated by vanguard node. Now intercepting the execution and publishing the block
 	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
-	if s.enableVanguardNode {
-		for i, b := range blks {
-			// publish block and trigger rpc service for sending minimal consensus info
-			s.publishBlock(b, preStates[blockRoots[i]])
-			s.triggerEpochInfoPublisher(b.Block().Slot(), preStates[blockRoots[i]])
-		}
-	}
+	//if s.enableVanguardNode {
+	//	for i, b := range blks {
+	//		// publish block and trigger rpc service for sending minimal consensus info
+	//		s.publishBlock(b, preStates[blockRoots[i]])
+	//		s.triggerEpochInfoPublisher(b.Block().Slot(), preStates[blockRoots[i]])
+	//	}
+	//}
 	for r, st := range boundaries {
 		if err := s.cfg.StateGen.SaveState(ctx, r, st); err != nil {
 			return nil, nil, err
