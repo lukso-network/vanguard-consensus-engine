@@ -130,7 +130,7 @@ require (
 
 replace (
 	github.com/ethereum/go-ethereum => github.com/prysmaticlabs/bazel-go-ethereum v0.0.0-20210707101027-e8523651bf6f
-	github.com/ferranbt/fastssz => github.com/atif-konasl/fastssz v0.0.0-20210921140807-706ef3f49459
+	github.com/ferranbt/fastssz => github.com/atif-konasl/fastssz v0.0.0-20211007151934-173b2258ea1b
 	// See https://github.com/prysmaticlabs/grpc-gateway/issues/2
 	github.com/grpc-ecosystem/grpc-gateway/v2 => github.com/prysmaticlabs/grpc-gateway/v2 v2.3.1-0.20210622145107-ca3041e1b380
 	github.com/json-iterator/go => github.com/prestonvanloon/go v1.1.7-0.20190722034630-4f2e55fcf87b

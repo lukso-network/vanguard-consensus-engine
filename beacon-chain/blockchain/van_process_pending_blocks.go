@@ -300,17 +300,17 @@ func (s *Service) sortedPendingSlots() ([]*vanTypes.ConfirmationReqData, error) 
 }
 
 func (s *Service) verifyPandoraShardInfo(signedBlk *ethpb.SignedBeaconBlock) error {
-	if len(signedBlk.Block.Body.PandoraShard) == 0 {
+	if signedBlk.Block.Body.PandoraShard == nil {
 		return errInvalidPandoraShardInfoLength
 	}
 	headBlk := s.headBlock()
-	pandoraShards := headBlk.Block().Body().PandoraShards()
-	if headBlk != nil && len(pandoraShards) > 0 {
-		canonicalHash := common.BytesToHash(pandoraShards[0].Hash)
-		canonicalBlkNum := pandoraShards[0].BlockNumber
+	pandoraShard := headBlk.Block().Body().PandoraShard()
+	if headBlk != nil && pandoraShard != nil {
+		canonicalHash := common.BytesToHash(pandoraShard.Hash)
+		canonicalBlkNum := pandoraShard.BlockNumber
 
-		parentHash := common.BytesToHash(signedBlk.Block.Body.PandoraShard[0].ParentHash)
-		blockNumber := signedBlk.Block.Body.PandoraShard[0].BlockNumber
+		parentHash := common.BytesToHash(signedBlk.Block.Body.PandoraShard.ParentHash)
+		blockNumber := signedBlk.Block.Body.PandoraShard.BlockNumber
 
 		if parentHash != canonicalHash && blockNumber != canonicalBlkNum+1 {
 			log.WithField("slot", signedBlk.Block.Slot).

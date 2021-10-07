@@ -84,7 +84,7 @@ message BeaconBlockBody {
     repeated SignedVoluntaryExit voluntary_exits = 8 [(ethereum.eth.ext.ssz_max) = "16"];
 
     // Pandora sharding info
-    repeated PandoraShard pandora_shard = 9 [(ethereum.eth.ext.ssz_max) = "2"];
+    PandoraShard pandora_shard = 9;
 }
 
 // Proposer slashings are proofs that a slashable offense has been committed by

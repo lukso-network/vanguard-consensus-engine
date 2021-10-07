@@ -190,6 +190,6 @@ func (w Phase0BeaconBlockBody) Proto() proto.Message {
 	return w.b
 }
 
-func (w Phase0BeaconBlockBody) PandoraShards() []*eth.PandoraShard {
+func (w Phase0BeaconBlockBody) PandoraShard() *eth.PandoraShard {
 	return w.b.PandoraShard
 }

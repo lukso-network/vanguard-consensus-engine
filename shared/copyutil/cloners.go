@@ -302,13 +302,11 @@ func CopySyncCommitteeContribution(c *prysmv2.SyncCommitteeContribution) *prysmv
 }
 
 // CopyPandoraShard copies PandoraShard
-func CopyPandoraShard(pShards []*ethpb.PandoraShard) []*ethpb.PandoraShard {
-	if len(pShards) == 0 {
+func CopyPandoraShard(ps *ethpb.PandoraShard) *ethpb.PandoraShard {
+	if ps == nil {
 		return nil
 	}
-	pandoraShards := make([]*ethpb.PandoraShard, 1)
-	ps := pShards[0]
-	pandoraShard := &ethpb.PandoraShard{
+	return &ethpb.PandoraShard{
 		BlockNumber: ps.BlockNumber,
 		Hash:        ps.Hash,
 		ParentHash:  ps.ParentHash,
@@ -318,6 +316,4 @@ func CopyPandoraShard(pShards []*ethpb.PandoraShard) []*ethpb.PandoraShard {
 		SealHash:    ps.SealHash,
 		Signature:   ps.Signature,
 	}
-	pandoraShards[0] = pandoraShard
-	return pandoraShards
 }

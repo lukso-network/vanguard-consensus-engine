@@ -61,7 +61,7 @@ func NewBeaconBlock() *ethpb.SignedBeaconBlock {
 				Deposits:          []*ethpb.Deposit{},
 				ProposerSlashings: []*ethpb.ProposerSlashing{},
 				VoluntaryExits:    []*ethpb.SignedVoluntaryExit{},
-				PandoraShard:      []*ethpb.PandoraShard{},
+				PandoraShard:      &ethpb.PandoraShard{},
 			},
 		},
 		Signature: make([]byte, 96),
@@ -177,7 +177,7 @@ func GenerateFullBlock(
 			VoluntaryExits:    exits,
 			Deposits:          newDeposits,
 			Graffiti:          make([]byte, 32),
-			PandoraShard:      []*ethpb.PandoraShard{},
+			PandoraShard:      &ethpb.PandoraShard{},
 		},
 	}
 	if err := bState.SetSlot(currentSlot); err != nil {
@@ -558,9 +558,6 @@ func NewBeaconBlockWithPandoraSharding(panHeader *gethTypes.Header, slot types.S
 	panState.ReceiptHash = panHeader.ReceiptHash.Bytes()
 	panState.Signature = make([]byte, params.BeaconConfig().BLSSignatureLength)
 
-	pandoraShards := make([]*ethpb.PandoraShard, 1)
-	pandoraShards[0] = panState
-
-	beaconBlock.Block.Body.PandoraShard = pandoraShards
+	beaconBlock.Block.Body.PandoraShard = panState
 	return beaconBlock
 }

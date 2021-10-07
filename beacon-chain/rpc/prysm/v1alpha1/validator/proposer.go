@@ -162,17 +162,17 @@ func (vs *Server) GetBlock(ctx context.Context, req *ethpb.BlockRequest) (*ethpb
 			return blk, nil
 		}
 
-		canonicalPandoraShards := headBlk.Block().Body().PandoraShards()
-		if len(canonicalPandoraShards) > 0 {
+		canonicalPandoraShard := headBlk.Block().Body().PandoraShard()
+		if canonicalPandoraShard != nil {
 			log.WithField("slot", headBlk.Block().Slot).
-				WithField("blockNumber", canonicalPandoraShards[0].BlockNumber).
-				WithField("hash", hexutil.Encode(canonicalPandoraShards[0].Hash)).
-				WithField("sealHash", hexutil.Encode(canonicalPandoraShards[0].SealHash)).
-				WithField("StateRoot", hexutil.Encode(canonicalPandoraShards[0].StateRoot)).
-				WithField("signature", hexutil.Encode(canonicalPandoraShards[0].Signature)).
+				WithField("blockNumber", canonicalPandoraShard.BlockNumber).
+				WithField("hash", hexutil.Encode(canonicalPandoraShard.Hash)).
+				WithField("sealHash", hexutil.Encode(canonicalPandoraShard.SealHash)).
+				WithField("StateRoot", hexutil.Encode(canonicalPandoraShard.StateRoot)).
+				WithField("signature", hexutil.Encode(canonicalPandoraShard.Signature)).
 				Debug("pandora canonical sharding info")
 		}
-		blk.Body.PandoraShard = canonicalPandoraShards
+		blk.Body.PandoraShard = canonicalPandoraShard
 	}
 
 	return blk, nil

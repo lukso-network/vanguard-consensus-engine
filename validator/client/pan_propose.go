@@ -60,8 +60,8 @@ func (v *validator) processPandoraShardHeader(
 
 	// if pandoraShard is nil means there is no pandora blocks in pandora chain except block-0
 	if beaconBlk.Body != nil && beaconBlk.Body.PandoraShard != nil {
-		latestPandoraHash = common.BytesToHash(beaconBlk.Body.PandoraShard[0].Hash)
-		latestPandoraBlkNum = beaconBlk.Body.PandoraShard[0].BlockNumber
+		latestPandoraHash = common.BytesToHash(beaconBlk.Body.PandoraShard.Hash)
+		latestPandoraBlkNum = beaconBlk.Body.PandoraShard.BlockNumber
 	}
 
 	// Request for pandora chain header
@@ -139,9 +139,7 @@ func (v *validator) processPandoraShardHeader(
 
 	// fill pandora shard info with pandora header
 	pandoraShard := v.preparePandoraShardingInfo(header, headerHashWithSig, headerHash, headerHashSig.Marshal())
-	pandoraShards := make([]*ethpb.PandoraShard, 1)
-	pandoraShards[0] = pandoraShard
-	beaconBlk.Body.PandoraShard = pandoraShards
+	beaconBlk.Body.PandoraShard = pandoraShard
 	log.WithField("slot", beaconBlk.Slot).Debug("successfully created pandora sharding block")
 
 	// calling UpdateStateRoot api of beacon-chain so that state root will be updated after adding pandora shard
