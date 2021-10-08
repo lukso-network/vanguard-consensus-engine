@@ -22,6 +22,7 @@ func NewGenesisBlock(stateRoot []byte) *ethpb.SignedBeaconBlock {
 					BlockHash:   make([]byte, 32),
 				},
 				Graffiti: make([]byte, 32),
+				PandoraShard: &ethpb.PandoraShard{},
 			},
 		},
 		Signature: params.BeaconConfig().EmptySignature[:],
