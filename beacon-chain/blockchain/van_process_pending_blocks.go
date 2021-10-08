@@ -91,13 +91,18 @@ func (s *Service) OrcVerification() bool {
 }
 
 // triggerEpochInfoPublisher publishes slot and state for publishing epoch info
-func (s *Service) triggerEpochInfoPublisher(headSlot types.Slot, curState iface.BeaconState) {
+func (s *Service) triggerEpochInfoPublisher(
+	slot types.Slot,
+	proposerIndices []types.ValidatorIndex,
+	pubKeys map[types.ValidatorIndex][48]byte,
+) {
 	// Send notification of the processed block to the state feed.
 	s.cfg.StateNotifier.StateFeed().Send(&feed.Event{
-		Type: statefeed.BlockVerified,
-		Data: &statefeed.BlockPreVerifiedData{
-			Slot:         headSlot,
-			CurrentState: curState.Copy(),
+		Type: statefeed.EpochInfo,
+		Data: &statefeed.EpochInfoData{
+			Slot:            slot,
+			ProposerIndices: proposerIndices,
+			PublicKeys:      pubKeys,
 		},
 	})
 }

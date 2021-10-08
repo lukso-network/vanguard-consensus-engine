@@ -258,6 +258,13 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 			if err := s.handleEpochBoundary(ctx, preState); err != nil {
 				return nil, nil, errors.Wrap(err, "could not handle epoch boundary state")
 			}
+			if s.enableVanguardNode {
+				proposerIndices, pubKeys, err := helpers.ProposerIndicesInCache(preState)
+				if err != nil {
+					return nil, nil, errors.Wrap(err, "could not get proposer indices for publishing")
+				}
+				s.triggerEpochInfoPublisher(b.Block().Slot(), proposerIndices, pubKeys)
+			}
 		}
 		jCheckpoints[i] = preState.CurrentJustifiedCheckpoint()
 		fCheckpoints[i] = preState.FinalizedCheckpoint()
@@ -276,7 +283,6 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 		for i, b := range blks {
 			// publish block and trigger rpc service for sending minimal consensus info
 			s.publishBlock(b, preStates[blockRoots[i]])
-			s.triggerEpochInfoPublisher(b.Block().Slot(), preStates[blockRoots[i]])
 		}
 	}
 	for r, st := range boundaries {

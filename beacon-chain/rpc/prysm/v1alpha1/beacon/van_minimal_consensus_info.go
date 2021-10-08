@@ -8,8 +8,6 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed"
 	statefeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/state"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/state"
-	iface "github.com/prysmaticlabs/prysm/beacon-chain/state/interface"
 	ethpb "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"google.golang.org/grpc/codes"
@@ -25,23 +23,14 @@ func (bs *Server) StreamMinimalConsensusInfo(
 	stream ethpb.BeaconChain_StreamMinimalConsensusInfoServer,
 ) error {
 
-	sender := func(epoch types.Epoch, state iface.BeaconState) error {
-		if latestSendEpoch == 0 || latestSendEpoch != epoch {
-			epochInfo, err := bs.prepareEpochInfo(epoch, state)
-			if err != nil {
-				return status.Errorf(codes.Internal,
-					"Could not send over stream: %v", err)
-			}
-			if err := stream.Send(epochInfo); err != nil {
-				return status.Errorf(codes.Unavailable,
-					"Could not send over stream: %v  err: %v", epoch, err)
-			}
-			log.WithField("epoch", epoch).Info("Published epoch info")
-			log.WithField("epoch", epoch).
-				WithField("epochInfo", fmt.Sprintf("%+v", epochInfo)).
-				Debug("Sent epoch info")
-			latestSendEpoch = epoch
+	sender := func(epoch types.Epoch, epochInfo *ethpb.MinimalConsensusInfo) error {
+		if err := stream.Send(epochInfo); err != nil {
+			return status.Errorf(codes.Unavailable,
+				"Could not send over stream: %v  err: %v", epoch, err)
 		}
+		log.WithField("epoch", epoch).Info("Published epoch info")
+		log.WithField("epoch", epoch).WithField("epochInfo", fmt.Sprintf("%+v", epochInfo)).Debug("Sent epoch info")
+		latestSendEpoch = epoch
 		return nil
 	}
 
@@ -49,16 +38,26 @@ func (bs *Server) StreamMinimalConsensusInfo(
 		for i := start; i <= end; i++ {
 			startSlot, err := helpers.StartSlot(i)
 			if err != nil {
-				return status.Errorf(codes.Internal,
-					"Could not send over stream: %v", err)
+				return status.Errorf(codes.Internal, "Could not send over stream: %v", err)
 			}
+			// retrieve state from cache or db
 			state, err := bs.StateGen.StateBySlot(bs.Ctx, startSlot)
 			if err != nil {
-				return status.Errorf(codes.Internal,
-					"Could not send over stream: %v", err)
+				return status.Errorf(codes.Internal,"Could not send over stream: %v", err)
 			}
+			// retrieve proposer
+			proposerIndices, pubKeys, err := helpers.ProposerIndicesInCache(state)
+			if err != nil {
+				return status.Errorf(codes.Internal,"Could not send over stream: %v", err)
+			}
+
+			epochInfo, err := bs.prepareEpochInfo(start, proposerIndices, pubKeys)
+			if err != nil {
+				return status.Errorf(codes.Internal, "Could not send over stream: %v", err)
+			}
+
 			if !state.IsNil() {
-				if err := sender(i, state.Copy()); err != nil {
+				if err := sender(i, epochInfo); err != nil {
 					return err
 				}
 			}
@@ -91,39 +90,25 @@ func (bs *Server) StreamMinimalConsensusInfo(
 
 	stateChannel := make(chan *feed.Event, 1)
 	stateSub := bs.StateNotifier.StateFeed().Subscribe(stateChannel)
-	firstTime := true
 	defer stateSub.Unsubscribe()
 
 	for {
 		select {
 		case stateEvent := <-stateChannel:
-			if stateEvent.Type == statefeed.BlockVerified {
-				blockVerifiedData, ok := stateEvent.Data.(*statefeed.BlockPreVerifiedData)
+			if stateEvent.Type == statefeed.EpochInfo {
+				epochInfoData, ok := stateEvent.Data.(*statefeed.EpochInfoData)
 				if !ok {
 					log.Warn("Failed to send epoch info to orchestrator")
 					continue
 				}
-				curEpoch := helpers.SlotToEpoch(blockVerifiedData.Slot)
-				nextEpoch := curEpoch + 1
-				// Executes for a single time
-				if firstTime {
-					firstTime = false
-					log.WithField("startEpoch", latestSendEpoch+1).
-						WithField("endEpoch", curEpoch).
-						WithField("liveSyncStart", curEpoch+1).
-						Info("Publishing left over epoch infos")
-
-					startEpoch = latestSendEpoch + 1
-					endEpoch = curEpoch
-					curState := blockVerifiedData.CurrentState
-
-					for i := startEpoch; i <= endEpoch; i++ {
-						if err := sender(i, curState); err != nil {
-							return err
-						}
-					}
+				log.Debug("<<<<<<< Got epoch info from blockchain service >>>>>>>>")
+				epoch := helpers.SlotToEpoch(epochInfoData.Slot)
+				epochInfo, err := bs.prepareEpochInfo(epoch, epochInfoData.ProposerIndices, epochInfoData.PublicKeys)
+				if err != nil {
+					return status.Errorf(codes.Internal,
+						"Could not send over stream: %v", err)
 				}
-				if err := sender(nextEpoch, blockVerifiedData.CurrentState); err != nil {
+				if err := sender(epoch, epochInfo); err != nil {
 					return err
 				}
 			}
@@ -138,19 +123,12 @@ func (bs *Server) StreamMinimalConsensusInfo(
 }
 
 // prepareEpochInfo
-func (bs *Server) prepareEpochInfo(epoch types.Epoch, s iface.BeaconState) (*ethpb.MinimalConsensusInfo, error) {
-	// Advance state with empty transitions up to the requested epoch start slot.
+func (bs *Server) prepareEpochInfo(
+	epoch types.Epoch,
+	proposerIndices []types.ValidatorIndex,
+	pubKeys map[types.ValidatorIndex][48]byte,
+) (*ethpb.MinimalConsensusInfo, error) {
 	startSlot, err := helpers.StartSlot(epoch)
-	if err != nil {
-		return nil, err
-	}
-	if s.Slot() < startSlot {
-		s, err = state.ProcessSlots(bs.Ctx, s, startSlot)
-		if err != nil {
-			return nil, err
-		}
-	}
-	proposerAssignmentInfo, err := helpers.ProposerAssignments(s, epoch)
 	if err != nil {
 		return nil, err
 	}
@@ -160,52 +138,24 @@ func (bs *Server) prepareEpochInfo(epoch types.Epoch, s iface.BeaconState) (*eth
 		return nil, err
 	}
 
-	validatorList, err := prepareSortedValidatorList(epoch, proposerAssignmentInfo)
-	if err != nil {
-		return nil, err
+	publicKeyList := make([]string, 0)
+	for i := 0; i < len(proposerIndices); i++ {
+		pi := proposerIndices[i]
+		pubKey := pubKeys[pi]
+		var pubKeyStr string
+		if epoch == 0 {
+			publicKeyBytes := make([]byte, 48)
+			pubKeyStr = fmt.Sprintf("0x%s", hex.EncodeToString(publicKeyBytes))
+		} else {
+			pubKeyStr = fmt.Sprintf("0x%s", hex.EncodeToString(pubKey[:]))
+		}
+		publicKeyList = append(publicKeyList, pubKeyStr)
 	}
 
 	return &ethpb.MinimalConsensusInfo{
 		Epoch:            epoch,
-		ValidatorList:    validatorList,
+		ValidatorList:    publicKeyList,
 		EpochTimeStart:   uint64(epochStartTime.Unix()),
 		SlotTimeDuration: &duration.Duration{Seconds: int64(params.BeaconConfig().SecondsPerSlot)},
 	}, nil
-}
-
-// prepareEpochInfo
-func prepareSortedValidatorList(
-	epoch types.Epoch,
-	proposerAssignmentInfo []*ethpb.ValidatorAssignments_CommitteeAssignment,
-) ([]string, error) {
-
-	publicKeyList := make([]string, 0)
-	slotToPubKeyMapping := make(map[types.Slot]string)
-
-	for _, assignment := range proposerAssignmentInfo {
-		for _, slot := range assignment.ProposerSlots {
-			slotToPubKeyMapping[slot] = fmt.Sprintf("0x%s", hex.EncodeToString(assignment.PublicKey))
-		}
-	}
-
-	if epoch == 0 {
-		publicKeyBytes := make([]byte, params.BeaconConfig().BLSPubkeyLength)
-		emptyPubKey := fmt.Sprintf("0x%s", hex.EncodeToString(publicKeyBytes))
-		slotToPubKeyMapping[0] = emptyPubKey
-	}
-
-	startSlot, err := helpers.StartSlot(epoch)
-	if err != nil {
-		return []string{}, err
-	}
-
-	endSlot, err := helpers.EndSlot(epoch)
-	if err != nil {
-		return []string{}, err
-	}
-
-	for slot := startSlot; slot <= endSlot; slot++ {
-		publicKeyList = append(publicKeyList, slotToPubKeyMapping[slot])
-	}
-	return publicKeyList, nil
 }

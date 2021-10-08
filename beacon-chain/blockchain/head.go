@@ -366,7 +366,11 @@ func (s *Service) notifyNewHeadEvent(
 
 	// If vanguard node is enabled then trigger epoch info publisher rpc srevice
 	if s.enableVanguardNode {
-		s.triggerEpochInfoPublisher(newHeadSlot, newHeadState)
+		proposerIndices, pubKeys, err := helpers.ProposerIndicesInCache(newHeadState)
+		if err != nil {
+			return errors.Wrap(err, "could not get proposer indices for publishing")
+		}
+		s.triggerEpochInfoPublisher(newHeadSlot, proposerIndices, pubKeys)
 	}
 	return nil
 }

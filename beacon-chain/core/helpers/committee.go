@@ -467,3 +467,32 @@ func ProposerAssignments(
 	}
 	return proposerAssignmentInfo, nil
 }
+
+func ProposerIndicesInCache(state iface.BeaconState) ([]types.ValidatorIndex, map[types.ValidatorIndex][48]byte, error) {
+	e := CurrentEpoch(state)
+	startSlot, err := StartSlot(e)
+	if err != nil {
+		return nil, nil, err
+	}
+	proposerIndices := make([]types.ValidatorIndex, params.BeaconConfig().SlotsPerEpoch)
+	pubKeyList := make(map[types.ValidatorIndex][48]byte, params.BeaconConfig().SlotsPerEpoch)
+	i := 0
+	for slot := startSlot; slot < startSlot+params.BeaconConfig().SlotsPerEpoch; slot++ {
+		// Skip proposer assignment for genesis slot.
+		if slot == 0 {
+			continue
+		}
+		if err := state.SetSlot(slot); err != nil {
+			return nil, nil, err
+		}
+		pi, err := BeaconProposerIndex(state)
+		if err != nil {
+			return nil, nil, errors.Wrapf(err, "could not get proposer index at slot %d", state.Slot())
+		}
+		pubKey := state.PubkeyAtIndex(pi)
+		proposerIndices[i] = pi
+		pubKeyList[pi] = pubKey
+		i++
+	}
+	return proposerIndices, pubKeyList, nil
+}
