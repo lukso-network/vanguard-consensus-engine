@@ -105,7 +105,7 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
 	if s.enableVanguardNode {
 		// publish block to orchestrator and rpc service for sending minimal consensus info
-		s.publishBlock(signed, preState)
+		s.publishBlock(signed)
 		if s.orcVerification {
 			// waiting for orchestrator confirmation in live-sync mode
 			if err := s.waitForConfirmation(ctx, signed); err != nil {
@@ -245,13 +245,11 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 	}
 	var set *bls.SignatureSet
 	boundaries := make(map[[32]byte]iface.BeaconState)
-	preStates := make(map[[32]byte]iface.BeaconState)
 	for i, b := range blks {
 		set, preState, err = state.ExecuteStateTransitionNoVerifyAnySig(ctx, preState, b)
 		if err != nil {
 			return nil, nil, err
 		}
-		preStates[blockRoots[i]] = preState.Copy()
 		// Save potential boundary states.
 		if helpers.IsEpochStart(preState.Slot()) {
 			boundaries[blockRoots[i]] = preState.Copy()
@@ -280,9 +278,9 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 	// Vanguard: Validated by vanguard node. Now intercepting the execution and publishing the block
 	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
 	if s.enableVanguardNode {
-		for i, b := range blks {
+		for _, b := range blks {
 			// publish block and trigger rpc service for sending minimal consensus info
-			s.publishBlock(b, preStates[blockRoots[i]])
+			s.publishBlock(b)
 		}
 	}
 	for r, st := range boundaries {
