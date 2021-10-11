@@ -8,6 +8,7 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed"
 	statefeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/state"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
+	"github.com/prysmaticlabs/prysm/beacon-chain/core/state"
 	ethpb "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"google.golang.org/grpc/codes"
@@ -38,22 +39,32 @@ func (bs *Server) StreamMinimalConsensusInfo(
 				return status.Errorf(codes.Internal, "Could not send over stream: %v", err)
 			}
 			// retrieve state from cache or db
-			state, err := bs.StateGen.StateBySlot(bs.Ctx, startSlot)
-			if err != nil {
-				return status.Errorf(codes.Internal, "Could not send over stream: %v", err)
-			}
-			// retrieve proposer
-			proposerIndices, pubKeys, err := helpers.ProposerIndicesInCache(state)
+			s, err := bs.StateGen.StateBySlot(bs.Ctx, startSlot)
 			if err != nil {
 				return status.Errorf(codes.Internal, "Could not send over stream: %v", err)
 			}
 
+			if s.Slot() < startSlot {
+				log.WithField("stateSlot", s.Slot()).WithField("startSlot", startSlot).
+					WithField("epoch", i).Debug("Processing slots for calculating epoch infos")
+				s, err = state.ProcessSlots(bs.Ctx, s, startSlot)
+				if err != nil {
+					return status.Errorf(codes.Internal, "Could not process slots up to %d: %v", startSlot, err)
+				}
+			}
+			// retrieve proposer
+			proposerIndices, pubKeys, err := helpers.ProposerIndicesInCache(s)
+			if err != nil {
+				return status.Errorf(codes.Internal, "Could not send over stream: %v", err)
+			}
 			epochInfo, err := bs.prepareEpochInfo(start, proposerIndices, pubKeys)
 			if err != nil {
 				return status.Errorf(codes.Internal, "Could not send over stream: %v", err)
 			}
-			if err := sender(i, epochInfo); err != nil {
-				return err
+			if !s.IsNil() {
+				if err := sender(i, epochInfo); err != nil {
+					return err
+				}
 			}
 		}
 		return nil
@@ -98,23 +109,28 @@ func (bs *Server) StreamMinimalConsensusInfo(
 				curEpoch := helpers.SlotToEpoch(epochInfoData.Slot)
 				// Executes for a single time
 				if firstTime {
-					log.WithField("startEpoch", endEpoch).
-						WithField("endEpoch", curEpoch).
-						WithField("liveSyncStart", curEpoch+1).
-						Info("Publishing left over epoch infos")
-					if err := batchSender(endEpoch, curEpoch); err != nil {
-						return err
+					startEpoch = endEpoch
+					endEpoch = curEpoch - 1
+					if startEpoch <= endEpoch {
+						log.WithField("startEpoch", startEpoch).
+							WithField("endEpoch", endEpoch).
+							WithField("liveSyncStart", curEpoch).
+							Info("Publishing left over epoch infos")
+
+						if err := batchSender(startEpoch, endEpoch); err != nil {
+							return err
+						}
+
+						log.WithField("startEpoch", startEpoch).
+							WithField("endEpoch", endEpoch).
+							WithField("liveSyncStart", curEpoch).
+							Debug("Successfully published left over epoch infos")
 					}
 					firstTime = false
-					log.WithField("startEpoch", endEpoch).
-						WithField("endEpoch", curEpoch).
-						WithField("liveSyncStart", curEpoch+1).
-						Debug("Successfully published left over epoch infos")
-					continue
+					log.WithField("curEpoch", curEpoch).
+						Debug("Start sending live epoch info")
 				}
 
-				log.WithField("curEpoch", curEpoch).
-					Debug("Start sending live epoch info")
 				epochInfo, err := bs.prepareEpochInfo(curEpoch, epochInfoData.ProposerIndices, epochInfoData.PublicKeys)
 				if err != nil {
 					return status.Errorf(codes.Internal,
