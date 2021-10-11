@@ -104,6 +104,13 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 	// Vanguard: Validated by vanguard node. Now intercepting the execution and publishing the block
 	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
 	if s.enableVanguardNode {
+		if postState.Slot()+1 == s.nextEpochBoundarySlot {
+			proposerIndices, pubKeys, err := helpers.ProposerIndicesInCache(postState.Copy())
+			if err != nil {
+				return errors.Wrap(err, "could not get proposer indices for publishing")
+			}
+			s.publishEpochInfo(signed.Block().Slot(), proposerIndices, pubKeys)
+		}
 		// publish block to orchestrator and rpc service for sending minimal consensus info
 		s.publishBlock(signed)
 		if s.orcVerification {

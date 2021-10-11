@@ -115,6 +115,25 @@ func (bs *Server) StreamMinimalConsensusInfo(
 					return err
 				}
 			}
+			// If a reorg occurred, we recompute duties for the connected validator clients
+			// and send another response over the server stream right away.
+			//if stateEvent.Type == statefeed.Reorg {
+			//	data, ok := stateEvent.Data.(*ethpbv1.EventChainReorg)
+			//	if !ok {
+			//		return status.Errorf(codes.Internal, "Received incorrect data type over reorg feed: %v", data)
+			//	}
+			//	log.WithField("newSlot", data.Slot).WithField("newEpoch", data.Epoch).
+			//		Debug("Encountered a reorg. Re-sending updated epoch info")
+			//	req.Epoch = currentEpoch
+			//	res, err := vs.duties(stream.Context(), req)
+			//	if err != nil {
+			//		return status.Errorf(codes.Internal, "Could not compute validator duties: %v", err)
+			//	}
+			//	if err := stream.Send(res); err != nil {
+			//		return status.Errorf(codes.Internal, "Could not send response over stream: %v", err)
+			//	}
+			//}
+
 		case <-stateSub.Err():
 			return status.Error(codes.Aborted, "Subscriber closed, exiting go routine")
 		case <-stream.Context().Done():
