@@ -104,12 +104,15 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 	// Vanguard: Validated by vanguard node. Now intercepting the execution and publishing the block
 	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
 	if s.enableVanguardNode {
-		if postState.Slot()+1 == s.nextEpochBoundarySlot {
-			proposerIndices, pubKeys, err := helpers.ProposerIndicesInCache(postState.Copy())
+		curEpoch := helpers.CurrentEpoch(postState)
+		if s.latestSentEpoch != curEpoch {
+			proposerIndices, pubKeys, err := helpers.ProposerIndicesInCache(postState.Copy(), curEpoch)
 			if err != nil {
 				return errors.Wrap(err, "could not get proposer indices for publishing")
 			}
+			log.WithField("curEpoch", curEpoch).WithField("latestSentEpoch", s.latestSentEpoch).Debug("publishing latest epoch info")
 			s.publishEpochInfo(signed.Block().Slot(), proposerIndices, pubKeys)
+			s.latestSentEpoch = curEpoch
 		}
 		// publish block to orchestrator and rpc service for sending minimal consensus info
 		s.publishBlock(signed)
@@ -263,12 +266,17 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 			if err := s.handleEpochBoundary(ctx, preState); err != nil {
 				return nil, nil, errors.Wrap(err, "could not handle epoch boundary state")
 			}
-			if s.enableVanguardNode {
-				proposerIndices, pubKeys, err := helpers.ProposerIndicesInCache(preState.Copy())
+		}
+		if s.enableVanguardNode {
+			curEpoch := helpers.CurrentEpoch(preState)
+			if s.latestSentEpoch != curEpoch {
+				proposerIndices, pubKeys, err := helpers.ProposerIndicesInCache(preState.Copy(), curEpoch)
 				if err != nil {
 					return nil, nil, errors.Wrap(err, "could not get proposer indices for publishing")
 				}
+				log.WithField("curEpoch", curEpoch).WithField("latestSentEpoch", s.latestSentEpoch).Debug("publishing latest epoch info")
 				s.publishEpochInfo(b.Block().Slot(), proposerIndices, pubKeys)
+				s.latestSentEpoch = curEpoch
 			}
 		}
 		jCheckpoints[i] = preState.CurrentJustifiedCheckpoint()

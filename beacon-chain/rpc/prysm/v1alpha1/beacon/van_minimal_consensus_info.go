@@ -23,11 +23,10 @@ func (bs *Server) StreamMinimalConsensusInfo(
 
 	sender := func(epoch types.Epoch, epochInfo *ethpb.MinimalConsensusInfo) error {
 		if err := stream.Send(epochInfo); err != nil {
-			return status.Errorf(codes.Unavailable,
-				"Could not send over stream: %v  err: %v", epoch, err)
+			return status.Errorf(codes.Unavailable, "Could not send over stream for epoch %v and err: %v", epoch, err)
 		}
-		log.WithField("epoch", epoch).Info("Published epoch info")
-		log.WithField("epoch", epoch).WithField("epochInfo", fmt.Sprintf("%+v", epochInfo)).Debug("Sent epoch info")
+		log.WithField("epoch", epoch).Info("published epoch info")
+		log.WithField("epochInfo", fmt.Sprintf("%+v", epochInfo)).Debug("published epoch info in detail")
 		return nil
 	}
 
@@ -35,26 +34,27 @@ func (bs *Server) StreamMinimalConsensusInfo(
 		for epoch := startEpoch; epoch <= endEpoch; epoch++ {
 			startSlot, err := helpers.StartSlot(epoch)
 			if err != nil {
-				return status.Errorf(codes.Internal, "Could not send over stream: %v", err)
+				return status.Errorf(codes.Internal, "Could not send epoch info for epoch %v over stream: %v", epoch, err)
 			}
 			// retrieve state from cache or db
 			s, err := bs.StateGen.StateBySlot(bs.Ctx, startSlot)
 			if err != nil {
-				return status.Errorf(codes.Internal, "Could not send over stream: %v", err)
+				return status.Errorf(codes.Internal, "Could not send epoch info for epoch %v over stream: %v", epoch, err)
+			}
+			if s == nil || s.IsNil() {
+				return status.Errorf(codes.Unavailable, "Could not send over stream, state is nil for epoch: %v", epoch)
 			}
 			// retrieve proposer
-			proposerIndices, pubKeys, err := helpers.ProposerIndicesInCache(s)
+			proposerIndices, pubKeys, err := helpers.ProposerIndicesInCache(s, epoch)
 			if err != nil {
-				return status.Errorf(codes.Internal, "Could not send over stream: %v", err)
+				return status.Errorf(codes.Internal, "Could not send epoch info for epoch %v over stream: %v", epoch, err)
 			}
 			epochInfo, err := bs.prepareEpochInfo(epoch, proposerIndices, pubKeys)
 			if err != nil {
-				return status.Errorf(codes.Internal, "Could not send over stream: %v", err)
+				return status.Errorf(codes.Internal, "Could not send epoch info for epoch %v over stream: %v", epoch, err)
 			}
-			if !s.IsNil() {
-				if err := sender(epoch, epochInfo); err != nil {
-					return err
-				}
+			if err := sender(epoch, epochInfo); err != nil {
+				return err
 			}
 		}
 		return nil
@@ -62,17 +62,16 @@ func (bs *Server) StreamMinimalConsensusInfo(
 
 	cp, err := bs.BeaconDB.FinalizedCheckpoint(bs.Ctx)
 	if err != nil {
-		return status.Errorf(codes.Internal,
-			"Could not send over stream: %v", err)
+		return status.Errorf(codes.Internal, "Could not send over stream: %v", err)
 	}
 	startEpoch := req.FromEpoch
 	endEpoch := cp.Epoch
-	log.WithField("startEpoch", startEpoch).WithField("endEpoch", endEpoch).Info("Publishing previous epoch infos")
 	if startEpoch == 0 || startEpoch < endEpoch {
 		if err := batchSender(startEpoch, endEpoch); err != nil {
 			return err
 		}
-		log.WithField("startEpoch", startEpoch).WithField("endEpoch", endEpoch).Debug("Successfully published previous epoch infos")
+		log.WithField("startEpoch", startEpoch).WithField("endEpoch", endEpoch).
+			Debug("successfully published previous epoch infos")
 	}
 
 	stateChannel := make(chan *feed.Event, 1)
@@ -83,30 +82,33 @@ func (bs *Server) StreamMinimalConsensusInfo(
 	for {
 		select {
 		case stateEvent := <-stateChannel:
+			// when epoch info sends from onBlock() or onBlockBatch() methods via event.
+			// this event always brings next epoch info data from onBlock() or onBlockBatch() methods
 			if stateEvent.Type == statefeed.EpochInfo {
 				epochInfoData, ok := stateEvent.Data.(*statefeed.EpochInfoData)
 				if !ok {
-					log.Warn("Failed to send epoch info to orchestrator")
-					continue
+					return status.Errorf(codes.Internal, "Received incorrect data type over epoch info feed: %v", epochInfoData)
 				}
 				curEpoch := helpers.SlotToEpoch(epochInfoData.Slot)
-				// Executes for a single time
+				// Executes for once. It sends leftover epochs to orchestrator.
+				// Leftover epoch will start from endEpoch+1 to current epoch
 				if firstTime {
-					startEpoch = endEpoch + 1
-					endEpoch = curEpoch - 1
-					if startEpoch <= endEpoch {
-						log.WithField("startEpoch", startEpoch).WithField("endEpoch", endEpoch).WithField("liveSyncStart", curEpoch).
-							Info("Publishing left over epoch infos")
-						if err := batchSender(startEpoch, endEpoch); err != nil {
+					var prevEpoch types.Epoch
+					if curEpoch > 0 {
+						prevEpoch = curEpoch - 1
+					}
+					if endEpoch < prevEpoch {
+						if err := batchSender(endEpoch+1, prevEpoch); err != nil {
 							return err
 						}
-						log.WithField("startEpoch", startEpoch).WithField("endEpoch", endEpoch).WithField("liveSyncStart", curEpoch).
-							Debug("Successfully published left over epoch infos")
+						log.WithField("startEpoch", endEpoch+1).WithField("endEpoch", prevEpoch).
+							Debug("successfully published left over epoch infos")
 					}
 					firstTime = false
-					log.WithField("curEpoch", curEpoch).Debug("Start sending live epoch info")
+					log.WithField("liveSyncEpoch", curEpoch).Debug("start publishing live epoch info")
 				}
-
+				// only first time, sends current epoch. then every time it sends next epoch info. if current epoch is n then
+				// it will send epoch info for n+1
 				epochInfo, err := bs.prepareEpochInfo(curEpoch, epochInfoData.ProposerIndices, epochInfoData.PublicKeys)
 				if err != nil {
 					return status.Errorf(codes.Internal, "Could not send over stream: %v", err)
@@ -122,13 +124,14 @@ func (bs *Server) StreamMinimalConsensusInfo(
 				if !ok {
 					return status.Errorf(codes.Internal, "Received incorrect data type over reorg feed: %v", data)
 				}
-				log.WithField("newSlot", data.Slot).WithField("newEpoch", data.Epoch).Debug("Encountered a reorg. Re-sending updated epoch info")
+				log.WithField("newSlot", data.Slot).WithField("newEpoch", data.Epoch).
+					Debug("Encountered a reorg. Re-sending updated epoch info")
 				if err := batchSender(data.Epoch, data.Epoch); err != nil {
 					return err
 				}
-				log.WithField("startEpoch", startEpoch).WithField("endEpoch", endEpoch).Info("Published reorg epoch infos")
+				log.WithField("startEpoch", startEpoch).WithField("endEpoch", endEpoch).
+					Info("Published reorg epoch infos")
 			}
-
 		case <-stateSub.Err():
 			return status.Error(codes.Aborted, "Subscriber closed, exiting go routine")
 		case <-stream.Context().Done():
