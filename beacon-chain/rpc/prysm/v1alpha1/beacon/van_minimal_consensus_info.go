@@ -8,6 +8,7 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed"
 	statefeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/state"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
+	ethpbv1 "github.com/prysmaticlabs/prysm/proto/eth/v1"
 	ethpb "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"google.golang.org/grpc/codes"
@@ -108,8 +109,7 @@ func (bs *Server) StreamMinimalConsensusInfo(
 
 				epochInfo, err := bs.prepareEpochInfo(curEpoch, epochInfoData.ProposerIndices, epochInfoData.PublicKeys)
 				if err != nil {
-					return status.Errorf(codes.Internal,
-						"Could not send over stream: %v", err)
+					return status.Errorf(codes.Internal, "Could not send over stream: %v", err)
 				}
 				if err := sender(curEpoch, epochInfo); err != nil {
 					return err
@@ -117,22 +117,17 @@ func (bs *Server) StreamMinimalConsensusInfo(
 			}
 			// If a reorg occurred, we recompute duties for the connected validator clients
 			// and send another response over the server stream right away.
-			//if stateEvent.Type == statefeed.Reorg {
-			//	data, ok := stateEvent.Data.(*ethpbv1.EventChainReorg)
-			//	if !ok {
-			//		return status.Errorf(codes.Internal, "Received incorrect data type over reorg feed: %v", data)
-			//	}
-			//	log.WithField("newSlot", data.Slot).WithField("newEpoch", data.Epoch).
-			//		Debug("Encountered a reorg. Re-sending updated epoch info")
-			//	req.Epoch = currentEpoch
-			//	res, err := vs.duties(stream.Context(), req)
-			//	if err != nil {
-			//		return status.Errorf(codes.Internal, "Could not compute validator duties: %v", err)
-			//	}
-			//	if err := stream.Send(res); err != nil {
-			//		return status.Errorf(codes.Internal, "Could not send response over stream: %v", err)
-			//	}
-			//}
+			if stateEvent.Type == statefeed.Reorg {
+				data, ok := stateEvent.Data.(*ethpbv1.EventChainReorg)
+				if !ok {
+					return status.Errorf(codes.Internal, "Received incorrect data type over reorg feed: %v", data)
+				}
+				log.WithField("newSlot", data.Slot).WithField("newEpoch", data.Epoch).Debug("Encountered a reorg. Re-sending updated epoch info")
+				if err := batchSender(data.Epoch, data.Epoch); err != nil {
+					return err
+				}
+				log.WithField("startEpoch", startEpoch).WithField("endEpoch", endEpoch).Info("Published reorg epoch infos")
+			}
 
 		case <-stateSub.Err():
 			return status.Error(codes.Aborted, "Subscriber closed, exiting go routine")
