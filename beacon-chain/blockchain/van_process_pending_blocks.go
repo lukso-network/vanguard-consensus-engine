@@ -90,7 +90,7 @@ func (s *Service) OrcVerification() bool {
 }
 
 // triggerEpochInfoPublisher publishes slot and state for publishing epoch info
-func (s *Service) triggerEpochInfoPublisher(
+func (s *Service) publishEpochInfo(
 	slot types.Slot,
 	proposerIndices []types.ValidatorIndex,
 	pubKeys map[types.ValidatorIndex][48]byte,

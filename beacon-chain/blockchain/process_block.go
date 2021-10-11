@@ -103,16 +103,16 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 	}
 	// Vanguard: Validated by vanguard node. Now intercepting the execution and publishing the block
 	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
-	//if s.enableVanguardNode {
-	//	// publish block to orchestrator and rpc service for sending minimal consensus info
-	//	s.publishBlock(signed)
-	//	if s.orcVerification {
-	//		// waiting for orchestrator confirmation in live-sync mode
-	//		if err := s.waitForConfirmation(ctx, signed); err != nil {
-	//			return errors.Wrap(err, "could not publish and verified by orchestrator client onBlock")
-	//		}
-	//	}
-	//}
+	if s.enableVanguardNode {
+		// publish block to orchestrator and rpc service for sending minimal consensus info
+		s.publishBlock(signed)
+		if s.orcVerification {
+			// waiting for orchestrator confirmation in live-sync mode
+			if err := s.waitForConfirmation(ctx, signed); err != nil {
+				return errors.Wrap(err, "could not publish and verified by orchestrator client onBlock")
+			}
+		}
+	}
 
 	if err := s.savePostStateInfo(ctx, blockRoot, signed, postState, false /* reg sync */); err != nil {
 		return err
@@ -256,13 +256,13 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 			if err := s.handleEpochBoundary(ctx, preState); err != nil {
 				return nil, nil, errors.Wrap(err, "could not handle epoch boundary state")
 			}
-			//if s.enableVanguardNode {
-			//	proposerIndices, pubKeys, err := helpers.ProposerIndicesInCache(preState)
-			//	if err != nil {
-			//		return nil, nil, errors.Wrap(err, "could not get proposer indices for publishing")
-			//	}
-			//	s.triggerEpochInfoPublisher(b.Block().Slot(), proposerIndices, pubKeys)
-			//}
+			if s.enableVanguardNode {
+				proposerIndices, pubKeys, err := helpers.ProposerIndicesInCache(preState.Copy())
+				if err != nil {
+					return nil, nil, errors.Wrap(err, "could not get proposer indices for publishing")
+				}
+				s.publishEpochInfo(b.Block().Slot(), proposerIndices, pubKeys)
+			}
 		}
 		jCheckpoints[i] = preState.CurrentJustifiedCheckpoint()
 		fCheckpoints[i] = preState.FinalizedCheckpoint()
@@ -277,12 +277,12 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 	}
 	// Vanguard: Validated by vanguard node. Now intercepting the execution and publishing the block
 	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
-	//if s.enableVanguardNode {
-	//	for _, b := range blks {
-	//		// publish block and trigger rpc service for sending minimal consensus info
-	//		s.publishBlock(b)
-	//	}
-	//}
+	if s.enableVanguardNode {
+		for _, b := range blks {
+			// publish block and trigger rpc service for sending minimal consensus info
+			s.publishBlock(b)
+		}
+	}
 	for r, st := range boundaries {
 		if err := s.cfg.StateGen.SaveState(ctx, r, st); err != nil {
 			return nil, nil, err

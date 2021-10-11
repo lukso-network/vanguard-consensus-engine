@@ -468,6 +468,7 @@ func ProposerAssignments(
 	return proposerAssignmentInfo, nil
 }
 
+// ProposerIndicesInCache
 func ProposerIndicesInCache(state iface.BeaconState) ([]types.ValidatorIndex, map[types.ValidatorIndex][48]byte, error) {
 	e := CurrentEpoch(state)
 	startSlot, err := StartSlot(e)

@@ -14,9 +14,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// latestSendEpoch tracks last sent epoch number
-var latestSendEpoch types.Epoch
-
 // StreamMinimalConsensusInfo to orchestrator client every single time an unconfirmed block is received by the beacon node.
 func (bs *Server) StreamMinimalConsensusInfo(
 	req *ethpb.MinimalConsensusInfoRequest,
@@ -29,8 +26,8 @@ func (bs *Server) StreamMinimalConsensusInfo(
 				"Could not send over stream: %v  err: %v", epoch, err)
 		}
 		log.WithField("epoch", epoch).Info("Published epoch info")
-		log.WithField("epoch", epoch).WithField("epochInfo", fmt.Sprintf("%+v", epochInfo)).Debug("Sent epoch info")
-		latestSendEpoch = epoch
+		log.WithField("epoch", epoch).WithField("epochInfo", fmt.Sprintf("%+v", epochInfo)).
+			Debug("Sent epoch info")
 		return nil
 	}
 
@@ -43,23 +40,20 @@ func (bs *Server) StreamMinimalConsensusInfo(
 			// retrieve state from cache or db
 			state, err := bs.StateGen.StateBySlot(bs.Ctx, startSlot)
 			if err != nil {
-				return status.Errorf(codes.Internal,"Could not send over stream: %v", err)
+				return status.Errorf(codes.Internal, "Could not send over stream: %v", err)
 			}
 			// retrieve proposer
 			proposerIndices, pubKeys, err := helpers.ProposerIndicesInCache(state)
 			if err != nil {
-				return status.Errorf(codes.Internal,"Could not send over stream: %v", err)
+				return status.Errorf(codes.Internal, "Could not send over stream: %v", err)
 			}
 
 			epochInfo, err := bs.prepareEpochInfo(start, proposerIndices, pubKeys)
 			if err != nil {
 				return status.Errorf(codes.Internal, "Could not send over stream: %v", err)
 			}
-
-			if !state.IsNil() {
-				if err := sender(i, epochInfo); err != nil {
-					return err
-				}
+			if err := sender(i, epochInfo); err != nil {
+				return err
 			}
 		}
 		return nil
@@ -73,10 +67,6 @@ func (bs *Server) StreamMinimalConsensusInfo(
 
 	startEpoch := req.FromEpoch
 	endEpoch := cp.Epoch
-	latestSendEpoch = req.FromEpoch
-	if latestSendEpoch > 0 {
-		latestSendEpoch--
-	}
 
 	log.WithField("startEpoch", startEpoch).
 		WithField("endEpoch", endEpoch).
@@ -86,10 +76,14 @@ func (bs *Server) StreamMinimalConsensusInfo(
 		if err := batchSender(startEpoch, endEpoch); err != nil {
 			return err
 		}
+		log.WithField("startEpoch", startEpoch).
+			WithField("endEpoch", endEpoch).
+			Debug("Successfully published previous epoch infos")
 	}
 
 	stateChannel := make(chan *feed.Event, 1)
 	stateSub := bs.StateNotifier.StateFeed().Subscribe(stateChannel)
+	firstTime := true
 	defer stateSub.Unsubscribe()
 
 	for {
@@ -101,14 +95,32 @@ func (bs *Server) StreamMinimalConsensusInfo(
 					log.Warn("Failed to send epoch info to orchestrator")
 					continue
 				}
-				log.Debug("<<<<<<< Got epoch info from blockchain service >>>>>>>>")
-				epoch := helpers.SlotToEpoch(epochInfoData.Slot)
-				epochInfo, err := bs.prepareEpochInfo(epoch, epochInfoData.ProposerIndices, epochInfoData.PublicKeys)
+				curEpoch := helpers.SlotToEpoch(epochInfoData.Slot)
+				// Executes for a single time
+				if firstTime {
+					log.WithField("startEpoch", endEpoch).
+						WithField("endEpoch", curEpoch).
+						WithField("liveSyncStart", curEpoch+1).
+						Info("Publishing left over epoch infos")
+					if err := batchSender(endEpoch, curEpoch); err != nil {
+						return err
+					}
+					firstTime = false
+					log.WithField("startEpoch", endEpoch).
+						WithField("endEpoch", curEpoch).
+						WithField("liveSyncStart", curEpoch+1).
+						Debug("Successfully published left over epoch infos")
+					continue
+				}
+
+				log.WithField("curEpoch", curEpoch).
+					Debug("Start sending live epoch info")
+				epochInfo, err := bs.prepareEpochInfo(curEpoch, epochInfoData.ProposerIndices, epochInfoData.PublicKeys)
 				if err != nil {
 					return status.Errorf(codes.Internal,
 						"Could not send over stream: %v", err)
 				}
-				if err := sender(epoch, epochInfo); err != nil {
+				if err := sender(curEpoch, epochInfo); err != nil {
 					return err
 				}
 			}
