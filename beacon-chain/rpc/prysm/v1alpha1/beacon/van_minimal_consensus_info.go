@@ -165,7 +165,7 @@ func (bs *Server) prepareEpochInfo(
 		pi := proposerIndices[i]
 		pubKey := pubKeys[pi]
 		var pubKeyStr string
-		if startSlot == 0 {
+		if startSlot == 0 && i == 0 {
 			publicKeyBytes := make([]byte, 48)
 			pubKeyStr = fmt.Sprintf("0x%s", hex.EncodeToString(publicKeyBytes))
 		} else {
