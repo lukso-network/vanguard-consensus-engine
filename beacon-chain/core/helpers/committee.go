@@ -5,7 +5,6 @@ package helpers
 import (
 	"bytes"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"sort"
 
 	"github.com/pkg/errors"
@@ -22,7 +21,7 @@ import (
 
 var committeeCache = cache.NewCommitteesCache()
 var proposerIndicesCache = cache.NewProposerIndicesCache()
-var log = logrus.WithField("prefix", "helpers")
+
 // SlotCommitteeCount returns the number of crosslink committees of a slot. The
 // active validator count is provided as an argument rather than a imported implementation
 // from the spec definition. Having the active validator count as an argument allows for
@@ -476,7 +475,6 @@ func ProposerIndicesInCache(state iface.BeaconState) ([]types.ValidatorIndex, ma
 	if err != nil {
 		return nil, nil, err
 	}
-
 	proposerIndices := make([]types.ValidatorIndex, params.BeaconConfig().SlotsPerEpoch)
 	pubKeyList := make(map[types.ValidatorIndex][48]byte, params.BeaconConfig().SlotsPerEpoch)
 	i := 0
@@ -490,14 +488,12 @@ func ProposerIndicesInCache(state iface.BeaconState) ([]types.ValidatorIndex, ma
 		}
 		pi, err := BeaconProposerIndex(state)
 		if err != nil {
-			log.WithError(err).Debug("<<<<<<<<<<< got error in calling BeaconProposerIndex >>>>>")
 			return nil, nil, errors.Wrapf(err, "could not get proposer index at slot %d", state.Slot())
 		}
 		pubKey := state.PubkeyAtIndex(pi)
 		proposerIndices[i] = pi
 		pubKeyList[pi] = pubKey
 		i++
-		log.WithField("slot", slot).WithField("pubKey", pubKey).WithField("proposerIndex", pi).Debug("<<<<<< got proposer indices >>>>")
 	}
 	return proposerIndices, pubKeyList, nil
 }

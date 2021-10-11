@@ -8,7 +8,6 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed"
 	statefeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/state"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/helpers"
-	"github.com/prysmaticlabs/prysm/beacon-chain/core/state"
 	ethpb "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"google.golang.org/grpc/codes"
@@ -27,14 +26,13 @@ func (bs *Server) StreamMinimalConsensusInfo(
 				"Could not send over stream: %v  err: %v", epoch, err)
 		}
 		log.WithField("epoch", epoch).Info("Published epoch info")
-		log.WithField("epoch", epoch).WithField("epochInfo", fmt.Sprintf("%+v", epochInfo)).
-			Debug("Sent epoch info")
+		log.WithField("epoch", epoch).WithField("epochInfo", fmt.Sprintf("%+v", epochInfo)).Debug("Sent epoch info")
 		return nil
 	}
 
-	batchSender := func(start, end types.Epoch) error {
-		for i := start; i <= end; i++ {
-			startSlot, err := helpers.StartSlot(i)
+	batchSender := func(startEpoch, endEpoch types.Epoch) error {
+		for epoch := startEpoch; epoch <= endEpoch; epoch++ {
+			startSlot, err := helpers.StartSlot(epoch)
 			if err != nil {
 				return status.Errorf(codes.Internal, "Could not send over stream: %v", err)
 			}
@@ -43,26 +41,17 @@ func (bs *Server) StreamMinimalConsensusInfo(
 			if err != nil {
 				return status.Errorf(codes.Internal, "Could not send over stream: %v", err)
 			}
-
-			if s.Slot() < startSlot {
-				log.WithField("stateSlot", s.Slot()).WithField("startSlot", startSlot).
-					WithField("epoch", i).Debug("Processing slots for calculating epoch infos")
-				s, err = state.ProcessSlots(bs.Ctx, s, startSlot)
-				if err != nil {
-					return status.Errorf(codes.Internal, "Could not process slots up to %d: %v", startSlot, err)
-				}
-			}
 			// retrieve proposer
 			proposerIndices, pubKeys, err := helpers.ProposerIndicesInCache(s)
 			if err != nil {
 				return status.Errorf(codes.Internal, "Could not send over stream: %v", err)
 			}
-			epochInfo, err := bs.prepareEpochInfo(start, proposerIndices, pubKeys)
+			epochInfo, err := bs.prepareEpochInfo(epoch, proposerIndices, pubKeys)
 			if err != nil {
 				return status.Errorf(codes.Internal, "Could not send over stream: %v", err)
 			}
 			if !s.IsNil() {
-				if err := sender(i, epochInfo); err != nil {
+				if err := sender(epoch, epochInfo); err != nil {
 					return err
 				}
 			}
@@ -75,21 +64,14 @@ func (bs *Server) StreamMinimalConsensusInfo(
 		return status.Errorf(codes.Internal,
 			"Could not send over stream: %v", err)
 	}
-
 	startEpoch := req.FromEpoch
 	endEpoch := cp.Epoch
-
-	log.WithField("startEpoch", startEpoch).
-		WithField("endEpoch", endEpoch).
-		Info("Publishing previous epoch infos")
-
+	log.WithField("startEpoch", startEpoch).WithField("endEpoch", endEpoch).Info("Publishing previous epoch infos")
 	if startEpoch == 0 || startEpoch < endEpoch {
 		if err := batchSender(startEpoch, endEpoch); err != nil {
 			return err
 		}
-		log.WithField("startEpoch", startEpoch).
-			WithField("endEpoch", endEpoch).
-			Debug("Successfully published previous epoch infos")
+		log.WithField("startEpoch", startEpoch).WithField("endEpoch", endEpoch).Debug("Successfully published previous epoch infos")
 	}
 
 	stateChannel := make(chan *feed.Event, 1)
@@ -109,26 +91,19 @@ func (bs *Server) StreamMinimalConsensusInfo(
 				curEpoch := helpers.SlotToEpoch(epochInfoData.Slot)
 				// Executes for a single time
 				if firstTime {
-					startEpoch = endEpoch
+					startEpoch = endEpoch + 1
 					endEpoch = curEpoch - 1
 					if startEpoch <= endEpoch {
-						log.WithField("startEpoch", startEpoch).
-							WithField("endEpoch", endEpoch).
-							WithField("liveSyncStart", curEpoch).
+						log.WithField("startEpoch", startEpoch).WithField("endEpoch", endEpoch).WithField("liveSyncStart", curEpoch).
 							Info("Publishing left over epoch infos")
-
 						if err := batchSender(startEpoch, endEpoch); err != nil {
 							return err
 						}
-
-						log.WithField("startEpoch", startEpoch).
-							WithField("endEpoch", endEpoch).
-							WithField("liveSyncStart", curEpoch).
+						log.WithField("startEpoch", startEpoch).WithField("endEpoch", endEpoch).WithField("liveSyncStart", curEpoch).
 							Debug("Successfully published left over epoch infos")
 					}
 					firstTime = false
-					log.WithField("curEpoch", curEpoch).
-						Debug("Start sending live epoch info")
+					log.WithField("curEpoch", curEpoch).Debug("Start sending live epoch info")
 				}
 
 				epochInfo, err := bs.prepareEpochInfo(curEpoch, epochInfoData.ProposerIndices, epochInfoData.PublicKeys)
@@ -171,7 +146,7 @@ func (bs *Server) prepareEpochInfo(
 		pi := proposerIndices[i]
 		pubKey := pubKeys[pi]
 		var pubKeyStr string
-		if epoch == 0 {
+		if startSlot == 0 {
 			publicKeyBytes := make([]byte, 48)
 			pubKeyStr = fmt.Sprintf("0x%s", hex.EncodeToString(publicKeyBytes))
 		} else {
