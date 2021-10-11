@@ -481,6 +481,7 @@ func ProposerIndicesInCache(state iface.BeaconState) ([]types.ValidatorIndex, ma
 	for slot := startSlot; slot < startSlot+params.BeaconConfig().SlotsPerEpoch; slot++ {
 		// Skip proposer assignment for genesis slot.
 		if slot == 0 {
+			i++
 			continue
 		}
 		if err := state.SetSlot(slot); err != nil {
