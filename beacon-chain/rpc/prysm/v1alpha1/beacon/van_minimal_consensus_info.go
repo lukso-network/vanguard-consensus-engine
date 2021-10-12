@@ -90,30 +90,27 @@ func (bs *Server) StreamMinimalConsensusInfo(
 					return status.Errorf(codes.Internal, "Received incorrect data type over epoch info feed: %v", epochInfoData)
 				}
 				curEpoch := helpers.SlotToEpoch(epochInfoData.Slot)
+				nextEpoch := curEpoch+1
 				// Executes for once. It sends leftover epochs to orchestrator.
 				// Leftover epoch will start from endEpoch+1 to current epoch
 				if firstTime {
-					var prevEpoch types.Epoch
-					if curEpoch > 0 {
-						prevEpoch = curEpoch - 1
-					}
-					if endEpoch < prevEpoch {
-						if err := batchSender(endEpoch+1, prevEpoch); err != nil {
+					if endEpoch < curEpoch {
+						if err := batchSender(endEpoch+1, curEpoch); err != nil {
 							return err
 						}
-						log.WithField("startEpoch", endEpoch+1).WithField("endEpoch", prevEpoch).
+						log.WithField("startEpoch", endEpoch+1).WithField("endEpoch", curEpoch).
 							Debug("successfully published left over epoch infos")
 					}
 					firstTime = false
-					log.WithField("liveSyncEpoch", curEpoch).Debug("start publishing live epoch info")
+					log.WithField("liveSyncEpoch", nextEpoch).Debug("start publishing live epoch info")
 				}
 				// only first time, sends current epoch. then every time it sends next epoch info. if current epoch is n then
 				// it will send epoch info for n+1
-				epochInfo, err := bs.prepareEpochInfo(curEpoch, epochInfoData.ProposerIndices, epochInfoData.PublicKeys)
+				epochInfo, err := bs.prepareEpochInfo(nextEpoch, epochInfoData.ProposerIndices, epochInfoData.PublicKeys)
 				if err != nil {
 					return status.Errorf(codes.Internal, "Could not send over stream: %v", err)
 				}
-				if err := sender(curEpoch, epochInfo); err != nil {
+				if err := sender(nextEpoch, epochInfo); err != nil {
 					return err
 				}
 			}
