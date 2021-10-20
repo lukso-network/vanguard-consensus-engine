@@ -238,6 +238,26 @@ func (mr *MockBeaconChainClientMockRecorder) GetWeakSubjectivityCheckpoint(arg0,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWeakSubjectivityCheckpoint", reflect.TypeOf((*MockBeaconChainClient)(nil).GetWeakSubjectivityCheckpoint), varargs...)
 }
 
+// IsValidBlock mocks base method
+func (m *MockBeaconChainClient) IsValidBlock(arg0 context.Context, arg1 *eth.BlockStatusValidationRequest, arg2 ...grpc.CallOption) (*eth.BlockStatusValidationResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "IsValidBlock", varargs...)
+	ret0, _ := ret[0].(*eth.BlockStatusValidationResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IsValidBlock indicates an expected call of IsValidBlock
+func (mr *MockBeaconChainClientMockRecorder) IsValidBlock(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsValidBlock", reflect.TypeOf((*MockBeaconChainClient)(nil).IsValidBlock), varargs...)
+}
+
 // ListAttestations mocks base method
 func (m *MockBeaconChainClient) ListAttestations(arg0 context.Context, arg1 *eth.ListAttestationsRequest, arg2 ...grpc.CallOption) (*eth.ListAttestationsResponse, error) {
 	m.ctrl.T.Helper()
@@ -479,7 +499,7 @@ func (mr *MockBeaconChainClientMockRecorder) StreamMinimalConsensusInfo(arg0, ar
 }
 
 // StreamNewPendingBlocks mocks base method
-func (m *MockBeaconChainClient) StreamNewPendingBlocks(arg0 context.Context, arg1 *emptypb.Empty, arg2 ...grpc.CallOption) (eth.BeaconChain_StreamNewPendingBlocksClient, error) {
+func (m *MockBeaconChainClient) StreamNewPendingBlocks(arg0 context.Context, arg1 *eth.StreamPendingBlocksRequest, arg2 ...grpc.CallOption) (eth.BeaconChain_StreamNewPendingBlocksClient, error) {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{arg0, arg1}
 	for _, a := range arg2 {
