@@ -90,10 +90,13 @@ func (bs *Server) StreamMinimalConsensusInfo(
 					return status.Errorf(codes.Internal, "Received incorrect data type over epoch info feed: %v", epochInfoData)
 				}
 				curEpoch := helpers.SlotToEpoch(epochInfoData.Slot)
-				nextEpoch := curEpoch+1
+				nextEpoch := curEpoch + 1
 				// Executes for once. It sends leftover epochs to orchestrator.
 				// Leftover epoch will start from endEpoch+1 to current epoch
 				if firstTime {
+					if req.FromEpoch > 0 && req.FromEpoch > endEpoch {
+						endEpoch = req.FromEpoch - 1
+					}
 					if endEpoch < curEpoch {
 						if err := batchSender(endEpoch+1, curEpoch); err != nil {
 							return err
@@ -121,13 +124,10 @@ func (bs *Server) StreamMinimalConsensusInfo(
 				if !ok {
 					return status.Errorf(codes.Internal, "Received incorrect data type over reorg feed: %v", data)
 				}
-				log.WithField("newSlot", data.Slot).WithField("newEpoch", data.Epoch).
-					Debug("Encountered a reorg. Re-sending updated epoch info")
 				if err := batchSender(data.Epoch, data.Epoch); err != nil {
 					return err
 				}
-				log.WithField("startEpoch", startEpoch).WithField("endEpoch", endEpoch).
-					Info("Published reorg epoch infos")
+				log.WithField("reOrgEpoch", data.Epoch).Info("Published reorg epoch info")
 			}
 		case <-stateSub.Err():
 			return status.Error(codes.Aborted, "Subscriber closed, exiting go routine")

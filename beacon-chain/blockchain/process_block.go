@@ -105,7 +105,7 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
 	if s.enableVanguardNode {
 		curEpoch := helpers.CurrentEpoch(postState)
-		nextEpoch := curEpoch+1
+		nextEpoch := curEpoch + 1
 		if s.latestSentEpoch < nextEpoch {
 			proposerIndices, pubKeys, err := helpers.ProposerIndicesInCache(postState.Copy(), nextEpoch)
 			if err != nil {
@@ -270,7 +270,7 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 		}
 		if s.enableVanguardNode {
 			curEpoch := helpers.CurrentEpoch(preState)
-			nextEpoch := curEpoch+1
+			nextEpoch := curEpoch + 1
 			if s.latestSentEpoch < nextEpoch {
 				proposerIndices, pubKeys, err := helpers.ProposerIndicesInCache(preState.Copy(), nextEpoch)
 				if err != nil {
