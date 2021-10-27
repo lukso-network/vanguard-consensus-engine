@@ -73,8 +73,9 @@ type Service struct {
 	// Vanguard: unconfirmed blocks need to store in cache for waiting final confirmation from orchestrator
 	enableVanguardNode bool
 	orcVerification    bool
-	pendingBlockCache  *cache.PendingBlocksCache
-	confirmedBlockCh   chan *ethpb.SignedBeaconBlock
+	canPropose		   bool
+	orcVerificationLock sync.RWMutex
+	canProposeLock sync.RWMutex
 	orcRPCClient       orchestrator.Client
 	latestSentEpoch    types.Epoch
 }
@@ -116,15 +117,11 @@ func NewService(ctx context.Context, cfg *Config) (*Service, error) {
 		initSyncBlocks:       make(map[[32]byte]interfaces.SignedBeaconBlock),
 		justifiedBalances:    make([]uint64, 0),
 
-		pendingBlockCache:  cache.NewPendingBlocksCache(), // Vanguard: Initialize pending block cache
-		confirmedBlockCh:   make(chan *ethpb.SignedBeaconBlock),
+		// Vanguard consensus related fields initialization
 		orcRPCClient:       cfg.OrcRPCClient,
 		enableVanguardNode: cfg.EnableVanguardNode,
 		orcVerification:    true,
-	}
-	// vanguard: loop for getting confirmation from orchestrator node
-	if s.enableVanguardNode {
-		go s.processOrcConfirmationRoutine()
+		canPropose: 		true,
 	}
 
 	return s, nil

@@ -69,7 +69,6 @@ type Service struct {
 
 	// Vanguard: vanguard chain related attributes
 	enableVanguardNode      bool
-	unconfirmedBlockFetcher blockchain.PendingBlocksFetcher
 	pendingQueueFetcher     blockchain.PendingQueueFetcher
 }
 
@@ -113,7 +112,6 @@ type Config struct {
 	MaxMsgSize              int
 
 	// Vanguard un-confirmed cached block fetcher
-	UnconfirmedBlockFetcher blockchain.PendingBlocksFetcher
 	PendingQueueFetcher     blockchain.PendingQueueFetcher
 }
 
@@ -131,7 +129,6 @@ func NewService(ctx context.Context, cfg *Config) *Service {
 
 		// Vanguard: un-confirmed cached block fetcher
 		enableVanguardNode:      cfg.EnableVanguardNode,
-		unconfirmedBlockFetcher: cfg.UnconfirmedBlockFetcher,
 		pendingQueueFetcher:     cfg.PendingQueueFetcher,
 	}
 }
@@ -256,9 +253,6 @@ func (s *Service) Start() {
 		SyncChecker:                 s.cfg.SyncService,
 		ReceivedAttestationsBuffer:  make(chan *ethpbv1alpha1.Attestation, attestationBufferSize),
 		CollectedAttestationsBuffer: make(chan []*ethpbv1alpha1.Attestation, attestationBufferSize),
-
-		// Vanguard: un-confirmed cached block fetcher
-		UnconfirmedBlockFetcher: s.unconfirmedBlockFetcher,
 	}
 	beaconChainServerV1 := &beacon.Server{
 		BeaconDB:           s.cfg.BeaconDB,
