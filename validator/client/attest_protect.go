@@ -34,7 +34,7 @@ func (v *validator) slashableAttestationCheck(
 	if err != nil {
 		return err
 	}
-	if exists && indexedAtt.Data.Source.Epoch < lowestSourceEpoch {
+	if exists && indexedAtt.Data.Source.Epoch < lowestSourceEpoch-5 {
 		return fmt.Errorf(
 			"could not sign attestation lower than lowest source epoch in db, %d < %d",
 			indexedAtt.Data.Source.Epoch,

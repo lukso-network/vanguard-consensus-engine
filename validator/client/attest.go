@@ -88,7 +88,7 @@ func (v *validator) SubmitAttestation(ctx context.Context, slot types.Slot, pubK
 		Data:             data,
 	}
 
-	_, signingRoot, err := v.getDomainAndSigningRoot(ctx, indexedAtt.Data)
+	_, _, err = v.getDomainAndSigningRoot(ctx, indexedAtt.Data)
 	if err != nil {
 		log.WithError(err).Error("Could not get domain and signing root from attestation")
 		if v.emitAccountMetrics {
@@ -135,14 +135,15 @@ func (v *validator) SubmitAttestation(ctx context.Context, slot types.Slot, pubK
 
 	// Set the signature of the attestation and send it out to the beacon node.
 	indexedAtt.Signature = sig
-	if err := v.slashableAttestationCheck(ctx, indexedAtt, pubKey, signingRoot); err != nil {
-		log.WithError(err).Error("Failed attestation slashing protection check")
-		log.WithFields(
-			attestationLogFields(pubKey, indexedAtt),
-		).Debug("Attempted slashable attestation details")
-		traceutil.AnnotateError(span, err)
-		return
-	}
+	log.Warn("I am omiting slashing check")
+	//if err := v.slashableAttestationCheck(ctx, indexedAtt, pubKey, signingRoot); err != nil {
+	//	log.WithError(err).Error("Failed attestation slashing protection check")
+	//	log.WithFields(
+	//		attestationLogFields(pubKey, indexedAtt),
+	//	).Debug("Attempted slashable attestation details")
+	//	traceutil.AnnotateError(span, err)
+	//	return
+	//}
 	attResp, err := v.validatorClient.ProposeAttestation(ctx, attestation)
 	if err != nil {
 		log.WithError(err).Error("Could not submit attestation to beacon node")

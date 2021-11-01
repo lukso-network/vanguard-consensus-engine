@@ -86,10 +86,10 @@ func (s *Service) processPendingAtts(ctx context.Context) error {
 					// This is an important validation before retrieving attestation pre state to defend against
 					// attestation's target intentionally reference checkpoint that's long ago.
 					// Verify current finalized checkpoint is an ancestor of the block defined by the attestation's beacon block root.
-					if err := s.cfg.Chain.VerifyFinalizedConsistency(ctx, att.Aggregate.Data.BeaconBlockRoot); err != nil {
-						log.WithError(err).Debug("Could not verify finalized consistency")
-						continue
-					}
+					//if err := s.cfg.Chain.VerifyFinalizedConsistency(ctx, att.Aggregate.Data.BeaconBlockRoot); err != nil {
+					//	log.WithError(err).Debug("Could not verify finalized consistency")
+					//	continue
+					//}
 					if err := s.cfg.Chain.VerifyLmdFfgConsistency(ctx, att.Aggregate); err != nil {
 						log.WithError(err).Debug("Could not verify FFG consistency")
 						continue

@@ -549,6 +549,7 @@ func (s *Store) LowestSignedSourceEpoch(ctx context.Context, publicKey [48]byte)
 		}
 		exists = true
 		lowestSignedSourceEpoch = bytesutil.BytesToEpochBigEndian(lowestSignedSourceBytes)
+
 		return nil
 	})
 	return lowestSignedSourceEpoch, exists, err

@@ -115,10 +115,28 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 			s.publishEpochInfo(signed.Block().Slot(), proposerIndices, pubKeys)
 			s.latestSentEpoch = nextEpoch
 		}
-		if b.Slot() > 5280 {
-			if err := s.verifyPandoraShardInfo(signed); err != nil {
-				return errors.Wrap(err, "could not verify pandora shard info onBlock")
-			}
+
+		err := s.verifyPandoraShardInfo(signed)
+
+		if nil != err {
+			log.WithError(err).WithField("hydra protection", "mighty hydra spotted").
+				Warn("[DEPRECATED]: In future realises this block will never pass verification")
+		}
+
+		if nil != err && b.Slot() == 5280 {
+			currentErr := errors.Wrap(err, "[DEPRECATED]: First time harmful hydra spotted")
+			log.WithField("headSlot", s.head.slot).Error(currentErr)
+
+			// Do not insert hydra into db, but do not create error
+			return nil
+		}
+
+		if nil != err && b.Slot() > 5280 {
+			currentErr := errors.Wrap(err, "could not verify pandora shard info onBlock")
+			log.WithError(currentErr).
+				WithField("hydra fork protection", "do not slay the heads, they regrow doubled").
+				Warn("hydra slayed")
+			return currentErr
 		}
 		// publish block to orchestrator and rpc service for sending minimal consensus info
 		s.publishBlock(signed)
