@@ -126,6 +126,7 @@ func TestStore_OnBlock(t *testing.T) {
 			assert.NoError(t, err)
 			err = service.onBlock(ctx, wrapper.WrappedPhase0SignedBeaconBlock(tt.blk), root)
 			assert.ErrorContains(t, tt.wantErrString, err)
+			require.Equal(t, types.Epoch(0), service.getLatestSentEpoch())
 		})
 	}
 }
@@ -181,6 +182,7 @@ func TestStore_OnBlockBatch(t *testing.T) {
 	require.NoError(t, service.cfg.StateGen.SaveState(ctx, blkRoots[0], firstState))
 	_, _, err = service.onBlockBatch(ctx, blks[1:], blkRoots[1:])
 	require.NoError(t, err)
+	require.Equal(t, types.Epoch(0), service.getLatestSentEpoch())
 }
 
 func TestRemoveStateSinceLastFinalized_EmptyStartSlot(t *testing.T) {
@@ -953,6 +955,7 @@ func TestOnBlock_CanFinalize(t *testing.T) {
 		r, err := blk.Block.HashTreeRoot()
 		require.NoError(t, err)
 		require.NoError(t, service.onBlock(ctx, wrapper.WrappedPhase0SignedBeaconBlock(blk), r))
+		require.Equal(t, types.Epoch(0), service.getLatestSentEpoch())
 		testState, err = service.cfg.StateGen.StateByRoot(ctx, r)
 		require.NoError(t, err)
 	}
