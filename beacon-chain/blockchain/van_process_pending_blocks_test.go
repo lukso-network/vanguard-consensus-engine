@@ -8,8 +8,10 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/blocks"
 	testDB "github.com/prysmaticlabs/prysm/beacon-chain/db/testing"
 	"github.com/prysmaticlabs/prysm/beacon-chain/state/stategen"
+	ethpb "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/proto/eth/v1alpha1/wrapper"
 	"github.com/prysmaticlabs/prysm/proto/interfaces"
+	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	vanTypes "github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/shared/testutil"
 	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
@@ -201,6 +203,42 @@ func TestService_waitForConfirmationBlock(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestService_LatestSentEpoch checks getLatestSentEpoch and setLatestSentEpoch method
+func TestService_LatestSentEpoch(t *testing.T) {
+	ctx := context.Background()
+	var mockedOrcClient *van_mock.MockClient
+	ctrl := gomock.NewController(t)
+	mockedOrcClient = van_mock.NewMockClient(ctrl)
+	cfg := &Config{
+		BlockNotifier:      &mock.MockBlockNotifier{},
+		OrcRPCClient:       mockedOrcClient,
+		EnableVanguardNode: true,
+	}
+	s, err := NewService(ctx, cfg)
+	require.NoError(t, err)
+	epoch := s.getLatestSentEpoch()
+	require.Equal(t, types.Epoch(0), epoch)
+	s.setLatestSentEpoch(types.Epoch(1))
+	epoch = s.getLatestSentEpoch()
+	require.Equal(t, types.Epoch(1), epoch)
+}
+
+// TestService_LatestSentEpoch checks getLatestSentEpoch and setLatestSentEpoch method
+func TestService_LatestSentEpoch2(t *testing.T) {
+	beaconDB := testDB.SetupDB(t)
+
+	c := setupBeaconChain(t, beaconDB)
+	assert.Equal(t, vanTypes.BeaconConfig().ZeroHash, bytesutil.ToBytes32(c.CurrentJustifiedCheckpt().Root), "Unexpected justified epoch")
+	cp := &ethpb.Checkpoint{Epoch: 6, Root: bytesutil.PadTo([]byte("foo"), 32)}
+	c.justifiedCheckpt = cp
+	epoch := c.getLatestSentEpoch()
+	require.Equal(t, types.Epoch(0), epoch)
+	c.setLatestSentEpoch(types.Epoch(1))
+	epoch = c.getLatestSentEpoch()
+	require.Equal(t, types.Epoch(1), epoch)
+	assert.Equal(t, cp.Epoch, c.CurrentJustifiedCheckpt().Epoch, "Unexpected justified epoch")
 }
 
 // Helper method to generate pending queue with random blocks
