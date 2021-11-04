@@ -1,0 +1,54 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - "v*-develop*"
+
+jobs:
+  release:
+    strategy:
+      matrix:
+        go-version: [ 1.16 ]
+        platform: [ ubuntu-18.04 ]
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Cache bazelisk download
+        uses: actions/cache@v2
+        env:
+          cache-name: bazel-cache
+        with:
+          path: ~/.cache/bazelisk
+          key: ${{ matrix.os }}-${{ env.cache-name }}-${{ github.ref }}
+          restore-keys: |
+            ${{ matrix.os }}-${{ env.cache-name }}-development
+
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Build beacon-chain client
+        run: |
+          bazel build //beacon-chain
+          mv ./bazel-bin/cmd/beacon-chain/beacon-chain_/beacon-chain ./bazel-bin/cmd/beacon-chain/beacon-chain_/vanguard-Linux-x86_64
+
+      - name: Build validator
+        run: |
+          bazel build //validator
+          mv ./bazel-bin/cmd/validator/validator_/validator ./bazel-bin/cmd/validator/validator_/lukso-validator-Linux-x86_64
+
+      - name: Prepare tag name
+        uses: olegtarasov/get-tag@v2.1
+        id: tagName
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ steps.tagName.outputs.tag }}
+          draft: false
+          files: |
+            ./bazel-bin/cmd/beacon-chain/beacon-chain_/vanguard-*
+            ./bazel-bin/cmd/validator/validator_/lukso-validator-*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
