@@ -88,6 +88,20 @@ func (s *Service) OrcVerification() bool {
 	return s.orcVerification
 }
 
+// SetLatestSentEpoch
+func (s *Service) setLatestSentEpoch(epoch types.Epoch) {
+	s.latestSentEpochLock.Lock()
+	defer s.latestSentEpochLock.Unlock()
+	s.latestSentEpoch = epoch
+}
+
+// GetLatestSentEpoch
+func (s *Service) getLatestSentEpoch() types.Epoch {
+	s.latestSentEpochLock.RLock()
+	defer s.latestSentEpochLock.RUnlock()
+	return s.latestSentEpoch
+}
+
 // triggerEpochInfoPublisher publishes slot and state for publishing epoch info
 func (s *Service) publishEpochInfo(
 	slot types.Slot,

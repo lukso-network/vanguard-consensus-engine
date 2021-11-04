@@ -106,14 +106,14 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 	if s.enableVanguardNode {
 		curEpoch := helpers.CurrentEpoch(postState)
 		nextEpoch := curEpoch + 1
-		if s.latestSentEpoch < nextEpoch {
+		if s.getLatestSentEpoch() < nextEpoch {
 			proposerIndices, pubKeys, err := helpers.ProposerIndicesInCache(postState.Copy(), nextEpoch)
 			if err != nil {
 				return errors.Wrap(err, "could not get proposer indices for publishing")
 			}
 			log.WithField("nextEpoch", nextEpoch).WithField("latestSentEpoch", s.latestSentEpoch).Debug("publishing latest epoch info")
 			s.publishEpochInfo(signed.Block().Slot(), proposerIndices, pubKeys)
-			s.latestSentEpoch = nextEpoch
+			s.setLatestSentEpoch(nextEpoch)
 		}
 		// publish block to orchestrator and rpc service for sending minimal consensus info
 		s.publishBlock(signed)

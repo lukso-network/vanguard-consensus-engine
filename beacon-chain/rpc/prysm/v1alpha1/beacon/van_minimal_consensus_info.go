@@ -125,7 +125,7 @@ func (bs *Server) StreamMinimalConsensusInfo(
 					Debug("Encountered a reorg. Re-sending updated epoch info")
 
 				// Get re-org info from DB
-				reorgInfo, err := bs.getVanPanParentHash(data)
+				reorgInfo, err := bs.prepareReorgInfo(data)
 				if err != nil {
 					log.WithError(err).Error("Failed re-org handling")
 					return err
@@ -188,7 +188,7 @@ func (bs *Server) prepareEpochInfo(
 }
 
 // getVanPanParentHash prepares re-org info for pandora and orchestrator
-func (bs *Server) getVanPanParentHash(reorgInfo *ethpbv1.EventChainReorg) (*ethpb.Reorg, error) {
+func (bs *Server) prepareReorgInfo(reorgInfo *ethpbv1.EventChainReorg) (*ethpb.Reorg, error) {
 	var newHeadRoot32Bytes [32]byte
 	copy(newHeadRoot32Bytes[:], reorgInfo.NewHeadBlock)
 	// Get the new head block from DB.
@@ -216,5 +216,6 @@ func (bs *Server) getVanPanParentHash(reorgInfo *ethpbv1.EventChainReorg) (*ethp
 	return &ethpb.Reorg{
 		VanParentHash: vanParentBlockHash,
 		PanParentHash: panHeaderHash,
+		NewSlot:       reorgInfo.Slot,
 	}, nil
 }

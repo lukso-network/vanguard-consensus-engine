@@ -71,12 +71,13 @@ type Service struct {
 	wsVerified            bool
 
 	// Vanguard: unconfirmed blocks need to store in cache for waiting final confirmation from orchestrator
-	enableVanguardNode bool
-	orcVerification    bool
-	pendingBlockCache  *cache.PendingBlocksCache
-	confirmedBlockCh   chan *ethpb.SignedBeaconBlock
-	orcRPCClient       orchestrator.Client
-	latestSentEpoch    types.Epoch
+	enableVanguardNode  bool
+	orcVerification     bool
+	pendingBlockCache   *cache.PendingBlocksCache
+	confirmedBlockCh    chan *ethpb.SignedBeaconBlock
+	orcRPCClient        orchestrator.Client
+	latestSentEpochLock sync.RWMutex
+	latestSentEpoch     types.Epoch
 }
 
 // Config options for the service.
