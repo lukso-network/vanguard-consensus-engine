@@ -62,10 +62,14 @@ jobs:
           bazel build //validator:validator --config=windows_amd64_docker
           mv ./bazel-bin/cmd/validator/validator_/validator.exe ./bazel-bin/cmd/validator/validator_/lukso-validator-Windows-x86_64.exe
 
+      - name: Prepare tag name
+        uses: olegtarasov/get-tag@v2.1
+        id: tagName
+
       - name: Create release
         uses: softprops/action-gh-release@v1
         with:
-          name: Release
+          name: ${{ steps.tagName.outputs.tag }}
           draft: false
           files: |
             ./bazel-bin/cmd/beacon-chain/beacon-chain_/vanguard-*
