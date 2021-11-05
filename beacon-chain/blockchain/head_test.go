@@ -33,6 +33,7 @@ import (
 const (
 	restoreSrcFilePath = "fixtures/vm4_backup_beaconchain.db"
 	vm4HeadBlockSlot   = 27982
+	vm4HeadForkSlot    = types.Slot(18962)
 )
 
 func TestSaveHead_Same(t *testing.T) {
@@ -163,22 +164,25 @@ func TestSaveHead_Different_ReorgFix(t *testing.T) {
 	assert.Equal(t, types.Slot(vm4HeadBlockSlot), headBlock.Block().Slot(), "Restored database has incorrect data")
 
 	service := setupBeaconChain(t, restoredDb)
+	service.enableVanguardNode = true
 
 	oldBlock := wrapper.WrappedPhase0SignedBeaconBlock(
 		testutil.NewBeaconBlock(),
 	)
 	require.NoError(t, service.cfg.BeaconDB.SaveBlock(context.Background(), oldBlock))
+
 	oldRoot, err := oldBlock.Block().HashTreeRoot()
 	require.NoError(t, err)
+
 	service.head = &head{
-		slot:  0,
+		slot:  vm4HeadForkSlot - 1,
 		root:  oldRoot,
 		block: oldBlock,
 	}
 
 	reorgChainParent := [32]byte{'B'}
 	newHeadSignedBlock := testutil.NewBeaconBlock()
-	newHeadSignedBlock.Block.Slot = 1
+	newHeadSignedBlock.Block.Slot = vm4HeadForkSlot
 	newHeadSignedBlock.Block.ParentRoot = reorgChainParent[:]
 	newHeadBlock := newHeadSignedBlock.Block
 
@@ -187,12 +191,12 @@ func TestSaveHead_Different_ReorgFix(t *testing.T) {
 	require.NoError(t, err)
 	headState, err := testutil.NewBeaconState()
 	require.NoError(t, err)
-	require.NoError(t, headState.SetSlot(1))
-	require.NoError(t, service.cfg.BeaconDB.SaveStateSummary(context.Background(), &pb.StateSummary{Slot: 1, Root: newRoot[:]}))
+	require.NoError(t, headState.SetSlot(vm4HeadForkSlot))
+	require.NoError(t, service.cfg.BeaconDB.SaveStateSummary(context.Background(), &pb.StateSummary{Slot: vm4HeadForkSlot, Root: newRoot[:]}))
 	require.NoError(t, service.cfg.BeaconDB.SaveState(context.Background(), headState, newRoot))
 	require.NoError(t, service.saveHead(context.Background(), newRoot))
 
-	assert.Equal(t, types.Slot(1), service.HeadSlot(), "Head did not change")
+	assert.Equal(t, vm4HeadForkSlot, service.HeadSlot(), "Head did not change")
 
 	cachedRoot, err := service.HeadRoot(context.Background())
 	require.NoError(t, err)
@@ -202,6 +206,9 @@ func TestSaveHead_Different_ReorgFix(t *testing.T) {
 	assert.DeepEqual(t, newHeadSignedBlock, service.headBlock().Proto(), "Head did not change")
 	assert.DeepSSZEqual(t, headState.CloneInnerState(), service.headState(ctx).CloneInnerState(), "Head did not change")
 	require.LogsContain(t, hook, "Chain reorg occurred")
+	require.LogsContain(t, hook, "Setting latest sent epoch - vanguard node is enabled")
+
+	assert.Equal(t, service.getLatestSentEpoch(), helpers.SlotToEpoch(newHeadSignedBlock.Block.Slot))
 }
 
 func TestCacheJustifiedStateBalances_CanCache(t *testing.T) {

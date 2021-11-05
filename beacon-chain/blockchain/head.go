@@ -149,7 +149,13 @@ func (s *Service) saveHead(ctx context.Context, headRoot [32]byte) error {
 		}
 
 		reorgCount.Inc()
+
 		if s.enableVanguardNode {
+			log.WithFields(logrus.Fields{
+				"oldLatestSentEpoch": fmt.Sprintf("%d", s.getLatestSentEpoch()),
+				"newLatestSentEpoch": fmt.Sprintf("%d", helpers.SlotToEpoch(newHeadSlot)),
+			}).Debug("Setting latest sent epoch - vanguard node is enabled")
+
 			s.setLatestSentEpoch(helpers.SlotToEpoch(newHeadSlot))
 		}
 	}
