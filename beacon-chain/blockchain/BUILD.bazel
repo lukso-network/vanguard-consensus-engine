@@ -99,6 +99,7 @@ go_test(
         "van_process_pending_blocks_test.go",
         "weak_subjectivity_checks_test.go",
     ],
+    data = glob(["fixtures/**"]),
     embed = [":go_default_library"],
     gotags = ["develop"],
     deps = [
@@ -135,6 +136,7 @@ go_test(
         "@com_github_sirupsen_logrus//hooks/test:go_default_library",
         "@com_github_urfave_cli_v2//:go_default_library",
         "@in_gopkg_d4l3k_messagediff_v1//:go_default_library",
+        "@io_bazel_rules_go//go/tools/bazel:go_default_library",
         "@org_golang_google_protobuf//proto:go_default_library",
         "@org_golang_x_net//context:go_default_library",
     ],
@@ -148,7 +150,6 @@ go_test(
         "init_test.go",
         "receive_block_test.go",
         "service_norace_test.go",
-        "van_process_pending_blocks_test.go",
     ],
     embed = [":go_default_library"],
     gc_goopts = [

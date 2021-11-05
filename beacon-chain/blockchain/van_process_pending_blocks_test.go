@@ -3,6 +3,7 @@ package blockchain
 import (
 	"context"
 	"flag"
+	"github.com/bazelbuild/rules_go/go/tools/bazel"
 	"github.com/golang/mock/gomock"
 	types "github.com/prysmaticlabs/eth2-types"
 	mock "github.com/prysmaticlabs/prysm/beacon-chain/blockchain/testing"
@@ -28,9 +29,8 @@ import (
 )
 
 const (
-	restoreSrcDbFilePath = "../blockchain/fixtures/"
-	restoreSrcFileName   = "vm4_backup_beaconchain.db"
-	vm4HeadBlockSlot     = 27982
+	restoreSrcFilePath = "fixtures/vm4_backup_beaconchain.db"
+	vm4HeadBlockSlot   = 27982
 )
 
 // TestService_PublishAndStorePendingBlock checks PublishAndStorePendingBlock method
@@ -224,7 +224,9 @@ func TestService_LatestSentEpoch(t *testing.T) {
 	set := flag.NewFlagSet("test", 0)
 	set.String(cmd.RestoreSourceFileFlag.Name, "", "")
 	set.String(cmd.RestoreTargetDirFlag.Name, "", "")
-	require.NoError(t, set.Set(cmd.RestoreSourceFileFlag.Name, path.Join(restoreSrcDbFilePath, restoreSrcFileName)))
+	bazelFilePath, err := bazel.Runfile(restoreSrcFilePath)
+	assert.NoError(t, err)
+	require.NoError(t, set.Set(cmd.RestoreSourceFileFlag.Name, bazelFilePath))
 	require.NoError(t, set.Set(cmd.RestoreTargetDirFlag.Name, restoreDir))
 	cliCtx := cli.NewContext(&app, set, nil)
 	assert.NoError(t, beacondb.Restore(cliCtx))
