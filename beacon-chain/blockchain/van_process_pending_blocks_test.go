@@ -2,24 +2,35 @@ package blockchain
 
 import (
 	"context"
+	"flag"
 	"github.com/golang/mock/gomock"
 	types "github.com/prysmaticlabs/eth2-types"
 	mock "github.com/prysmaticlabs/prysm/beacon-chain/blockchain/testing"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/blocks"
+	beacondb "github.com/prysmaticlabs/prysm/beacon-chain/db"
+	"github.com/prysmaticlabs/prysm/beacon-chain/db/kv"
 	testDB "github.com/prysmaticlabs/prysm/beacon-chain/db/testing"
 	"github.com/prysmaticlabs/prysm/beacon-chain/state/stategen"
-	ethpb "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/proto/eth/v1alpha1/wrapper"
 	"github.com/prysmaticlabs/prysm/proto/interfaces"
-	"github.com/prysmaticlabs/prysm/shared/bytesutil"
+	"github.com/prysmaticlabs/prysm/shared/cmd"
 	vanTypes "github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/shared/testutil"
 	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
 	"github.com/prysmaticlabs/prysm/shared/van_mock"
+	"github.com/urfave/cli/v2"
+	"io/ioutil"
+	"path"
 	"sort"
 	"testing"
 	"time"
+)
+
+const (
+	restoreSrcDbFilePath = "../blockchain/fixtures/"
+	restoreSrcFileName   = "vm4_backup_beaconchain.db"
+	vm4HeadBlockSlot     = 27982
 )
 
 // TestService_PublishAndStorePendingBlock checks PublishAndStorePendingBlock method
@@ -205,40 +216,27 @@ func TestService_waitForConfirmationBlock(t *testing.T) {
 	}
 }
 
-// TestService_LatestSentEpoch checks getLatestSentEpoch and setLatestSentEpoch method
+// TestService_LatestSentEpoch should verify l15 testnet vm4 fork issue and test fix for it
 func TestService_LatestSentEpoch(t *testing.T) {
 	ctx := context.Background()
-	var mockedOrcClient *van_mock.MockClient
-	ctrl := gomock.NewController(t)
-	mockedOrcClient = van_mock.NewMockClient(ctrl)
-	cfg := &Config{
-		BlockNotifier:      &mock.MockBlockNotifier{},
-		OrcRPCClient:       mockedOrcClient,
-		EnableVanguardNode: true,
-	}
-	s, err := NewService(ctx, cfg)
+	restoreDir := t.TempDir()
+	app := cli.App{}
+	set := flag.NewFlagSet("test", 0)
+	set.String(cmd.RestoreSourceFileFlag.Name, "", "")
+	set.String(cmd.RestoreTargetDirFlag.Name, "", "")
+	require.NoError(t, set.Set(cmd.RestoreSourceFileFlag.Name, path.Join(restoreSrcDbFilePath, restoreSrcFileName)))
+	require.NoError(t, set.Set(cmd.RestoreTargetDirFlag.Name, restoreDir))
+	cliCtx := cli.NewContext(&app, set, nil)
+	assert.NoError(t, beacondb.Restore(cliCtx))
+	files, err := ioutil.ReadDir(path.Join(restoreDir, kv.BeaconNodeDbDirName))
 	require.NoError(t, err)
-	epoch := s.getLatestSentEpoch()
-	require.Equal(t, types.Epoch(0), epoch)
-	s.setLatestSentEpoch(types.Epoch(1))
-	epoch = s.getLatestSentEpoch()
-	require.Equal(t, types.Epoch(1), epoch)
-}
-
-// TestService_LatestSentEpoch checks getLatestSentEpoch and setLatestSentEpoch method
-func TestService_LatestSentEpoch2(t *testing.T) {
-	beaconDB := testDB.SetupDB(t)
-
-	c := setupBeaconChain(t, beaconDB)
-	assert.Equal(t, vanTypes.BeaconConfig().ZeroHash, bytesutil.ToBytes32(c.CurrentJustifiedCheckpt().Root), "Unexpected justified epoch")
-	cp := &ethpb.Checkpoint{Epoch: 6, Root: bytesutil.PadTo([]byte("foo"), 32)}
-	c.justifiedCheckpt = cp
-	epoch := c.getLatestSentEpoch()
-	require.Equal(t, types.Epoch(0), epoch)
-	c.setLatestSentEpoch(types.Epoch(1))
-	epoch = c.getLatestSentEpoch()
-	require.Equal(t, types.Epoch(1), epoch)
-	assert.Equal(t, cp.Epoch, c.CurrentJustifiedCheckpt().Epoch, "Unexpected justified epoch")
+	assert.Equal(t, 1, len(files))
+	assert.Equal(t, kv.DatabaseFileName, files[0].Name())
+	restoredDb := testDB.LoadDB(t, path.Join(restoreDir, kv.BeaconNodeDbDirName))
+	assert.NotNil(t, restoredDb)
+	headBlock, err := restoredDb.HeadBlock(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, types.Slot(vm4HeadBlockSlot), headBlock.Block().Slot(), "Restored database has incorrect data")
 }
 
 // Helper method to generate pending queue with random blocks

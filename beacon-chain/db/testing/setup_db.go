@@ -26,6 +26,20 @@ func SetupDB(t testing.TB) db.Database {
 	return s
 }
 
+// LoadDB loads existing database file and returns database backed by key value store.
+func LoadDB(t testing.TB, datadir string) db.Database {
+	s, err := kv.NewKVStore(context.Background(), datadir, &kv.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := s.Close(); err != nil {
+			t.Fatalf("failed to close database: %v", err)
+		}
+	})
+	return s
+}
+
 // SetupSlasherDB --
 func SetupSlasherDB(t testing.TB) iface.SlasherDatabase {
 	s, err := slasherkv.NewKVStore(context.Background(), t.TempDir(), &slasherkv.Config{})
