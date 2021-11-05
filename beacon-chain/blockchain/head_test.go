@@ -3,6 +3,14 @@ package blockchain
 import (
 	"bytes"
 	"context"
+	"flag"
+	"github.com/bazelbuild/rules_go/go/tools/bazel"
+	beacondb "github.com/prysmaticlabs/prysm/beacon-chain/db"
+	"github.com/prysmaticlabs/prysm/beacon-chain/db/kv"
+	"github.com/prysmaticlabs/prysm/shared/cmd"
+	"github.com/urfave/cli/v2"
+	"io/ioutil"
+	"path"
 	"testing"
 	"time"
 
@@ -20,6 +28,11 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
 	logTest "github.com/sirupsen/logrus/hooks/test"
+)
+
+const (
+	restoreSrcFilePath = "fixtures/vm4_backup_beaconchain.db"
+	vm4HeadBlockSlot   = 27982
 )
 
 func TestSaveHead_Same(t *testing.T) {
@@ -80,6 +93,76 @@ func TestSaveHead_Different_Reorg(t *testing.T) {
 	hook := logTest.NewGlobal()
 	beaconDB := testDB.SetupDB(t)
 	service := setupBeaconChain(t, beaconDB)
+
+	oldBlock := wrapper.WrappedPhase0SignedBeaconBlock(
+		testutil.NewBeaconBlock(),
+	)
+	require.NoError(t, service.cfg.BeaconDB.SaveBlock(context.Background(), oldBlock))
+	oldRoot, err := oldBlock.Block().HashTreeRoot()
+	require.NoError(t, err)
+	service.head = &head{
+		slot:  0,
+		root:  oldRoot,
+		block: oldBlock,
+	}
+
+	reorgChainParent := [32]byte{'B'}
+	newHeadSignedBlock := testutil.NewBeaconBlock()
+	newHeadSignedBlock.Block.Slot = 1
+	newHeadSignedBlock.Block.ParentRoot = reorgChainParent[:]
+	newHeadBlock := newHeadSignedBlock.Block
+
+	require.NoError(t, service.cfg.BeaconDB.SaveBlock(context.Background(), wrapper.WrappedPhase0SignedBeaconBlock(newHeadSignedBlock)))
+	newRoot, err := newHeadBlock.HashTreeRoot()
+	require.NoError(t, err)
+	headState, err := testutil.NewBeaconState()
+	require.NoError(t, err)
+	require.NoError(t, headState.SetSlot(1))
+	require.NoError(t, service.cfg.BeaconDB.SaveStateSummary(context.Background(), &pb.StateSummary{Slot: 1, Root: newRoot[:]}))
+	require.NoError(t, service.cfg.BeaconDB.SaveState(context.Background(), headState, newRoot))
+	require.NoError(t, service.saveHead(context.Background(), newRoot))
+
+	assert.Equal(t, types.Slot(1), service.HeadSlot(), "Head did not change")
+
+	cachedRoot, err := service.HeadRoot(context.Background())
+	require.NoError(t, err)
+	if !bytes.Equal(cachedRoot, newRoot[:]) {
+		t.Error("Head did not change")
+	}
+	assert.DeepEqual(t, newHeadSignedBlock, service.headBlock().Proto(), "Head did not change")
+	assert.DeepSSZEqual(t, headState.CloneInnerState(), service.headState(ctx).CloneInnerState(), "Head did not change")
+	require.LogsContain(t, hook, "Chain reorg occurred")
+}
+
+func TestSaveHead_Different_ReorgFix(t *testing.T) {
+	ctx := context.Background()
+	hook := logTest.NewGlobal()
+	restoreDir := t.TempDir()
+
+	app := cli.App{}
+	set := flag.NewFlagSet("test", 0)
+	set.String(cmd.RestoreSourceFileFlag.Name, "", "")
+	set.String(cmd.RestoreTargetDirFlag.Name, "", "")
+	bazelFilePath, err := bazel.Runfile(restoreSrcFilePath)
+	assert.NoError(t, err)
+	require.NoError(t, set.Set(cmd.RestoreSourceFileFlag.Name, bazelFilePath))
+	require.NoError(t, set.Set(cmd.RestoreTargetDirFlag.Name, restoreDir))
+	cliCtx := cli.NewContext(&app, set, nil)
+
+	assert.NoError(t, beacondb.Restore(cliCtx))
+
+	files, err := ioutil.ReadDir(path.Join(restoreDir, kv.BeaconNodeDbDirName))
+	require.NoError(t, err)
+	assert.Equal(t, 1, len(files))
+	assert.Equal(t, kv.DatabaseFileName, files[0].Name())
+
+	restoredDb := testDB.LoadDB(t, path.Join(restoreDir, kv.BeaconNodeDbDirName))
+	assert.NotNil(t, restoredDb)
+	headBlock, err := restoredDb.HeadBlock(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, types.Slot(vm4HeadBlockSlot), headBlock.Block().Slot(), "Restored database has incorrect data")
+
+	service := setupBeaconChain(t, restoredDb)
 
 	oldBlock := wrapper.WrappedPhase0SignedBeaconBlock(
 		testutil.NewBeaconBlock(),

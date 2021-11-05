@@ -2,35 +2,22 @@ package blockchain
 
 import (
 	"context"
-	"flag"
-	"github.com/bazelbuild/rules_go/go/tools/bazel"
 	"github.com/golang/mock/gomock"
 	types "github.com/prysmaticlabs/eth2-types"
 	mock "github.com/prysmaticlabs/prysm/beacon-chain/blockchain/testing"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/blocks"
-	beacondb "github.com/prysmaticlabs/prysm/beacon-chain/db"
-	"github.com/prysmaticlabs/prysm/beacon-chain/db/kv"
 	testDB "github.com/prysmaticlabs/prysm/beacon-chain/db/testing"
 	"github.com/prysmaticlabs/prysm/beacon-chain/state/stategen"
 	"github.com/prysmaticlabs/prysm/proto/eth/v1alpha1/wrapper"
 	"github.com/prysmaticlabs/prysm/proto/interfaces"
-	"github.com/prysmaticlabs/prysm/shared/cmd"
 	vanTypes "github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/shared/testutil"
 	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
 	"github.com/prysmaticlabs/prysm/shared/van_mock"
-	"github.com/urfave/cli/v2"
-	"io/ioutil"
-	"path"
 	"sort"
 	"testing"
 	"time"
-)
-
-const (
-	restoreSrcFilePath = "fixtures/vm4_backup_beaconchain.db"
-	vm4HeadBlockSlot   = 27982
 )
 
 // TestService_PublishAndStorePendingBlock checks PublishAndStorePendingBlock method
@@ -214,31 +201,6 @@ func TestService_waitForConfirmationBlock(t *testing.T) {
 			}
 		})
 	}
-}
-
-// TestService_LatestSentEpoch should verify l15 testnet vm4 fork issue and test fix for it
-func TestService_LatestSentEpoch(t *testing.T) {
-	ctx := context.Background()
-	restoreDir := t.TempDir()
-	app := cli.App{}
-	set := flag.NewFlagSet("test", 0)
-	set.String(cmd.RestoreSourceFileFlag.Name, "", "")
-	set.String(cmd.RestoreTargetDirFlag.Name, "", "")
-	bazelFilePath, err := bazel.Runfile(restoreSrcFilePath)
-	assert.NoError(t, err)
-	require.NoError(t, set.Set(cmd.RestoreSourceFileFlag.Name, bazelFilePath))
-	require.NoError(t, set.Set(cmd.RestoreTargetDirFlag.Name, restoreDir))
-	cliCtx := cli.NewContext(&app, set, nil)
-	assert.NoError(t, beacondb.Restore(cliCtx))
-	files, err := ioutil.ReadDir(path.Join(restoreDir, kv.BeaconNodeDbDirName))
-	require.NoError(t, err)
-	assert.Equal(t, 1, len(files))
-	assert.Equal(t, kv.DatabaseFileName, files[0].Name())
-	restoredDb := testDB.LoadDB(t, path.Join(restoreDir, kv.BeaconNodeDbDirName))
-	assert.NotNil(t, restoredDb)
-	headBlock, err := restoredDb.HeadBlock(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, types.Slot(vm4HeadBlockSlot), headBlock.Block().Slot(), "Restored database has incorrect data")
 }
 
 // Helper method to generate pending queue with random blocks

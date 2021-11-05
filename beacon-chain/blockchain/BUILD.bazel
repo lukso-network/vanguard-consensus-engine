@@ -150,6 +150,7 @@ go_test(
         "init_test.go",
         "receive_block_test.go",
         "service_norace_test.go",
+        "van_process_pending_blocks_test.go",
     ],
     embed = [":go_default_library"],
     gc_goopts = [
