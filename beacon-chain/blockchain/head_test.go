@@ -102,26 +102,26 @@ func TestSaveHead_Different_Reorg(t *testing.T) {
 	}{
 		{
 			name:                   "Checks for standard reorg feature",
-			headSlot:               vm4HeadForkSlot - 1,
-			newHeadSignedBlockSlot: vm4HeadForkSlot,
-			expectedHeadSlot:       vm4HeadForkSlot,
-			expectedLogOutput: []string{
-				"Chain reorg occurred",
-			},
-			stateSummarySlot:    vm4HeadForkSlot,
-			vanguardNodeEnabled: false,
-			loadBeaconChain:     false,
-		},
-		{
-			name:                   "Checks for Vanguard reorg feature",
 			headSlot:               0,
 			newHeadSignedBlockSlot: 1,
 			expectedHeadSlot:       1,
 			expectedLogOutput: []string{
 				"Chain reorg occurred",
-				"Setting latest sent epoch - vanguard node is enabled",
 			},
 			stateSummarySlot:    1,
+			vanguardNodeEnabled: false,
+			loadBeaconChain:     false,
+		},
+		{
+			name:                   "Checks for Vanguard reorg feature",
+			headSlot:               vm4HeadForkSlot - 1,
+			newHeadSignedBlockSlot: vm4HeadForkSlot,
+			expectedHeadSlot:       vm4HeadForkSlot,
+			expectedLogOutput: []string{
+				"Chain reorg occurred",
+				"Setting latest sent epoch - vanguard node is enabled",
+			},
+			stateSummarySlot:    vm4HeadForkSlot,
 			vanguardNodeEnabled: true,
 			loadBeaconChain:     true,
 		},
@@ -209,6 +209,10 @@ func TestSaveHead_Different_Reorg(t *testing.T) {
 
 			for _, logOutput := range tt.expectedLogOutput {
 				require.LogsContain(t, hook, logOutput)
+			}
+
+			if !tt.vanguardNodeEnabled {
+				require.LogsDoNotContain(t, hook, "Setting latest sent epoch - vanguard node is enabled")
 			}
 		})
 	}
