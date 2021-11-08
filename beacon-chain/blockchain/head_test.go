@@ -32,7 +32,7 @@ import (
 
 const (
 	restoreSrcFilePath = "fixtures/vm4_backup_beaconchain.db"
-	vm4HeadBlockSlot   = 27982
+	vm4HeadBlockSlot   = types.Slot(27982)
 	vm4HeadForkSlot    = types.Slot(18962)
 )
 
@@ -102,13 +102,13 @@ func TestSaveHead_Different_Reorg(t *testing.T) {
 	}{
 		{
 			name:                   "Checks for standard reorg feature",
-			headSlot:               0,
-			newHeadSignedBlockSlot: 1,
-			expectedHeadSlot:       1,
+			headSlot:               vm4HeadForkSlot - 1,
+			newHeadSignedBlockSlot: vm4HeadForkSlot,
+			expectedHeadSlot:       vm4HeadForkSlot,
 			expectedLogOutput: []string{
 				"Chain reorg occurred",
 			},
-			stateSummarySlot:    1,
+			stateSummarySlot:    vm4HeadForkSlot,
 			vanguardNodeEnabled: false,
 			loadBeaconChain:     false,
 		},
@@ -133,6 +133,37 @@ func TestSaveHead_Different_Reorg(t *testing.T) {
 			hook := logTest.NewGlobal()
 			beaconDB := testDB.SetupDB(t)
 			service := setupBeaconChain(t, beaconDB)
+			if tt.loadBeaconChain {
+				restoreDir := t.TempDir()
+				err := beaconDB.ClearDB()
+				if err != nil {
+					t.Error(err.Error())
+				}
+				service = nil
+
+				app := cli.App{}
+				set := flag.NewFlagSet("test", 0)
+				set.String(cmd.RestoreSourceFileFlag.Name, "", "")
+				set.String(cmd.RestoreTargetDirFlag.Name, "", "")
+
+				bazelFilePath, err := bazel.Runfile(restoreSrcFilePath)
+				assert.NoError(t, err)
+
+				require.NoError(t, set.Set(cmd.RestoreSourceFileFlag.Name, bazelFilePath))
+				require.NoError(t, set.Set(cmd.RestoreTargetDirFlag.Name, restoreDir))
+
+				cliCtx := cli.NewContext(&app, set, nil)
+				assert.NoError(t, beacondb.Restore(cliCtx))
+
+				files, err := ioutil.ReadDir(path.Join(restoreDir, kv.BeaconNodeDbDirName))
+				require.NoError(t, err)
+				assert.Equal(t, 1, len(files))
+				assert.Equal(t, kv.DatabaseFileName, files[0].Name())
+
+				beaconDB = testDB.LoadDB(t, path.Join(restoreDir, kv.BeaconNodeDbDirName))
+				assert.NotNil(t, beaconDB)
+				service = loadBeaconChain(t, beaconDB)
+			}
 			service.enableVanguardNode = tt.vanguardNodeEnabled
 			oldBlock := wrapper.WrappedPhase0SignedBeaconBlock(
 				testutil.NewBeaconBlock(),
@@ -163,13 +194,16 @@ func TestSaveHead_Different_Reorg(t *testing.T) {
 			require.NoError(t, service.cfg.BeaconDB.SaveStateSummary(context.Background(), &pb.StateSummary{Slot: tt.stateSummarySlot, Root: newRoot[:]}))
 			require.NoError(t, service.cfg.BeaconDB.SaveState(context.Background(), headState, newRoot))
 			require.NoError(t, service.saveHead(context.Background(), newRoot))
+
 			assert.Equal(t, tt.expectedHeadSlot, service.HeadSlot(), "Head did not change")
 
 			cachedRoot, err := service.HeadRoot(context.Background())
 			require.NoError(t, err)
+
 			if !bytes.Equal(cachedRoot, newRoot[:]) {
 				t.Error("Head did not change")
 			}
+
 			assert.DeepEqual(t, newHeadSignedBlock, service.headBlock().Proto(), "Head did not change")
 			assert.DeepSSZEqual(t, headState.CloneInnerState(), service.headState(ctx).CloneInnerState(), "Head did not change")
 
@@ -178,82 +212,6 @@ func TestSaveHead_Different_Reorg(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestSaveHead_Different_ReorgFix(t *testing.T) {
-	ctx := context.Background()
-	hook := logTest.NewGlobal()
-	restoreDir := t.TempDir()
-
-	app := cli.App{}
-	set := flag.NewFlagSet("test", 0)
-	set.String(cmd.RestoreSourceFileFlag.Name, "", "")
-	set.String(cmd.RestoreTargetDirFlag.Name, "", "")
-	bazelFilePath, err := bazel.Runfile(restoreSrcFilePath)
-	assert.NoError(t, err)
-	require.NoError(t, set.Set(cmd.RestoreSourceFileFlag.Name, bazelFilePath))
-	require.NoError(t, set.Set(cmd.RestoreTargetDirFlag.Name, restoreDir))
-	cliCtx := cli.NewContext(&app, set, nil)
-
-	assert.NoError(t, beacondb.Restore(cliCtx))
-
-	files, err := ioutil.ReadDir(path.Join(restoreDir, kv.BeaconNodeDbDirName))
-	require.NoError(t, err)
-	assert.Equal(t, 1, len(files))
-	assert.Equal(t, kv.DatabaseFileName, files[0].Name())
-
-	restoredDb := testDB.LoadDB(t, path.Join(restoreDir, kv.BeaconNodeDbDirName))
-	assert.NotNil(t, restoredDb)
-	headBlock, err := restoredDb.HeadBlock(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, types.Slot(vm4HeadBlockSlot), headBlock.Block().Slot(), "Restored database has incorrect data")
-
-	service := setupBeaconChain(t, restoredDb)
-	service.enableVanguardNode = true
-
-	oldBlock := wrapper.WrappedPhase0SignedBeaconBlock(
-		testutil.NewBeaconBlock(),
-	)
-	require.NoError(t, service.cfg.BeaconDB.SaveBlock(context.Background(), oldBlock))
-
-	oldRoot, err := oldBlock.Block().HashTreeRoot()
-	require.NoError(t, err)
-
-	service.head = &head{
-		slot:  vm4HeadForkSlot - 1,
-		root:  oldRoot,
-		block: oldBlock,
-	}
-
-	reorgChainParent := [32]byte{'B'}
-	newHeadSignedBlock := testutil.NewBeaconBlock()
-	newHeadSignedBlock.Block.Slot = vm4HeadForkSlot
-	newHeadSignedBlock.Block.ParentRoot = reorgChainParent[:]
-	newHeadBlock := newHeadSignedBlock.Block
-
-	require.NoError(t, service.cfg.BeaconDB.SaveBlock(context.Background(), wrapper.WrappedPhase0SignedBeaconBlock(newHeadSignedBlock)))
-	newRoot, err := newHeadBlock.HashTreeRoot()
-	require.NoError(t, err)
-	headState, err := testutil.NewBeaconState()
-	require.NoError(t, err)
-	require.NoError(t, headState.SetSlot(vm4HeadForkSlot))
-	require.NoError(t, service.cfg.BeaconDB.SaveStateSummary(context.Background(), &pb.StateSummary{Slot: vm4HeadForkSlot, Root: newRoot[:]}))
-	require.NoError(t, service.cfg.BeaconDB.SaveState(context.Background(), headState, newRoot))
-	require.NoError(t, service.saveHead(context.Background(), newRoot))
-
-	assert.Equal(t, vm4HeadForkSlot, service.HeadSlot(), "Head did not change")
-
-	cachedRoot, err := service.HeadRoot(context.Background())
-	require.NoError(t, err)
-	if !bytes.Equal(cachedRoot, newRoot[:]) {
-		t.Error("Head did not change")
-	}
-	assert.DeepEqual(t, newHeadSignedBlock, service.headBlock().Proto(), "Head did not change")
-	assert.DeepSSZEqual(t, headState.CloneInnerState(), service.headState(ctx).CloneInnerState(), "Head did not change")
-	require.LogsContain(t, hook, "Chain reorg occurred")
-	require.LogsContain(t, hook, "Setting latest sent epoch - vanguard node is enabled")
-
-	assert.Equal(t, service.getLatestSentEpoch(), helpers.SlotToEpoch(newHeadSignedBlock.Block.Slot))
 }
 
 func TestCacheJustifiedStateBalances_CanCache(t *testing.T) {

@@ -129,6 +129,62 @@ func setupBeaconChain(t *testing.T, beaconDB db.Database) *Service {
 	return chainService
 }
 
+func loadBeaconChain(t *testing.T, beaconDB db.Database) *Service {
+	endpoint := "http://127.0.0.1"
+	ctx := context.Background()
+	var web3Service *powchain.Service
+	var err error
+	bState, err := beaconDB.GenesisState(ctx)
+	require.NoError(t, err)
+	pbState, err := v1.ProtobufBeaconState(bState.CloneInnerState())
+	require.NoError(t, err)
+	powchainData, err := beaconDB.PowchainData(ctx)
+	require.NoError(t, err)
+	powchainData.BeaconState = pbState
+	cache, err := depositcache.New()
+	require.NoError(t, err)
+	err = beaconDB.SavePowchainData(ctx, powchainData)
+	require.NoError(t, err)
+	web3Service, err = powchain.NewService(ctx, &powchain.Web3ServiceConfig{
+		BeaconDB:        beaconDB,
+		StateGen:        stategen.New(beaconDB),
+		HttpEndpoints:   []string{endpoint},
+		DepositContract: common.Address{},
+		DepositCache:    cache,
+	})
+
+	require.NoError(t, err, "Unable to set up web3 service")
+
+	attService, err := attestations.NewService(ctx, &attestations.Config{Pool: attestations.NewPool()})
+	require.NoError(t, err)
+
+	depositCache, err := depositcache.New()
+	require.NoError(t, err)
+
+	cfg := &Config{
+		BeaconBlockBuf:    0,
+		BeaconDB:          beaconDB,
+		DepositCache:      depositCache,
+		ChainStartFetcher: web3Service,
+		P2p:               &mockBroadcaster{},
+		StateNotifier:     &mockBeaconNode{},
+		AttPool:           attestations.NewPool(),
+		StateGen:          stategen.New(beaconDB),
+		AttService:        attService,
+	}
+
+	chainService, err := NewService(ctx, cfg)
+	require.NoError(t, err, "Unable to setup chain service")
+	justifiedCheckpoint, err := beaconDB.JustifiedCheckpoint(ctx)
+	require.NoError(t, err, "Unable to setup chain service")
+	finalizedCheckpoint, err := beaconDB.FinalizedCheckpoint(ctx)
+	require.NoError(t, err, "Unable to setup chain service")
+
+	chainService.resumeForkChoice(justifiedCheckpoint, finalizedCheckpoint)
+
+	return chainService
+}
+
 func TestChainStartStop_Initialized(t *testing.T) {
 	hook := logTest.NewGlobal()
 	ctx := context.Background()
