@@ -90,49 +90,94 @@ func TestSaveHead_Different(t *testing.T) {
 }
 
 func TestSaveHead_Different_Reorg(t *testing.T) {
-	ctx := context.Background()
-	hook := logTest.NewGlobal()
-	beaconDB := testDB.SetupDB(t)
-	service := setupBeaconChain(t, beaconDB)
-
-	oldBlock := wrapper.WrappedPhase0SignedBeaconBlock(
-		testutil.NewBeaconBlock(),
-	)
-	require.NoError(t, service.cfg.BeaconDB.SaveBlock(context.Background(), oldBlock))
-	oldRoot, err := oldBlock.Block().HashTreeRoot()
-	require.NoError(t, err)
-	service.head = &head{
-		slot:  0,
-		root:  oldRoot,
-		block: oldBlock,
+	tests := []struct {
+		name                   string
+		headSlot               types.Slot
+		newHeadSignedBlockSlot types.Slot
+		expectedHeadSlot       types.Slot
+		expectedLogOutput      []string
+		stateSummarySlot       types.Slot
+		vanguardNodeEnabled    bool
+		loadBeaconChain        bool
+	}{
+		{
+			name:                   "Checks for standard reorg feature",
+			headSlot:               0,
+			newHeadSignedBlockSlot: 1,
+			expectedHeadSlot:       1,
+			expectedLogOutput: []string{
+				"Chain reorg occurred",
+			},
+			stateSummarySlot:    1,
+			vanguardNodeEnabled: false,
+			loadBeaconChain:     false,
+		},
+		{
+			name:                   "Checks for Vanguard reorg feature",
+			headSlot:               0,
+			newHeadSignedBlockSlot: 1,
+			expectedHeadSlot:       1,
+			expectedLogOutput: []string{
+				"Chain reorg occurred",
+				"Setting latest sent epoch - vanguard node is enabled",
+			},
+			stateSummarySlot:    1,
+			vanguardNodeEnabled: true,
+			loadBeaconChain:     true,
+		},
 	}
 
-	reorgChainParent := [32]byte{'B'}
-	newHeadSignedBlock := testutil.NewBeaconBlock()
-	newHeadSignedBlock.Block.Slot = 1
-	newHeadSignedBlock.Block.ParentRoot = reorgChainParent[:]
-	newHeadBlock := newHeadSignedBlock.Block
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			hook := logTest.NewGlobal()
+			beaconDB := testDB.SetupDB(t)
+			service := setupBeaconChain(t, beaconDB)
+			service.enableVanguardNode = tt.vanguardNodeEnabled
+			oldBlock := wrapper.WrappedPhase0SignedBeaconBlock(
+				testutil.NewBeaconBlock(),
+			)
+			require.NoError(t, service.cfg.BeaconDB.SaveBlock(context.Background(), oldBlock))
 
-	require.NoError(t, service.cfg.BeaconDB.SaveBlock(context.Background(), wrapper.WrappedPhase0SignedBeaconBlock(newHeadSignedBlock)))
-	newRoot, err := newHeadBlock.HashTreeRoot()
-	require.NoError(t, err)
-	headState, err := testutil.NewBeaconState()
-	require.NoError(t, err)
-	require.NoError(t, headState.SetSlot(1))
-	require.NoError(t, service.cfg.BeaconDB.SaveStateSummary(context.Background(), &pb.StateSummary{Slot: 1, Root: newRoot[:]}))
-	require.NoError(t, service.cfg.BeaconDB.SaveState(context.Background(), headState, newRoot))
-	require.NoError(t, service.saveHead(context.Background(), newRoot))
+			oldRoot, err := oldBlock.Block().HashTreeRoot()
+			require.NoError(t, err)
 
-	assert.Equal(t, types.Slot(1), service.HeadSlot(), "Head did not change")
+			service.head = &head{
+				slot:  tt.headSlot,
+				root:  oldRoot,
+				block: oldBlock,
+			}
+			reorgChainParent := [32]byte{'B'}
+			newHeadSignedBlock := testutil.NewBeaconBlock()
+			newHeadSignedBlock.Block.Slot = tt.newHeadSignedBlockSlot
+			newHeadSignedBlock.Block.ParentRoot = reorgChainParent[:]
+			newHeadBlock := newHeadSignedBlock.Block
+			require.NoError(t, service.cfg.BeaconDB.SaveBlock(context.Background(), wrapper.WrappedPhase0SignedBeaconBlock(newHeadSignedBlock)))
 
-	cachedRoot, err := service.HeadRoot(context.Background())
-	require.NoError(t, err)
-	if !bytes.Equal(cachedRoot, newRoot[:]) {
-		t.Error("Head did not change")
+			newRoot, err := newHeadBlock.HashTreeRoot()
+			require.NoError(t, err)
+
+			headState, err := testutil.NewBeaconState()
+			require.NoError(t, err)
+			require.NoError(t, headState.SetSlot(1))
+			require.NoError(t, service.cfg.BeaconDB.SaveStateSummary(context.Background(), &pb.StateSummary{Slot: tt.stateSummarySlot, Root: newRoot[:]}))
+			require.NoError(t, service.cfg.BeaconDB.SaveState(context.Background(), headState, newRoot))
+			require.NoError(t, service.saveHead(context.Background(), newRoot))
+			assert.Equal(t, tt.expectedHeadSlot, service.HeadSlot(), "Head did not change")
+
+			cachedRoot, err := service.HeadRoot(context.Background())
+			require.NoError(t, err)
+			if !bytes.Equal(cachedRoot, newRoot[:]) {
+				t.Error("Head did not change")
+			}
+			assert.DeepEqual(t, newHeadSignedBlock, service.headBlock().Proto(), "Head did not change")
+			assert.DeepSSZEqual(t, headState.CloneInnerState(), service.headState(ctx).CloneInnerState(), "Head did not change")
+
+			for _, logOutput := range tt.expectedLogOutput {
+				require.LogsContain(t, hook, logOutput)
+			}
+		})
 	}
-	assert.DeepEqual(t, newHeadSignedBlock, service.headBlock().Proto(), "Head did not change")
-	assert.DeepSSZEqual(t, headState.CloneInnerState(), service.headState(ctx).CloneInnerState(), "Head did not change")
-	require.LogsContain(t, hook, "Chain reorg occurred")
 }
 
 func TestSaveHead_Different_ReorgFix(t *testing.T) {
