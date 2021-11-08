@@ -3,6 +3,7 @@ package beacon
 import (
 	"context"
 	"github.com/golang/mock/gomock"
+	types "github.com/prysmaticlabs/eth2-types"
 	mockChain "github.com/prysmaticlabs/prysm/beacon-chain/blockchain/testing"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed"
 	statefeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/state"
@@ -12,6 +13,7 @@ import (
 	ethpbv1 "github.com/prysmaticlabs/prysm/proto/eth/v1"
 	ethpb "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/proto/eth/v1alpha1/wrapper"
+	"github.com/prysmaticlabs/prysm/proto/interfaces"
 	"github.com/prysmaticlabs/prysm/shared/mock"
 	"github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/shared/testutil"
@@ -209,7 +211,7 @@ func TestServer_StreamMinimalConsensusInfo_ChainReorg(t *testing.T) {
 		}, mockStream))
 	}(t)
 	// Fire a reorg event. This needs to trigger
-	// a recomputation and resending of duties over the stream.
+	// a re-computation and resending of duties over the stream.
 	for sent := 0; sent == 0; {
 		sent = server.StateNotifier.StateFeed().Send(&feed.Event{
 			Type: statefeed.Reorg,
@@ -218,4 +220,58 @@ func TestServer_StreamMinimalConsensusInfo_ChainReorg(t *testing.T) {
 	}
 	<-exitRoutine
 	cancel()
+}
+
+func TestServer_StreamMinimalConsensusInfo_GetVanPanParentHash_OK(t *testing.T) {
+	db := dbTest.SetupDB(t)
+	ctx := context.Background()
+
+	beaconState, err := testutil.NewBeaconState()
+	require.NoError(t, err)
+	// Genesis block.
+	genesisBlock := testutil.NewBeaconBlock()
+	genesisBlockRoot, err := genesisBlock.Block.HashTreeRoot()
+	require.NoError(t, err)
+	require.NoError(t, db.SaveBlock(ctx, wrapper.WrappedPhase0SignedBeaconBlock(genesisBlock)))
+	require.NoError(t, db.SaveState(ctx, beaconState, genesisBlockRoot))
+	require.NoError(t, db.SaveGenesisBlockRoot(ctx, genesisBlockRoot))
+
+	count := types.Slot(10)
+	blks := make([]interfaces.SignedBeaconBlock, count)
+	reorgData := &ethpbv1.EventChainReorg {
+		Slot: 7,
+	}
+	var parentBlockRoot [32]byte
+	for i := types.Slot(0); i < count; i++ {
+		header, _ := testutil.NewPandoraBlock(i, 23)
+		b := testutil.NewBeaconBlockWithPandoraSharding(header, i)
+		//b.Block.Body.PandoraShard[0].Hash = []byte{uint8(i)}
+		blks[i] = wrapper.WrappedPhase0SignedBeaconBlock(b)
+		if i == 6 {
+			parentBlockRoot, err = blks[i].Block().Body().HashTreeRoot()
+			require.NoError(t, err)
+		}
+		if i == 7 {
+			root, err := blks[i].Block().Body().HashTreeRoot()
+			require.NoError(t, err)
+			reorgData.NewHeadBlock = root[:]
+		}
+	}
+	server := &Server{
+		BeaconDB:           db,
+		StateGen:           stategen.New(db),
+	}
+	require.NoError(t, db.SaveBlocks(ctx, blks))
+	require.NoError(t, err)
+	parentBlock, err := server.BeaconDB.Block(ctx, parentBlockRoot)
+	require.NoError(t, err)
+	pandoraShardInfo := parentBlock.Block().Body().PandoraShards()
+	pandoraHash := pandoraShardInfo[0].Hash
+	expectedReorgInfo := &ethpb.Reorg{
+		VanParentHash: parentBlockRoot[:],
+		PanParentHash: pandoraHash,
+	}
+	actualReorgInfo, err := server.getVanPanParentHash(reorgData)
+	require.NoError(t, err)
+	assert.DeepEqual(t, expectedReorgInfo, actualReorgInfo)
 }

@@ -47,6 +47,10 @@ func (bs *Server) StreamNewPendingBlocks(
 			return err
 		}
 		for _, blk := range blks {
+			// we do not send block #0 to orchestrator
+			if blk.Block().Slot() == 0 {
+				continue
+			}
 			unwrappedBlk, err := blk.PbPhase0Block()
 			if err != nil {
 				return status.Errorf(codes.Internal, "Could not send over stream: %v", err)
@@ -82,6 +86,9 @@ func (bs *Server) StreamNewPendingBlocks(
 		return status.Errorf(codes.Internal, "Could not send over of previous blocks stream: head block is nil")
 	}
 	startSlot, err := helpers.EndSlot(epochEnd)
+	if err != nil {
+		return status.Errorf(codes.Internal, "Could not send over of previous blocks stream: %v", err)
+	}
 	endSlot := headBlock.Block().Slot()
 	if startSlot+1 <= endSlot {
 		if err := sender(startSlot, endSlot); err != nil {
