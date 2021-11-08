@@ -238,19 +238,15 @@ func (s *Service) verifyPandoraShardInfo(signedBlk interfaces.SignedBeaconBlock)
 
 		curShardingParentHash := common.BytesToHash(curPandoraShards[0].ParentHash)
 		curShardingBlockNumber := curPandoraShards[0].BlockNumber
+		commonLog := log.WithField("slot", signedBlk.Block().Slot()).WithField("canonicalShardingHash", canonicalShardingHash).
+			WithField("canonicalShardingBlkNum", canonicalShardingBlkNum).WithField("curShardingParentHash", curShardingParentHash).
+			WithField("curShardingBlockNumber", curShardingBlockNumber)
 
 		if curShardingParentHash != canonicalShardingHash && curShardingBlockNumber != canonicalShardingBlkNum+1 {
-			log.WithField("slot", signedBlk.Block().Slot()).WithField("canonicalShardingHash", canonicalShardingHash).
-				WithField("canonicalShardingBlkNum", canonicalShardingBlkNum).WithField("curShardingParentHash", curShardingParentHash).
-				WithField("curShardingBlockNumber", curShardingBlockNumber).WithError(errInvalidPandoraShardInfo).
-				Error("Failed to verify pandora sharding info")
+			commonLog.WithError(errInvalidPandoraShardInfo).Error("Failed to verify pandora sharding info")
 			return errInvalidPandoraShardInfo
 		}
-
-		log.WithField("slot", signedBlk.Block().Slot()).WithField("canonicalShardingHash", canonicalShardingHash).
-			WithField("canonicalShardingBlkNum", canonicalShardingBlkNum).WithField("curShardingParentHash", curShardingParentHash).
-			WithField("curShardingBlockNumber", curShardingBlockNumber).WithError(errInvalidPandoraShardInfo).
-			Error("Successfully verified pandora sharding info")
+		commonLog.Debug("Successfully verified pandora sharding info")
 	}
 	return nil
 }
