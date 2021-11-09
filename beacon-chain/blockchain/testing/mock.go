@@ -437,8 +437,8 @@ func (s *ChainService) ActivateOrcVerification() {
 	return
 }
 
-func (s *ChainService) CanPropose() error {
-	return nil
+func (s *ChainService) CanPropose() bool {
+	return true
 }
 
 func (s *ChainService) DeactivateOrcVerification() {
