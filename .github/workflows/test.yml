@@ -20,10 +20,10 @@ jobs:
 
       - name: Test beacon-chain client
         run: |
-          bazel test //cmd/beacon-chain/...
-          bazel test //beacon-chain/...
+          bazel test //cmd/beacon-chain/... --sandbox_default_allow_network=true
+          bazel test //beacon-chain/... --sandbox_default_allow_network=true
 
       - name: Test validator client
         run: |
-          bazel test //cmd/validator/...
-          bazel test //validator/...
+          bazel test //cmd/validator/... --sandbox_default_allow_network=true
+          bazel test //validator/... --sandbox_default_allow_network=true
