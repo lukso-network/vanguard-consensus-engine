@@ -33,7 +33,6 @@ import (
 const (
 	restoreSrcFilePath = "fixtures/vm4_backup_beaconchain.db"
 	vm4HeadBlockSlot   = types.Slot(27982)
-	vm4HeadForkSlot    = types.Slot(18962)
 )
 
 func TestSaveHead_Same(t *testing.T) {
@@ -97,6 +96,7 @@ func TestSaveHead_Different_Reorg(t *testing.T) {
 		expectedHeadSlot       types.Slot
 		expectedLogOutput      []string
 		stateSummarySlot       types.Slot
+		headStateSlot          types.Slot
 		vanguardNodeEnabled    bool
 		loadBeaconChain        bool
 	}{
@@ -109,19 +109,21 @@ func TestSaveHead_Different_Reorg(t *testing.T) {
 				"Chain reorg occurred",
 			},
 			stateSummarySlot:    1,
+			headStateSlot:       1,
 			vanguardNodeEnabled: false,
 			loadBeaconChain:     false,
 		},
 		{
 			name:                   "Checks for Vanguard reorg feature",
-			headSlot:               vm4HeadForkSlot - 1,
-			newHeadSignedBlockSlot: vm4HeadForkSlot,
-			expectedHeadSlot:       vm4HeadForkSlot,
+			headSlot:               vm4HeadBlockSlot,
+			newHeadSignedBlockSlot: vm4HeadBlockSlot + 1,
+			expectedHeadSlot:       vm4HeadBlockSlot + 1,
 			expectedLogOutput: []string{
 				"Chain reorg occurred",
 				"Setting latest sent epoch - vanguard node is enabled",
 			},
-			stateSummarySlot:    vm4HeadForkSlot,
+			stateSummarySlot:    vm4HeadBlockSlot + 1,
+			headStateSlot:       vm4HeadBlockSlot + 1,
 			vanguardNodeEnabled: true,
 			loadBeaconChain:     true,
 		},
@@ -190,7 +192,7 @@ func TestSaveHead_Different_Reorg(t *testing.T) {
 
 			headState, err := testutil.NewBeaconState()
 			require.NoError(t, err)
-			require.NoError(t, headState.SetSlot(1))
+			require.NoError(t, headState.SetSlot(tt.headStateSlot))
 			require.NoError(t, service.cfg.BeaconDB.SaveStateSummary(context.Background(), &pb.StateSummary{Slot: tt.stateSummarySlot, Root: newRoot[:]}))
 			require.NoError(t, service.cfg.BeaconDB.SaveState(context.Background(), headState, newRoot))
 			require.NoError(t, service.saveHead(context.Background(), newRoot))
