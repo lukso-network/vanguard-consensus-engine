@@ -72,13 +72,47 @@ func (s *ChainService) BlockNotifier() blockfeed.Notifier {
 
 // MockBlockNotifier mocks the block notifier.
 type MockBlockNotifier struct {
-	feed *event.Feed
+	feed     *event.Feed
+	feedLock sync.Mutex
+
+	recv     []*feed.Event
+	recvLock sync.Mutex
+	recvCh   chan *feed.Event
+
+	RecordEvents bool
+}
+
+// ReceivedEvents returns the events received by the block feed in this mock.
+func (mbn *MockBlockNotifier) ReceivedEvents() []*feed.Event {
+	mbn.recvLock.Lock()
+	defer mbn.recvLock.Unlock()
+	return mbn.recv
 }
 
 // BlockFeed returns a block feed.
 func (mbn *MockBlockNotifier) BlockFeed() *event.Feed {
-	if mbn.feed == nil {
+	mbn.feedLock.Lock()
+	defer mbn.feedLock.Unlock()
+
+	if mbn.feed == nil && mbn.recvCh == nil {
 		mbn.feed = new(event.Feed)
+		if mbn.RecordEvents {
+			mbn.recvCh = make(chan *feed.Event)
+			sub := mbn.feed.Subscribe(mbn.recvCh)
+
+			go func() {
+				for {
+					select {
+					case evt := <-mbn.recvCh:
+						mbn.recvLock.Lock()
+						mbn.recv = append(mbn.recv, evt)
+						mbn.recvLock.Unlock()
+					case <-sub.Err():
+						sub.Unsubscribe()
+					}
+				}
+			}()
+		}
 	}
 	return mbn.feed
 }
@@ -392,4 +426,25 @@ func (s *ChainService) ChainHeads() ([][32]byte, []types.Slot) {
 			bytesutil.ToBytes32(bytesutil.PadTo([]byte("bar"), 32)),
 		},
 		[]types.Slot{0, 1}
+}
+
+// Vanguard: UnConfirmedBlocksFromCache mocks UnConfirmedBlocksFromCache method and send it nil
+func (s *ChainService) SortedUnConfirmedBlocksFromCache() ([]interfaces.BeaconBlock, error) {
+	return nil, nil
+}
+
+func (s *ChainService) ActivateOrcVerification() {
+	return
+}
+
+func (s *ChainService) CanPropose() error {
+	return nil
+}
+
+func (s *ChainService) DeactivateOrcVerification() {
+	return
+}
+
+func (s *ChainService) OrcVerification() bool {
+	return true
 }

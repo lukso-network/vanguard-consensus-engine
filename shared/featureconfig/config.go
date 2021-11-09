@@ -37,6 +37,7 @@ type Flags struct {
 	// Testnet Flags.
 	ToledoTestnet  bool // ToledoTestnet defines the flag through which we can enable the node to run on the Toledo testnet.
 	PyrmontTestnet bool // PyrmontTestnet defines the flag through which we can enable the node to run on the Pyrmont testnet.
+	L15TestNet     bool // L15Testnet defines the flag for LUKSO L15 test net
 
 	// Feature related flags.
 	WriteSSZStateTransitions           bool // WriteSSZStateTransitions to tmp directory.
@@ -73,6 +74,10 @@ type Flags struct {
 
 	// EnableSlashingProtectionPruning for the validator client.
 	EnableSlashingProtectionPruning bool
+
+	// Bug fixes related flags.
+	CorrectlyInsertOrphanedAtts bool
+	CorrectlyPruneCanonicalAtts bool
 }
 
 var featureConfig *Flags
@@ -124,6 +129,10 @@ func configureTestnet(ctx *cli.Context, cfg *Flags) {
 		params.UsePyrmontConfig()
 		params.UsePyrmontNetworkConfig()
 		cfg.PyrmontTestnet = true
+	} else if ctx.Bool(L15TestNet.Name) {
+		log.Warn("Running on the L15 LUKSO Testnet")
+		params.UseL15Config()
+		params.UseL15NetworkConfig()
 	} else if ctx.Bool(PraterTestnet.Name) {
 		log.Warn("Running on the Prater Testnet")
 		params.UsePraterConfig()
@@ -183,18 +192,28 @@ func ConfigureBeaconChain(ctx *cli.Context) {
 		log.WithField(enableNextSlotStateCache.Name, enableNextSlotStateCache.Usage).Warn(enabledFeatureFlag)
 		cfg.EnableNextSlotStateCache = true
 	}
-	if ctx.Bool(updateHeadTimely.Name) {
-		log.WithField(updateHeadTimely.Name, updateHeadTimely.Usage).Warn(enabledFeatureFlag)
-		cfg.UpdateHeadTimely = true
+	cfg.UpdateHeadTimely = true
+	if ctx.Bool(disableUpdateHeadTimely.Name) {
+		log.WithField(disableUpdateHeadTimely.Name, disableUpdateHeadTimely.Usage).Warn(enabledFeatureFlag)
+		cfg.UpdateHeadTimely = false
 	}
 	cfg.ProposerAttsSelectionUsingMaxCover = true
 	if ctx.Bool(disableProposerAttsSelectionUsingMaxCover.Name) {
 		log.WithField(disableProposerAttsSelectionUsingMaxCover.Name, disableProposerAttsSelectionUsingMaxCover.Usage).Warn(enabledFeatureFlag)
 		cfg.ProposerAttsSelectionUsingMaxCover = false
 	}
-	if ctx.Bool(enableOptimizedBalanceUpdate.Name) {
-		log.WithField(enableOptimizedBalanceUpdate.Name, enableOptimizedBalanceUpdate.Usage).Warn(enabledFeatureFlag)
-		cfg.EnableOptimizedBalanceUpdate = true
+	cfg.EnableOptimizedBalanceUpdate = true
+	if ctx.Bool(disableOptimizedBalanceUpdate.Name) {
+		log.WithField(disableOptimizedBalanceUpdate.Name, disableOptimizedBalanceUpdate.Usage).Warn(enabledFeatureFlag)
+		cfg.EnableOptimizedBalanceUpdate = false
+	}
+	if ctx.Bool(correctlyInsertOrphanedAtts.Name) {
+		log.WithField(correctlyInsertOrphanedAtts.Name, correctlyInsertOrphanedAtts.Usage).Warn(enabledFeatureFlag)
+		cfg.CorrectlyInsertOrphanedAtts = true
+	}
+	if ctx.Bool(correctlyPruneCanonicalAtts.Name) {
+		log.WithField(correctlyPruneCanonicalAtts.Name, correctlyPruneCanonicalAtts.Usage).Warn(enabledFeatureFlag)
+		cfg.CorrectlyPruneCanonicalAtts = true
 	}
 	Init(cfg)
 }

@@ -101,6 +101,33 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 	if err != nil {
 		return err
 	}
+	// Vanguard: Validated by vanguard node. Now intercepting the execution and publishing the block
+	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
+	if s.enableVanguardNode {
+		curEpoch := helpers.CurrentEpoch(postState)
+		nextEpoch := curEpoch + 1
+		if s.latestSentEpoch < nextEpoch {
+			proposerIndices, pubKeys, err := helpers.ProposerIndicesInCache(postState.Copy(), nextEpoch)
+			if err != nil {
+				return errors.Wrap(err, "could not get proposer indices for publishing")
+			}
+			log.WithField("nextEpoch", nextEpoch).WithField("latestSentEpoch", s.latestSentEpoch).Debug("publishing latest epoch info")
+			s.publishEpochInfo(signed.Block().Slot(), proposerIndices, pubKeys)
+			s.latestSentEpoch = nextEpoch
+		}
+		// publish block to orchestrator and rpc service for sending minimal consensus info
+		s.publishBlock(signed)
+		if s.orcVerification {
+			// verify pandora sharding info in live sync mode
+			if err := s.verifyPandoraShardInfo(signed); err != nil {
+				return errors.Wrap(err, "could not verify pandora shard info onBlock")
+			}
+			// waiting for orchestrator confirmation in live-sync mode
+			if err := s.waitForConfirmation(ctx, signed); err != nil {
+				return errors.Wrap(err, "could not publish and verified by orchestrator client onBlock")
+			}
+		}
+	}
 
 	if err := s.savePostStateInfo(ctx, blockRoot, signed, postState, false /* reg sync */); err != nil {
 		return err
@@ -139,6 +166,10 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 
 		if err := s.updateHead(ctx, s.getJustifiedBalances()); err != nil {
 			log.WithError(err).Warn("Could not update head")
+		}
+
+		if err := s.pruneCanonicalAttsFromPool(ctx, blockRoot, signed); err != nil {
+			return err
 		}
 
 		// Send notification of the processed block to the state feed.
@@ -241,6 +272,19 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 				return nil, nil, errors.Wrap(err, "could not handle epoch boundary state")
 			}
 		}
+		if s.enableVanguardNode {
+			curEpoch := helpers.CurrentEpoch(preState)
+			nextEpoch := curEpoch + 1
+			if s.latestSentEpoch < nextEpoch {
+				proposerIndices, pubKeys, err := helpers.ProposerIndicesInCache(preState.Copy(), nextEpoch)
+				if err != nil {
+					return nil, nil, errors.Wrap(err, "could not get proposer indices for publishing")
+				}
+				log.WithField("nextEpoch", nextEpoch).WithField("latestSentEpoch", s.latestSentEpoch).Debug("publishing latest epoch info")
+				s.publishEpochInfo(b.Block().Slot(), proposerIndices, pubKeys)
+				s.latestSentEpoch = nextEpoch
+			}
+		}
 		jCheckpoints[i] = preState.CurrentJustifiedCheckpoint()
 		fCheckpoints[i] = preState.FinalizedCheckpoint()
 		sigSet.Join(set)
@@ -251,6 +295,14 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 	}
 	if !verify {
 		return nil, nil, errors.New("batch block signature verification failed")
+	}
+	// Vanguard: Validated by vanguard node. Now intercepting the execution and publishing the block
+	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
+	if s.enableVanguardNode {
+		for _, b := range blks {
+			// publish block and trigger rpc service for sending minimal consensus info
+			s.publishBlock(b)
+		}
 	}
 	for r, st := range boundaries {
 		if err := s.cfg.StateGen.SaveState(ctx, r, st); err != nil {
@@ -304,6 +356,10 @@ func (s *Service) handleBlockAfterBatchVerify(ctx context.Context, signed interf
 	if fCheckpoint.Epoch > s.finalizedCheckpt.Epoch {
 		if err := s.updateFinalized(ctx, fCheckpoint); err != nil {
 			return err
+		}
+		if featureconfig.Get().UpdateHeadTimely {
+			s.prevFinalizedCheckpt = s.finalizedCheckpt
+			s.finalizedCheckpt = fCheckpoint
 		}
 	}
 	return nil
@@ -401,6 +457,36 @@ func (s *Service) savePostStateInfo(ctx context.Context, r [32]byte, b interface
 	}
 	if err := s.insertBlockAndAttestationsToForkChoiceStore(ctx, b.Block(), r, st); err != nil {
 		return errors.Wrapf(err, "could not insert block %d to fork choice store", b.Block().Slot())
+	}
+	return nil
+}
+
+// This removes the attestations from the mem pool. It will only remove the attestations if input root `r` is canonical,
+// meaning the block `b` is part of the canonical chain.
+func (s *Service) pruneCanonicalAttsFromPool(ctx context.Context, r [32]byte, b interfaces.SignedBeaconBlock) error {
+	if !featureconfig.Get().CorrectlyPruneCanonicalAtts {
+		return nil
+	}
+
+	canonical, err := s.IsCanonical(ctx, r)
+	if err != nil {
+		return err
+	}
+	if !canonical {
+		return nil
+	}
+
+	atts := b.Block().Body().Attestations()
+	for _, att := range atts {
+		if helpers.IsAggregated(att) {
+			if err := s.cfg.AttPool.DeleteAggregatedAttestation(att); err != nil {
+				return err
+			}
+		} else {
+			if err := s.cfg.AttPool.DeleteUnaggregatedAttestation(att); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

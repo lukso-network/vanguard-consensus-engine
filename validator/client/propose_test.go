@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"github.com/prysmaticlabs/prysm/shared/van_mock"
 	"strings"
 	"testing"
 	"time"
@@ -28,9 +29,11 @@ import (
 )
 
 type mocks struct {
-	validatorClient *mock.MockBeaconNodeValidatorClient
-	nodeClient      *mock.MockNodeClient
-	signExitFunc    func(context.Context, *validatorpb.SignRequest) (bls.Signature, error)
+	validatorClient   *mock.MockBeaconNodeValidatorClient
+	nodeClient        *mock.MockNodeClient
+	signExitFunc      func(context.Context, *validatorpb.SignRequest) (bls.Signature, error)
+	pandoraService    *van_mock.MockPandoraService
+	beaconChainClient *mock.MockBeaconChainClient
 }
 
 type mockSignature struct{}
@@ -67,6 +70,8 @@ func setup(t *testing.T) (*validator, *mocks, bls.SecretKey, func()) {
 		signExitFunc: func(ctx context.Context, req *validatorpb.SignRequest) (bls.Signature, error) {
 			return mockSignature{}, nil
 		},
+		pandoraService:    van_mock.NewMockPandoraService(ctrl),
+		beaconChainClient: mock.NewMockBeaconChainClient(ctrl),
 	}
 
 	aggregatedSlotCommitteeIDCache, err := lru.New(int(params.BeaconConfig().MaxCommitteesPerSlot))
@@ -84,6 +89,8 @@ func setup(t *testing.T) (*validator, *mocks, bls.SecretKey, func()) {
 		graffiti:                       []byte{},
 		attLogs:                        make(map[[32]byte]*attSubmitted),
 		aggregatedSlotCommitteeIDCache: aggregatedSlotCommitteeIDCache,
+		pandoraService:                 m.pandoraService,
+		beaconClient:                   m.beaconChainClient,
 	}
 
 	return validator, m, validatorKey, ctrl.Finish
@@ -660,10 +667,9 @@ func TestSignBlock(t *testing.T) {
 	validator.keyManager = km
 	sig, domain, err := validator.signBlock(ctx, pubKey, 0, blk.Block)
 	require.NoError(t, err, "%x,%x,%v", sig, domain.SignatureDomain, err)
-	require.Equal(t, "a049e1dc723e5a8b5bd14f292973572dffd53785ddb337"+
-		"82f20bf762cbe10ee7b9b4f5ae1ad6ff2089d352403750bed402b94b58469c072536"+
-		"faa9a09a88beaff697404ca028b1c7052b0de37dbcff985dfa500459783370312bdd"+
-		"36d6e0f224", hex.EncodeToString(sig))
+	require.Equal(t, "af4b511de7aeb91114224bd58adb85aa9b5acc317dab7d3a"+
+		"ac4318ec124ade49694357c8f46d7dcdcc373afb5c1d702f196f64e0c6b36195268b72811d"+
+		"8c765edfe03caa37fee735d3e88d8c51afaa8451a48afb8384754bd3bc99e6d0ade914", hex.EncodeToString(sig))
 	// proposer domain
 	require.DeepEqual(t, proposerDomain, domain.SignatureDomain)
 }

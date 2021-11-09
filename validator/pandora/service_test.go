@@ -2,6 +2,7 @@ package pandora
 
 import (
 	"context"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
 	logTest "github.com/sirupsen/logrus/hooks/test"
 	"reflect"
@@ -69,7 +70,8 @@ func TestService_GetShardBlockHeader_Success(t *testing.T) {
 	pandoraService.connected = true
 	pandoraService.isRunning = true
 
-	actualHeader, actualHash, actualExtraData, err := pandoraService.GetShardBlockHeader(context.Background())
+	actualHeader, actualHash, actualExtraData, err := pandoraService.GetShardBlockHeader(context.Background(),
+		types.EmptyRootHash, 1000, 31, 0)
 	require.NoError(t, err, "Should not get error when calling GetWork method")
 
 	expectedExtraData, _, err := getDummyEncodedExtraData()

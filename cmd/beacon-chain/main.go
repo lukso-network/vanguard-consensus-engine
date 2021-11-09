@@ -111,6 +111,8 @@ var appFlags = []cli.Flag{
 	cmd.RestoreSourceFileFlag,
 	cmd.RestoreTargetDirFlag,
 	cmd.BoltMMapInitialSizeFlag,
+	cmd.VanguardNetwork,
+	flags.OrcRpcProviderFlag,
 }
 
 func init() {

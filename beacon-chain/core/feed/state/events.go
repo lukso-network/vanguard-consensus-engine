@@ -26,6 +26,8 @@ const (
 	FinalizedCheckpoint
 	// NewHead of the chain event.
 	NewHead
+	// BlockVerified is sent when new block is validated by orchestrator
+	EpochInfo
 )
 
 // BlockProcessedData is the data sent with BlockProcessed events.
@@ -58,4 +60,13 @@ type InitializedData struct {
 	StartTime time.Time
 	// GenesisValidatorsRoot represents state.validators.HashTreeRoot().
 	GenesisValidatorsRoot []byte
+}
+
+// BlockPreVerifiedData is the data sent for orchestrator minimal consensus info
+type EpochInfoData struct {
+	// Slot is the slot of the processed block.
+	Slot types.Slot
+	//ProposerIndices of the current epoch
+	ProposerIndices []types.ValidatorIndex
+	PublicKeys      map[types.ValidatorIndex][48]byte
 }

@@ -1,4 +1,4 @@
-// Package rpc defines a gRPC server implementing the Ethereum consensus API as needed
+// Package rpc defines a gRPC server implementing the eth2 API as needed
 // by validator clients and consumers of chain data.
 package rpc
 
@@ -66,6 +66,11 @@ type Service struct {
 	credentialError      error
 	connectedRPCClients  map[net.Addr]bool
 	clientConnectionLock sync.Mutex
+
+	// Vanguard: vanguard chain related attributes
+	enableVanguardNode      bool
+	unconfirmedBlockFetcher blockchain.PendingBlocksFetcher
+	pendingQueueFetcher     blockchain.PendingQueueFetcher
 }
 
 // Config options for the beacon node RPC server.
@@ -90,6 +95,7 @@ type Config struct {
 	GenesisFetcher          blockchain.GenesisFetcher
 	EnableDebugRPCEndpoints bool
 	MockEth1Votes           bool
+	EnableVanguardNode      bool // vanguard: vanguard chain enable flag
 	AttestationsPool        attestations.Pool
 	ExitPool                voluntaryexits.PoolManager
 	SlashingsPool           slashings.PoolManager
@@ -105,6 +111,10 @@ type Config struct {
 	OperationNotifier       opfeed.Notifier
 	StateGen                *stategen.State
 	MaxMsgSize              int
+
+	// Vanguard un-confirmed cached block fetcher
+	UnconfirmedBlockFetcher blockchain.PendingBlocksFetcher
+	PendingQueueFetcher     blockchain.PendingQueueFetcher
 }
 
 // NewService instantiates a new RPC service instance that will
@@ -118,6 +128,11 @@ func NewService(ctx context.Context, cfg *Config) *Service {
 		canonicalStateChan:  make(chan *pbp2p.BeaconState, params.BeaconConfig().DefaultBufferSize),
 		incomingAttestation: make(chan *ethpbv1alpha1.Attestation, params.BeaconConfig().DefaultBufferSize),
 		connectedRPCClients: make(map[net.Addr]bool),
+
+		// Vanguard: un-confirmed cached block fetcher
+		enableVanguardNode:      cfg.EnableVanguardNode,
+		unconfirmedBlockFetcher: cfg.UnconfirmedBlockFetcher,
+		pendingQueueFetcher:     cfg.PendingQueueFetcher,
 	}
 }
 
@@ -191,6 +206,10 @@ func (s *Service) Start() {
 		PendingDepositsFetcher: s.cfg.PendingDepositFetcher,
 		SlashingsPool:          s.cfg.SlashingsPool,
 		StateGen:               s.cfg.StateGen,
+
+		// vanguard: initiate pending queue fetcher
+		EnableVanguardNode:  s.enableVanguardNode,
+		PendingQueueFetcher: s.pendingQueueFetcher,
 	}
 	nodeServer := &nodev1alpha1.Server{
 		LogsStreamer:         logutil.NewStreamServer(),
@@ -237,6 +256,9 @@ func (s *Service) Start() {
 		SyncChecker:                 s.cfg.SyncService,
 		ReceivedAttestationsBuffer:  make(chan *ethpbv1alpha1.Attestation, attestationBufferSize),
 		CollectedAttestationsBuffer: make(chan []*ethpbv1alpha1.Attestation, attestationBufferSize),
+
+		// Vanguard: un-confirmed cached block fetcher
+		UnconfirmedBlockFetcher: s.unconfirmedBlockFetcher,
 	}
 	beaconChainServerV1 := &beacon.Server{
 		BeaconDB:           s.cfg.BeaconDB,

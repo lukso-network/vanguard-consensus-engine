@@ -30,6 +30,11 @@ const maxPeerRequest = 50
 const numOfTries = 5
 const maxBlocksPerSlot = 3
 
+var (
+	errPendingBlockTryLimitExceed = errors.New("maximum wait is exceeded and orchestrator can not verify the block")
+	errInvalidBlock               = errors.New("invalid block found in orchestrator")
+)
+
 // processes pending blocks queue on every processPendingBlocksPeriod
 func (s *Service) processPendingBlocksQueue() {
 	// Prevents multiple queue processing goroutines (invoked by RunEvery) from contending for data.
@@ -149,8 +154,15 @@ func (s *Service) processPendingBlocks(ctx context.Context) error {
 			}
 
 			if err := s.cfg.Chain.ReceiveBlock(ctx, b, blkRoot); err != nil {
-				log.Debugf("Could not process block from slot %d: %v", b.Block().Slot(), err)
-				s.setBadBlock(ctx, blkRoot)
+				switch {
+				case errors.Is(err, errPendingBlockTryLimitExceed):
+					log.WithError(err).Debug("Block is not processed")
+				case errors.Is(err, errInvalidBlock):
+					log.WithError(err).Debug("Block is not processed")
+				default:
+					log.Debugf("Could not process block from slot %d: %v", b.Block().Slot(), err)
+					s.setBadBlock(ctx, blkRoot)
+				}
 				traceutil.AnnotateError(span, err)
 				// In the next iteration of the queue, this block will be removed from
 				// the pending queue as it has been marked as a 'bad' block.
@@ -307,9 +319,14 @@ func (s *Service) deleteBlockFromPendingQueue(slot types.Slot, b interfaces.Sign
 		return nil
 	}
 
+	// Defensive check to ignore nil blocks
+	if err := helpers.VerifyNilBeaconBlock(b); err != nil {
+		return err
+	}
+
 	newBlks := make([]interfaces.SignedBeaconBlock, 0, len(blks))
 	for _, blk := range blks {
-		if sszutil.DeepEqual(blk, b) {
+		if sszutil.DeepEqual(blk.Proto(), b.Proto()) {
 			continue
 		}
 		newBlks = append(newBlks, blk)

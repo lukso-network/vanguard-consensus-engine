@@ -30,6 +30,7 @@ var _ shared.Service = (*Service)(nil)
 type blockchainService interface {
 	blockchain.BlockReceiver
 	blockchain.ChainInfoFetcher
+	blockchain.PendingQueueFetcher
 }
 
 // Config to set up the initial sync service.
@@ -39,6 +40,8 @@ type Config struct {
 	Chain         blockchainService
 	StateNotifier statefeed.Notifier
 	BlockNotifier blockfeed.Notifier
+	// Vanguard: vanguard chain related attributes
+	EnableVanguardNode bool
 }
 
 // Service service.
@@ -101,6 +104,11 @@ func (s *Service) Start() {
 		s.markSynced(genesis)
 		return
 	}
+	// Vanguard: Deactivating verification from orchestrator client
+	if s.cfg.EnableVanguardNode {
+		log.Info("Deactivating orchestrator verification in initial sync mode")
+		s.cfg.Chain.DeactivateOrcVerification()
+	}
 	s.waitForMinimumPeers()
 	if err := s.roundRobinSync(genesis); err != nil {
 		if errors.Is(s.ctx.Err(), context.Canceled) {
@@ -153,6 +161,12 @@ func (s *Service) Resync() error {
 	s.synced.UnSet()
 	defer func() { s.synced.Set() }() // Reset it at the end of the method.
 	genesis := time.Unix(int64(headState.GenesisTime()), 0)
+
+	// Vanguard: Deactivating verification from orchestrator client
+	if s.cfg.EnableVanguardNode {
+		log.Info("Deactivating orchestrator verification in re-sync mode")
+		s.cfg.Chain.DeactivateOrcVerification()
+	}
 
 	s.waitForMinimumPeers()
 	if err = s.roundRobinSync(genesis); err != nil {

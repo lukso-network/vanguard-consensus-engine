@@ -29,6 +29,7 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/operations/attestations"
 	"github.com/prysmaticlabs/prysm/beacon-chain/operations/slashings"
 	"github.com/prysmaticlabs/prysm/beacon-chain/operations/voluntaryexits"
+	"github.com/prysmaticlabs/prysm/beacon-chain/orchestrator"
 	"github.com/prysmaticlabs/prysm/beacon-chain/p2p"
 	"github.com/prysmaticlabs/prysm/beacon-chain/powchain"
 	"github.com/prysmaticlabs/prysm/beacon-chain/rpc"
@@ -417,6 +418,20 @@ func (b *BeaconNode) registerBlockchainService() error {
 		return err
 	}
 
+	var orcClient *orchestrator.RPCClient
+	if b.cliCtx.Bool(cmd.VanguardNetwork.Name) {
+		endpoint := b.cliCtx.String(flags.OrcRpcProviderFlag.Name)
+		if endpoint == "" {
+			log.Error("No orchestrator node specified to run with the vanguard node. Please consider running your own orchestrator node for final consensus.")
+		}
+
+		orcClient, err = orchestrator.Dial(endpoint)
+		if err != nil {
+			log.WithError(err).Error("Failed to create orchestrator rpc client")
+			return err
+		}
+	}
+
 	maxRoutines := b.cliCtx.Int(cmd.MaxGoroutines.Name)
 	blockchainService, err := blockchain.NewService(b.ctx, &blockchain.Config{
 		BeaconDB:                b.db,
@@ -428,10 +443,15 @@ func (b *BeaconNode) registerBlockchainService() error {
 		P2p:                     b.fetchP2P(),
 		MaxRoutines:             maxRoutines,
 		StateNotifier:           b,
+		BlockNotifier:           b,
 		ForkChoiceStore:         b.forkChoiceStore,
 		AttService:              attService,
 		StateGen:                b.stateGen,
 		WeakSubjectivityCheckpt: wsCheckpt,
+
+		// vanguard: EnableVanguardNode and OrcRPCClient is used for vanguard chain
+		EnableVanguardNode: b.cliCtx.Bool(cmd.VanguardNetwork.Name),
+		OrcRPCClient:       orcClient,
 	})
 	if err != nil {
 		return errors.Wrap(err, "could not register blockchain service")
@@ -463,8 +483,8 @@ func (b *BeaconNode) registerPOWChainService() error {
 		StateGen:               b.stateGen,
 		Eth1HeaderReqLimit:     b.cliCtx.Uint64(flags.Eth1HeaderReqLimit.Name),
 		BeaconNodeStatsUpdater: bs,
+		EnableVanguardNode:     b.cliCtx.Bool(cmd.VanguardNetwork.Name),
 	}
-
 	web3Service, err := powchain.NewService(b.ctx, cfg)
 	if err != nil {
 		return errors.Wrap(err, "could not register proof-of-work chain web3Service")
@@ -513,11 +533,12 @@ func (b *BeaconNode) registerInitialSyncService() error {
 	}
 
 	is := initialsync.NewService(b.ctx, &initialsync.Config{
-		DB:            b.db,
-		Chain:         chainService,
-		P2P:           b.fetchP2P(),
-		StateNotifier: b,
-		BlockNotifier: b,
+		DB:                 b.db,
+		Chain:              chainService,
+		P2P:                b.fetchP2P(),
+		StateNotifier:      b,
+		BlockNotifier:      b,
+		EnableVanguardNode: b.cliCtx.Bool(cmd.VanguardNetwork.Name),
 	})
 	return b.services.RegisterService(is)
 }
@@ -600,6 +621,11 @@ func (b *BeaconNode) registerRPCService() error {
 		StateGen:                b.stateGen,
 		EnableDebugRPCEndpoints: enableDebugRPCEndpoints,
 		MaxMsgSize:              maxMsgSize,
+
+		// vanguard: EnableVanguardNode and UnconfirmedBlockFetcher is used for vanguard chain
+		EnableVanguardNode:      b.cliCtx.Bool(cmd.VanguardNetwork.Name),
+		UnconfirmedBlockFetcher: chainService,
+		PendingQueueFetcher:     chainService,
 	})
 
 	return b.services.RegisterService(rpcService)

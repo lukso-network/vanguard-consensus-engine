@@ -109,6 +109,7 @@ func CopyBeaconBlockBody(body *ethpb.BeaconBlockBody) *ethpb.BeaconBlockBody {
 		Attestations:      CopyAttestations(body.Attestations),
 		Deposits:          CopyDeposits(body.Deposits),
 		VoluntaryExits:    CopySignedVoluntaryExits(body.VoluntaryExits),
+		PandoraShard:      CopyPandoraShard(body.PandoraShard),
 	}
 }
 
@@ -298,4 +299,25 @@ func CopySyncCommitteeContribution(c *prysmv2.SyncCommitteeContribution) *prysmv
 		AggregationBits:   bytesutil.SafeCopyBytes(c.AggregationBits),
 		Signature:         bytesutil.SafeCopyBytes(c.Signature),
 	}
+}
+
+// CopyPandoraShard copies PandoraShard
+func CopyPandoraShard(pShards []*ethpb.PandoraShard) []*ethpb.PandoraShard {
+	if len(pShards) == 0 {
+		return nil
+	}
+	pandoraShards := make([]*ethpb.PandoraShard, 1)
+	ps := pShards[0]
+	pandoraShard := &ethpb.PandoraShard{
+		BlockNumber: ps.BlockNumber,
+		Hash:        ps.Hash,
+		ParentHash:  ps.ParentHash,
+		StateRoot:   ps.StateRoot,
+		TxHash:      ps.TxHash,
+		ReceiptHash: ps.ReceiptHash,
+		SealHash:    ps.SealHash,
+		Signature:   ps.Signature,
+	}
+	pandoraShards[0] = pandoraShard
+	return pandoraShards
 }

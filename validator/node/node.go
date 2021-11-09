@@ -14,6 +14,7 @@ import (
 	"sync"
 	"syscall"
 
+	gethRpc "github.com/ethereum/go-ethereum/rpc"
 	gwruntime "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/pkg/errors"
 	"github.com/prysmaticlabs/prysm/cmd/validator/flags"
@@ -38,6 +39,7 @@ import (
 	g "github.com/prysmaticlabs/prysm/validator/graffiti"
 	"github.com/prysmaticlabs/prysm/validator/keymanager"
 	"github.com/prysmaticlabs/prysm/validator/keymanager/imported"
+	"github.com/prysmaticlabs/prysm/validator/pandora"
 	"github.com/prysmaticlabs/prysm/validator/rpc"
 	slashingprotection "github.com/prysmaticlabs/prysm/validator/slashing-protection"
 	"github.com/prysmaticlabs/prysm/validator/slashing-protection/iface"
@@ -252,6 +254,11 @@ func (c *ValidatorClient) initializeFromCLI(cliCtx *cli.Context) error {
 			return err
 		}
 	}
+
+	if err := c.registerPandoraService(cliCtx); err != nil {
+		return err
+	}
+
 	if err := c.registerValidatorService(keyManager); err != nil {
 		return err
 	}
@@ -341,6 +348,9 @@ func (c *ValidatorClient) initializeForWeb(cliCtx *cli.Context) error {
 			return err
 		}
 	}
+	if err := c.registerPandoraService(cliCtx); err != nil {
+		return err
+	}
 	if err := c.registerValidatorService(keyManager); err != nil {
 		return err
 	}
@@ -406,7 +416,11 @@ func (c *ValidatorClient) registerValidatorService(
 			log.WithError(err).Warn("Could not parse graffiti file")
 		}
 	}
-
+	// Vanguard: pandora chain service is needed for vanguard chain
+	var pandoraService *pandora.Service
+	if err := c.services.FetchService(&pandoraService); err != nil {
+		return err
+	}
 	v, err := client.NewValidatorService(c.cliCtx.Context, &client.Config{
 		Endpoint:                   endpoint,
 		DataDir:                    dataDir,
@@ -425,6 +439,9 @@ func (c *ValidatorClient) registerValidatorService(
 		WalletInitializedFeed:      c.walletInitialized,
 		GraffitiStruct:             gStruct,
 		LogDutyCountDown:           c.cliCtx.Bool(flags.EnableDutyCountDown.Name),
+		// Vanguard: pandora service and vanguard node flag are needed for vanguard chain
+		PandoraService:     pandoraService,
+		EnableVanguardNode: c.cliCtx.Bool(cmd.VanguardNetwork.Name),
 	})
 	if err != nil {
 		return errors.Wrap(err, "could not initialize validator service")
@@ -563,6 +580,41 @@ func (c *ValidatorClient) registerRPCGatewayService(cliCtx *cli.Context) error {
 	).WithAllowedOrigins(allowedOrigins).WithMaxCallRecvMsgSize(maxCallSize)
 
 	return c.services.RegisterService(gw)
+}
+
+func (c *ValidatorClient) registerPandoraService(cliCtx *cli.Context) error {
+	var endpoint string
+	if cliCtx.String(pandora.PandoraRpcIpcProviderFlag.Name) != "" {
+		log.WithField("ipcPath", cliCtx.String(pandora.PandoraRpcIpcProviderFlag.Name)).Info("Pandora ipc file path")
+		ipcFilePath := cliCtx.String(pandora.PandoraRpcIpcProviderFlag.Name)
+		absFilePath, err := fileutil.ExpandPath(ipcFilePath)
+		if err != nil {
+			return errors.Wrap(err, "invalid ipc path")
+		}
+		if !fileutil.FileExists(absFilePath) {
+			return errors.New("File for IPC socket/pipe of pandora client does not exists")
+		}
+		endpoint = absFilePath
+	}
+	if endpoint == "" && cliCtx.String(pandora.PandoraRpcHttpProviderFlag.Name) != "" {
+		log.WithField("httpEndpoint", cliCtx.String(pandora.PandoraRpcHttpProviderFlag.Name)).Info("Pandora http endpoint")
+		endpoint = cliCtx.String(pandora.PandoraRpcHttpProviderFlag.Name)
+	}
+
+	dialRPCFn := func(endpoint string) (*pandora.PandoraClient, error) {
+		rpcClient, err := gethRpc.Dial(endpoint)
+		if err != nil {
+			return nil, errors.Wrap(err, "could not dial node")
+		}
+		pandoraClient := pandora.NewClient(rpcClient)
+		return pandoraClient, nil
+	}
+
+	pandoraService, err := pandora.NewService(c.ctx, endpoint, dialRPCFn)
+	if err != nil {
+		return err
+	}
+	return c.services.RegisterService(pandoraService)
 }
 
 func setWalletPasswordFilePath(cliCtx *cli.Context) error {

@@ -22,6 +22,10 @@ var (
 		Name:  "prater",
 		Usage: "Run Prysm configured for the Prater test network",
 	}
+	L15TestNet = &cli.BoolFlag{
+		Name:  "l15",
+		Usage: "Run Vanguard configured for the L15 LUKSO test network",
+	}
 	// Mainnet flag for easier tooling, no-op
 	Mainnet = &cli.BoolFlag{
 		Value: true,
@@ -106,9 +110,9 @@ var (
 		Name:  "enable-next-slot-state-cache",
 		Usage: "Improves attesting and proposing efficiency by caching the next slot state at the end of the current slot",
 	}
-	updateHeadTimely = &cli.BoolFlag{
-		Name:  "update-head-timely",
-		Usage: "Improves update head time by updating head right after state transition",
+	disableUpdateHeadTimely = &cli.BoolFlag{
+		Name:  "disable-update-head-timely",
+		Usage: "Disables updating head right after state transition",
 	}
 	disableProposerAttsSelectionUsingMaxCover = &cli.BoolFlag{
 		Name:  "disable-proposer-atts-selection-using-max-cover",
@@ -118,15 +122,25 @@ var (
 		Name:  "enable-slashing-protection-pruning",
 		Usage: "Enables the pruning of the validator client's slashing protectin database",
 	}
-	enableOptimizedBalanceUpdate = &cli.BoolFlag{
-		Name:  "enable-optimized-balance-update",
-		Usage: "Enables the optimized method of updating validator balances.",
+	disableOptimizedBalanceUpdate = &cli.BoolFlag{
+		Name:  "disable-optimized-balance-update",
+		Usage: "Disable the optimized method of updating validator balances.",
 	}
 	enableDoppelGangerProtection = &cli.BoolFlag{
 		Name: "enable-doppelganger",
 		Usage: "Enables the validator to perform a doppelganger check. (Warning): This is not " +
 			"a foolproof method to find duplicate instances in the network. Your validator will still be" +
 			" vulnerable if it is being run in unsafe configurations.",
+	}
+	correctlyInsertOrphanedAtts = &cli.BoolFlag{
+		Name: "correctly-insert-orphaned-atts",
+		Usage: "This fixes a bug where orphaned attestations don't get reinserted back to mem pool. This improves validator profitability and overall network health," +
+			"see issue #9441 for further detail",
+	}
+	correctlyPruneCanonicalAtts = &cli.BoolFlag{
+		Name: "correctly-prune-canonical-atts",
+		Usage: "This fixes a bug where any block attestations can get incorrectly pruned. This improves validator profitability and overall network health," +
+			"see issue #9443 for further detail",
 	}
 )
 
@@ -135,8 +149,8 @@ var devModeFlags = []cli.Flag{
 	enableLargerGossipHistory,
 	enableNextSlotStateCache,
 	forceOptMaxCoverAggregationStategy,
-	updateHeadTimely,
-	enableOptimizedBalanceUpdate,
+	correctlyInsertOrphanedAtts,
+	correctlyPruneCanonicalAtts,
 }
 
 // ValidatorFlags contains a list of all the feature flags that apply to the validator client.
@@ -147,6 +161,7 @@ var ValidatorFlags = append(deprecatedFlags, []cli.Flag{
 	ToledoTestnet,
 	PyrmontTestnet,
 	PraterTestnet,
+	L15TestNet,
 	Mainnet,
 	disableAccountsV2,
 	dynamicKeyReloadDebounceInterval,
@@ -161,6 +176,7 @@ var SlasherFlags = append(deprecatedFlags, []cli.Flag{
 	ToledoTestnet,
 	PyrmontTestnet,
 	PraterTestnet,
+	L15TestNet,
 	Mainnet,
 }...)
 
@@ -179,6 +195,7 @@ var BeaconChainFlags = append(deprecatedFlags, []cli.Flag{
 	ToledoTestnet,
 	PyrmontTestnet,
 	PraterTestnet,
+	L15TestNet,
 	Mainnet,
 	enablePeerScorer,
 	enableLargerGossipHistory,
@@ -186,9 +203,11 @@ var BeaconChainFlags = append(deprecatedFlags, []cli.Flag{
 	disableBroadcastSlashingFlag,
 	enableNextSlotStateCache,
 	forceOptMaxCoverAggregationStategy,
-	updateHeadTimely,
+	disableUpdateHeadTimely,
 	disableProposerAttsSelectionUsingMaxCover,
-	enableOptimizedBalanceUpdate,
+	disableOptimizedBalanceUpdate,
+	correctlyInsertOrphanedAtts,
+	correctlyPruneCanonicalAtts,
 }...)
 
 // E2EBeaconChainFlags contains a list of the beacon chain feature flags to be tested in E2E.
@@ -196,4 +215,6 @@ var E2EBeaconChainFlags = []string{
 	"--attestation-aggregation-strategy=opt_max_cover",
 	"--dev",
 	"--use-check-point-cache",
+	"--correctly-insert-orphaned-atts",
+	"--correctly-prune-canonical-atts",
 }

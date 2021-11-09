@@ -822,9 +822,9 @@ def prysm_deps():
         name = "com_github_ferranbt_fastssz",
         importpath = "github.com/ferranbt/fastssz",
         nofuzz = True,
-        replace = "github.com/rauljordan/fastssz",
-        sum = "h1:CoD/RaM9s8qfHA7jAqntW3jv+z9zPBXaxCaCByrKOmg=",
-        version = "v0.0.0-20210622230010-a131010e198f",
+        replace = "github.com/atif-konasl/fastssz",
+        sum = "h1:bqLPkPSiAU6Lje3EZZbR5A1leqXomgfjKpyq5vzBbEg=",
+        version = "v0.0.0-20210921140807-706ef3f49459",
     )
 
     go_repository(
@@ -1062,6 +1062,13 @@ def prysm_deps():
         importpath = "github.com/golang/groupcache",
         sum = "h1:1r7pUrabqp18hOBcwBwiTsbnFeTZHV9eER/QT5JVZxY=",
         version = "v0.0.0-20200121045136-8c9f03a8e57e",
+    )
+
+    go_repository(
+        name = "com_github_golang_jwt_jwt",
+        importpath = "github.com/golang-jwt/jwt",
+        sum = "h1:IfV12K8xAKAnZqdXVzCZ+TOjboZ2keLg81eXfW3O+oY=",
+        version = "v3.2.2+incompatible",
     )
     go_repository(
         name = "com_github_golang_lint",
@@ -2455,6 +2462,7 @@ def prysm_deps():
         sum = "h1:y5//uYreIhSUg3J1GEMiLbxo1LJaP8RfCpH6pymGZus=",
         version = "v0.0.0-20140419014527-cca7078d478f",
     )
+
     go_repository(
         name = "com_github_naoina_go_stringutil",
         importpath = "github.com/naoina/go-stringutil",
@@ -2505,6 +2513,7 @@ def prysm_deps():
         sum = "h1:AREM5mwr4u1ORQBMvzfzBgpsctsbQikCVpvC+tX285E=",
         version = "v0.0.0-20180912185939-ae427f1e4c1d",
     )
+
     go_repository(
         name = "com_github_nishanths_predeclared",
         importpath = "github.com/nishanths/predeclared",
@@ -2774,8 +2783,8 @@ def prysm_deps():
     go_repository(
         name = "com_github_prysmaticlabs_go_bitfield",
         importpath = "github.com/prysmaticlabs/go-bitfield",
-        sum = "h1:9rrmgQval2GOmtMAgGLdqcCEZLraNaN3k2mY+07cx64=",
-        version = "v0.0.0-20210706153858-5cb5ce8bdbfe",
+        sum = "h1:0tVE4tdWQK9ZpYygoV7+vS6QkDvQVySboMVEIxBJmXw=",
+        version = "v0.0.0-20210809151128-385d8c5e3fb7",
     )
     go_repository(
         name = "com_github_prysmaticlabs_prombbolt",
@@ -3037,8 +3046,8 @@ def prysm_deps():
     go_repository(
         name = "com_github_stackexchange_wmi",
         importpath = "github.com/StackExchange/wmi",
-        sum = "h1:5sXbqlSomvdjlRbWyNqkPsJ3Fg+tQZCbgeX1VGljbQY=",
-        version = "v0.0.0-20210224194228-fe8f1750fd46",
+        sum = "h1:fLjPD/aNc3UIOA6tDi6QXUemppXK3P9BI7mr2hd6gx8=",
+        version = "v0.0.0-20180116203802-5d049714c4a6",
     )
     go_repository(
         name = "com_github_status_im_keycard_go",
@@ -3091,8 +3100,8 @@ def prysm_deps():
     go_repository(
         name = "com_github_syndtr_goleveldb",
         importpath = "github.com/syndtr/goleveldb",
-        sum = "h1:xQdMZ1WLrgkkvOZ/LDQxjVxMLdby7osSh4ZEVa5sIjs=",
-        version = "v1.0.1-0.20210305035536-64b5b1c73954",
+        sum = "h1:Ld/zXl5t4+D69SiV4JoN7kkfvJdOWlPpfxrzxpLMoUk=",
+        version = "v1.0.1-0.20200815110645-5c35d600f0ca",
     )
 
     go_repository(
@@ -3922,22 +3931,4 @@ def prysm_deps():
         importpath = "gotest.tools",
         sum = "h1:VsBPFP1AI068pPrMxtb/S8Zkgf9xEmTLJjfM+P5UIEo=",
         version = "v2.2.0+incompatible",
-    )
-
-    # Note: It is required to define com_github_prysmaticlabs_prysm like this for some reason...
-    # Note: The keep directives help gazelle leave this alone.
-    go_repository(
-        name = "com_github_prysmaticlabs_prysm",
-        commit = "9ca9f8244a4fc1858d6914490bd2ffb188825a69",  # keep
-        importpath = "github.com/prysmaticlabs/prysm",  # keep
-        # Note: go-ethereum is not bazel-friendly with regards to cgo. We have a
-        # a fork that has resolved these issues by disabling HID/USB support and
-        # some manual fixes for c imports in the crypto package. This is forked
-        # branch should be updated from time to time with the latest go-ethereum
-        # code.
-        remote = "https://github.com/lukso-network/vanguard-consensus-engine",  # keep
-        replace = None,  # keep
-        sum = None,  # keep
-        vcs = "git",  # keep
-        version = None,  # keep
     )

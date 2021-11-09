@@ -1,4 +1,4 @@
-// Package helpers contains helper functions outlined in the Ethereum Beacon Chain spec, such as
+// Package helpers contains helper functions outlined in the eth2 beacon chain spec, such as
 // computing committees, randao, rewards/penalties, and more.
 package helpers
 
@@ -415,4 +415,43 @@ func precomputeProposerIndices(state iface.ReadOnlyBeaconState, activeIndices []
 	}
 
 	return proposerIndices, nil
+}
+
+// ProposerIndicesInCache returns a map of proposer validator indices to corresponding slots for the next epoch.
+// This method is especially implemented for Orchestrator.
+func ProposerIndicesInCache(state iface.BeaconState, epoch types.Epoch) ([]types.ValidatorIndex, map[types.ValidatorIndex][48]byte, error) {
+	nextEpoch := NextEpoch(state)
+	if epoch > nextEpoch {
+		return nil, nil, fmt.Errorf(
+			"epoch %d can't be greater than next epoch %d",
+			epoch,
+			nextEpoch,
+		)
+	}
+	startSlot, err := StartSlot(epoch)
+	if err != nil {
+		return nil, nil, err
+	}
+	proposerIndices := make([]types.ValidatorIndex, params.BeaconConfig().SlotsPerEpoch)
+	pubKeyList := make(map[types.ValidatorIndex][48]byte, params.BeaconConfig().SlotsPerEpoch)
+	i := 0
+	for slot := startSlot; slot < startSlot+params.BeaconConfig().SlotsPerEpoch; slot++ {
+		// Skip proposer assignment for genesis slot.
+		if slot == 0 {
+			i++
+			continue
+		}
+		if err := state.SetSlot(slot); err != nil {
+			return nil, nil, err
+		}
+		pi, err := BeaconProposerIndex(state)
+		if err != nil {
+			return nil, nil, errors.Wrapf(err, "could not get proposer index at slot %d", state.Slot())
+		}
+		pubKey := state.PubkeyAtIndex(pi)
+		proposerIndices[i] = pi
+		pubKeyList[pi] = pubKey
+		i++
+	}
+	return proposerIndices, pubKeyList, nil
 }
