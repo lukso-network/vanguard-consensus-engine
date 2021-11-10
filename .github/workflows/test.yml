@@ -19,11 +19,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Test beacon-chain client
-        run: |
-          bazel test //cmd/beacon-chain/... --sandbox_default_allow_network=true
-          bazel test //beacon-chain/... --sandbox_default_allow_network=true
+        run: bazel test //cmd/beacon-chain/...
 
       - name: Test validator client
-        run: |
-          bazel test //cmd/validator/... --sandbox_default_allow_network=true
-          bazel test //validator/... --sandbox_default_allow_network=true
+        run: bazel test //cmd/validator/...
