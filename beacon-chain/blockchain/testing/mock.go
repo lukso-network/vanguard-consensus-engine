@@ -428,11 +428,6 @@ func (s *ChainService) ChainHeads() ([][32]byte, []types.Slot) {
 		[]types.Slot{0, 1}
 }
 
-// Vanguard: UnConfirmedBlocksFromCache mocks UnConfirmedBlocksFromCache method and send it nil
-func (s *ChainService) SortedUnConfirmedBlocksFromCache() ([]interfaces.BeaconBlock, error) {
-	return nil, nil
-}
-
 func (s *ChainService) ActivateOrcVerification() {
 	return
 }
