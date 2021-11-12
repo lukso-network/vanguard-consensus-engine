@@ -1377,10 +1377,10 @@ func (mr *MockBeaconChain_StreamNewPendingBlocksClientMockRecorder) Header() *go
 }
 
 // Recv mocks base method
-func (m *MockBeaconChain_StreamNewPendingBlocksClient) Recv() (*eth.BeaconBlock, error) {
+func (m *MockBeaconChain_StreamNewPendingBlocksClient) Recv() (*eth.StreamPendingBlockInfo, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Recv")
-	ret0, _ := ret[0].(*eth.BeaconBlock)
+	ret0, _ := ret[0].(*eth.StreamPendingBlockInfo)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
