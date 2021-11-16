@@ -118,6 +118,7 @@ func (bs *Server) StreamMinimalConsensusInfo(
 				// TODO(Atif): Dummy reorg triggering from vanguard
 				if epochInfo.Epoch%10 == 0 {
 					log.WithField("epoch", epochInfo.Epoch).Debug("Triggering dummy reorg")
+					bs.PendingQueueFetcher.DeactivateOrcVerification()
 					epochInfo.ReorgInfo = &ethpb.Reorg{
 						VanParentHash: []byte{'V'},
 						PanParentHash: []byte{'P'},
