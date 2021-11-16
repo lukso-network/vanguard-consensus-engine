@@ -114,6 +114,17 @@ func (bs *Server) StreamMinimalConsensusInfo(
 				if err != nil {
 					return status.Errorf(codes.Internal, "Could not send over stream: %v", err)
 				}
+
+				// TODO(Atif): Dummy reorg triggering from vanguard
+				if epochInfo.Epoch%10 == 0 {
+					log.WithField("epoch", epochInfo.Epoch).Debug("Triggering dummy reorg")
+					epochInfo.ReorgInfo = &ethpb.Reorg{
+						VanParentHash: []byte{'V'},
+						PanParentHash: []byte{'P'},
+						NewSlot:       types.Slot(epochInfo.Epoch * 32),
+					}
+				}
+
 				if err := sender(nextEpoch, epochInfo); err != nil {
 					return err
 				}
