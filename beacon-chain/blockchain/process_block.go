@@ -117,7 +117,7 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 		}
 		// publish block to orchestrator and rpc service for sending minimal consensus info
 		s.publishBlock(signed)
-		if s.orcVerification {
+		if s.OrcVerification() {
 			// verify pandora sharding info in live sync mode
 			if err := s.verifyPandoraShardInfo(signed); err != nil {
 				return errors.Wrap(err, "could not verify pandora shard info onBlock")
