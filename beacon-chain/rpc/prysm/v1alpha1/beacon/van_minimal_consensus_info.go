@@ -119,33 +119,32 @@ func (bs *Server) StreamMinimalConsensusInfo(
 				if !bs.SyncChecker.Syncing() && epochInfo.Epoch%5 == 0 {
 					log.WithField("epoch", epochInfo.Epoch).Debug("Triggering dummy reorg")
 					slot := bs.HeadFetcher.HeadSlot().Sub(10)
-					hasBlock, blks, err := bs.BeaconDB.BlocksBySlot(bs.Ctx, slot)
-					if !hasBlock {
+					_, blks, err := bs.BeaconDB.BlocksBySlot(bs.Ctx, slot)
+					if err != nil {
 						log.WithError(err).Error("Failed to trigger dummy reorg")
-					} else {
-						for _, b := range blks {
-							if b.Block().Slot()%3 == 0 {
-								vanRoot, err := b.Block().HashTreeRoot()
-								if err != nil {
-									log.WithError(err).Error("Failed to trigger dummy reorg")
-								}
+					}
 
-								// Get the pandora shard header hash of parent vanguard block from DB
-								panShards := b.Block().Body().PandoraShards()
-								if len(panShards) == 0 {
-									log.WithError(err).Error("Failed to trigger dummy reorg. pandora sharding info nil")
-								}
-
-								panHeaderHash := panShards[0].Hash
-								bs.PendingQueueFetcher.DeactivateOrcVerification()
-								epochInfo.ReorgInfo = &ethpb.Reorg{
-									VanParentHash: vanRoot[:],
-									PanParentHash: panHeaderHash,
-									NewSlot:       b.Block().Slot(),
-								}
-								log.WithField("slot", b.Block().Slot()).Debug("Successfully triggered dummy reorg")
-							}
+					if len(blks) > 0 {
+						b := blks[0]
+						vanRoot, err := b.Block().HashTreeRoot()
+						if err != nil {
+							log.WithError(err).Error("Failed to trigger dummy reorg")
 						}
+
+						// Get the pandora shard header hash of parent vanguard block from DB
+						panShards := b.Block().Body().PandoraShards()
+						if len(panShards) == 0 {
+							log.WithError(err).Error("Failed to trigger dummy reorg. pandora sharding info nil")
+						}
+
+						panHeaderHash := panShards[0].Hash
+						bs.PendingQueueFetcher.DeactivateOrcVerification()
+						epochInfo.ReorgInfo = &ethpb.Reorg{
+							VanParentHash: vanRoot[:],
+							PanParentHash: panHeaderHash,
+							NewSlot:       b.Block().Slot(),
+						}
+						log.WithField("slot", b.Block().Slot()).Debug("Successfully triggered dummy reorg")
 					}
 				}
 
