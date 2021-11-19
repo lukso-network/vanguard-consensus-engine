@@ -45,6 +45,18 @@ func (bs *Server) StreamNewPendingBlocks(
 				if blk.Block().Slot() == 0 {
 					continue
 				}
+
+				blockRoot, err := blk.Block().HashTreeRoot()
+				if err != nil {
+					return status.Errorf(codes.Unavailable, "Could not send over of previous blocks stream: %v", err)
+				}
+
+				if canonical, err := bs.CanonicalFetcher.IsCanonical(bs.Ctx, blockRoot); err != nil || !canonical {
+					log.WithField("slot", i).WithField("isCanonical", canonical).
+						Debug("Block is not canonical so do not send it to orchestrator")
+					continue
+				}
+
 				unwrappedBlk, err := blk.PbPhase0Block()
 				if err != nil {
 					return status.Errorf(codes.Internal, "Could not send over of previous blocks stream: %v", err)
