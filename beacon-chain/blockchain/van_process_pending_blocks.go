@@ -9,6 +9,7 @@ import (
 	blockfeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/block"
 	statefeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/state"
 	"github.com/prysmaticlabs/prysm/proto/interfaces"
+	"github.com/prysmaticlabs/prysm/shared/bytesutil"
 	vanTypes "github.com/prysmaticlabs/prysm/shared/params"
 	"time"
 )
@@ -27,6 +28,7 @@ var (
 	errInvalidPandoraShardInfoLength = errors.New("invalid pandora shard info length")
 	errInvalidRpcClientResLen        = errors.New("invalid length of orchestrator confirmation response")
 	errInvalidConfirmationData       = errors.New("invalid orchestrator confirmation")
+	errUnknownParent                 = errors.New("unknown parent")
 )
 
 // ConfirmedData is the data which is sent after getting confirmation from orchestrator
@@ -229,24 +231,32 @@ func (s *Service) verifyPandoraShardInfo(signedBlk interfaces.SignedBeaconBlock)
 	if len(curPandoraShards) == 0 {
 		return errInvalidPandoraShardInfoLength
 	}
+
 	// Checking current block pandora shard's parent with canonical head's pandora shard's header hash
-	canonicalHeadBlock := s.head.block
-	if canonicalHeadBlock != nil && len(canonicalHeadBlock.Block().Body().PandoraShards()) > 0 {
-		parentPandoraShards := canonicalHeadBlock.Block().Body().PandoraShards()
-		canonicalShardingHash := common.BytesToHash(parentPandoraShards[0].Hash)
-		canonicalShardingBlkNum := parentPandoraShards[0].BlockNumber
+	parentBlk, err := s.cfg.BeaconDB.Block(s.ctx, bytesutil.ToBytes32(signedBlk.Block().ParentRoot()))
+	if err != nil {
+		return errUnknownParent
+	}
+
+	if parentBlk != nil && len(parentBlk.Block().Body().PandoraShards()) > 0 {
+
+		parentPandoraShards := parentBlk.Block().Body().PandoraShards()
+		parentShardingHash := common.BytesToHash(parentPandoraShards[0].Hash)
+		parentShardingBlkNum := parentPandoraShards[0].BlockNumber
 
 		curShardingParentHash := common.BytesToHash(curPandoraShards[0].ParentHash)
 		curShardingBlockNumber := curPandoraShards[0].BlockNumber
-		commonLog := log.WithField("slot", signedBlk.Block().Slot()).WithField("canonicalShardingHash", canonicalShardingHash).
-			WithField("canonicalShardingBlkNum", canonicalShardingBlkNum).WithField("curShardingParentHash", curShardingParentHash).
+		commonLog := log.WithField("slot", signedBlk.Block().Slot()).WithField("parentShardingHash", parentShardingHash).
+			WithField("parentShardingBlkNum", parentShardingBlkNum).WithField("curShardingParentHash", curShardingParentHash).
 			WithField("curShardingBlockNumber", curShardingBlockNumber)
 
-		if curShardingParentHash != canonicalShardingHash && curShardingBlockNumber != canonicalShardingBlkNum+1 {
+		if curShardingParentHash != parentShardingHash && curShardingBlockNumber != parentShardingBlkNum+1 {
 			commonLog.WithError(errInvalidPandoraShardInfo).Error("Failed to verify pandora sharding info")
 			return errInvalidPandoraShardInfo
 		}
+
 		commonLog.Debug("Successfully verified pandora sharding info")
 	}
+
 	return nil
 }
