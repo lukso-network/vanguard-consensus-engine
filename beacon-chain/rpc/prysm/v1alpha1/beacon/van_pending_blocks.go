@@ -172,7 +172,7 @@ func (bs *Server) StreamNewPendingBlocks(
 		case <-bs.Ctx.Done():
 			return status.Error(codes.Canceled, "Context canceled")
 		case <-stream.Context().Done():
-			return status.Error(codes.Canceled, "Context canceled")
+			return status.Error(codes.Canceled, "Context canceled by client")
 		}
 	}
 }

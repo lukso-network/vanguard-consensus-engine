@@ -175,6 +175,8 @@ func (s *Service) waitForConfirmation(b interfaces.SignedBeaconBlock) error {
 	s.deactivateBlockProposal()
 	defer s.activateBlockProposal()
 
+	log.WithField("slot", b.Block().Slot()).Debug("Vanguard is waiting for confirmation from orchestrator....")
+
 	pendingBlockTryLimit := maxPendingBlockTryLimit
 	ticker := time.NewTicker(confirmationStatusFetchingInverval)
 	for {
