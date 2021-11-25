@@ -242,10 +242,15 @@ var (
 		Usage: "Specifies the size in bytes of bolt db's mmap syscall allocation",
 		Value: 536870912, // 512 Mb as a default value.
 	}
-	// Network defines a bool flag which is required to run vanguard node
+	// VanguardNetwork defines a bool flag which is required to run vanguard node
 	VanguardNetwork = &cli.BoolFlag{
 		Name:  "lukso-network",
 		Usage: "Runs the lukso vanguard node. This vanguard node may communicate with pandora and orchestrator node",
+	}
+	// DisableGrpcGateway defines a flag to disable the grpc gateway HTTP service.
+	DisableGrpcGateway = &cli.BoolFlag{
+		Name:  "disable-grpc-gateway",
+		Usage: "Disables grpc gateway service. This is used for enabling IPC feature (socket connection)",
 	}
 )
 
