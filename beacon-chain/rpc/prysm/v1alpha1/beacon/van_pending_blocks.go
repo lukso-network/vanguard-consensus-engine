@@ -110,18 +110,33 @@ func (bs *Server) StreamNewPendingBlocks(
 	}
 	epochStart := helpers.SlotToEpoch(request.FromSlot)
 	epochEnd := cp.Epoch
-	startSlot := request.FromSlot
 	if epochStart <= epochEnd {
 		if err := batchSender(epochStart, epochEnd); err != nil {
 			return err
 		}
 		log.WithField("startEpoch", epochStart).WithField("endEpoch", epochEnd).
 			Info("Published previous blocks in batch to finalized checkpoint")
+	}
 
-		startSlot, err = helpers.EndSlot(epochEnd)
-		if err != nil {
-			return status.Errorf(codes.Internal, "Could not send over of previous blocks stream: %v", err)
+	// publishing previous blocks from finalized epoch to head block
+	headBlock, err := bs.HeadFetcher.HeadBlock(bs.Ctx)
+	if err != nil {
+		return status.Errorf(codes.Internal, "Could not send over of previous blocks stream: %v", err)
+	}
+	if headBlock == nil || headBlock.IsNil() {
+		return status.Errorf(codes.Internal, "Could not send over of previous blocks stream: head block is nil")
+	}
+	startSlot, err := helpers.EndSlot(epochEnd)
+	if err != nil {
+		return status.Errorf(codes.Internal, "Could not send over of previous blocks stream: %v", err)
+	}
+	endSlot := headBlock.Block().Slot()
+	if startSlot+1 <= endSlot {
+		if err := sender(startSlot, endSlot); err != nil {
+			return err
 		}
+		log.WithField("startSlot", startSlot+1).WithField("endSlot", endSlot).
+			Info("Published blocks from finalized epoch to head block")
 	}
 
 	pBlockCh := make(chan *feed.Event, 1)
@@ -141,11 +156,12 @@ func (bs *Server) StreamNewPendingBlocks(
 				// so we need to send those blocks before sending current block
 				if firstTime {
 					firstTime = false
-					endSlot := data.Block.Slot()
+					startSlot = endSlot + 1
+					endSlot = data.Block.Slot()
 					log.WithField("startSlot", startSlot).WithField("endSlot", endSlot).WithField("liveSyncStart", endSlot+1).
 						Info("Sending left over blocks")
 					if startSlot < endSlot {
-						if err := sender(startSlot+1, endSlot); err != nil {
+						if err := sender(startSlot, endSlot); err != nil {
 							return err
 						}
 					}
@@ -172,7 +188,7 @@ func (bs *Server) StreamNewPendingBlocks(
 		case <-bs.Ctx.Done():
 			return status.Error(codes.Canceled, "Context canceled")
 		case <-stream.Context().Done():
-			return status.Error(codes.Canceled, "Context canceled")
+			return status.Error(codes.Canceled, "Context canceled by client")
 		}
 	}
 }
