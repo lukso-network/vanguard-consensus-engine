@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-
 	"github.com/pkg/errors"
 	types "github.com/prysmaticlabs/eth2-types"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed"
@@ -151,6 +150,33 @@ func (s *Service) saveHead(ctx context.Context, headRoot [32]byte) error {
 		reorgCount.Inc()
 		if s.enableVanguardNode {
 			s.setLatestSentEpoch(helpers.SlotToEpoch(newHeadSlot))
+		}
+	}
+
+	// TODO(Atif): Dummy reorg
+	epoch := helpers.SlotToEpoch(s.HeadSlot())
+	if s.OrcVerification() && epoch%5 == 0 {
+		log.WithField("epoch", epoch).Debug("Triggering dummy reorg")
+		slot := s.HeadSlot().Sub(10)
+		_, blks, err := s.cfg.BeaconDB.BlocksBySlot(s.ctx, slot)
+		if err != nil {
+			log.WithError(err).Error("Failed to trigger dummy reorg")
+		}
+
+		if len(blks) > 0 {
+			b := blks[0]
+			vanRoot, err := b.Block().HashTreeRoot()
+			if err != nil {
+				log.WithError(err).Error("Failed to trigger dummy reorg")
+			}
+			s.cfg.StateNotifier.StateFeed().Send(&feed.Event{
+				Type: statefeed.DummyReorg,
+				Data: &statefeed.DummyReorgData{
+					Slot:         slot,
+					NewHeadBlock: vanRoot[:],
+					Epoch:        epoch,
+				},
+			})
 		}
 	}
 

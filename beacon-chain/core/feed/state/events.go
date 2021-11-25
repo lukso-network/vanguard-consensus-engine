@@ -28,6 +28,8 @@ const (
 	NewHead
 	// BlockVerified is sent when new block is validated by orchestrator
 	EpochInfo
+	// DummyReorg
+	DummyReorg
 )
 
 // BlockProcessedData is the data sent with BlockProcessed events.
@@ -69,4 +71,10 @@ type EpochInfoData struct {
 	//ProposerIndices of the current epoch
 	ProposerIndices []types.ValidatorIndex
 	PublicKeys      map[types.ValidatorIndex][48]byte
+}
+
+type DummyReorgData struct {
+	Slot types.Slot
+	NewHeadBlock []byte
+	Epoch types.Epoch
 }
