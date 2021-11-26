@@ -153,36 +153,6 @@ func (s *Service) saveHead(ctx context.Context, headRoot [32]byte) error {
 		}
 	}
 
-	// TODO(Atif): Dummy reorg
-	epoch := helpers.SlotToEpoch(s.HeadSlot())
-	if s.OrcVerification() && s.latestDummyReorg != epoch {
-		if epoch%5 == 0 {
-			log.WithField("epoch", epoch).Debug("Triggering dummy reorg")
-			slot := s.HeadSlot().Sub(10)
-			_, blks, err := s.cfg.BeaconDB.BlocksBySlot(s.ctx, slot)
-			if err != nil {
-				log.WithError(err).Error("Failed to trigger dummy reorg")
-			}
-
-			if len(blks) > 0 {
-				b := blks[0]
-				vanRoot, err := b.Block().HashTreeRoot()
-				if err != nil {
-					log.WithError(err).Error("Failed to trigger dummy reorg")
-				}
-				s.cfg.StateNotifier.StateFeed().Send(&feed.Event{
-					Type: statefeed.DummyReorg,
-					Data: &statefeed.DummyReorgData{
-						Slot:         slot,
-						NewHeadBlock: vanRoot[:],
-						Epoch:        epoch,
-					},
-				})
-				s.latestDummyReorg = epoch
-			}
-		}
-	}
-
 	// Cache the new head info.
 	s.setHead(headRoot, newHeadBlock, newHeadState)
 
@@ -198,6 +168,33 @@ func (s *Service) saveHead(ctx context.Context, headRoot [32]byte) error {
 			log.WithError(err).Error("Could not notify event feed of new chain head")
 		}
 	}()
+
+	// TODO(Atif): Dummy reorg
+	if s.OrcVerification() && s.headSlot()%150 == 0 {
+		epoch := helpers.SlotToEpoch(s.HeadSlot())
+		log.WithField("epoch", epoch).Debug("Triggering dummy reorg")
+		slot := s.HeadSlot().Sub(10)
+		_, blks, err := s.cfg.BeaconDB.BlocksBySlot(s.ctx, slot)
+		if err != nil {
+			log.WithError(err).Error("Failed to trigger dummy reorg")
+		}
+
+		if len(blks) > 0 {
+			b := blks[0]
+			vanRoot, err := b.Block().HashTreeRoot()
+			if err != nil {
+				log.WithError(err).Error("Failed to trigger dummy reorg")
+			}
+			s.cfg.StateNotifier.StateFeed().Send(&feed.Event{
+				Type: statefeed.DummyReorg,
+				Data: &statefeed.DummyReorgData{
+					Slot:         slot,
+					NewHeadBlock: vanRoot[:],
+					Epoch:        epoch,
+				},
+			})
+		}
+	}
 
 	return nil
 }

@@ -79,7 +79,6 @@ type Service struct {
 	latestSentEpochLock sync.RWMutex
 	orcRPCClient        orchestrator.Client
 	latestSentEpoch     types.Epoch
-	latestDummyReorg    types.Epoch
 }
 
 // Config options for the service.
