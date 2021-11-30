@@ -73,6 +73,11 @@ func (vs *Server) GetBlock(ctx context.Context, req *ethpb.BlockRequest) (*ethpb
 		}
 	}
 
+	headBlk, err := vs.HeadFetcher.HeadBlock(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Could not get head block: %v", err)
+	}
+
 	// Retrieve the parent block as the current head of the canonical chain.
 	parentRoot, err := vs.HeadFetcher.HeadRoot(ctx)
 	if err != nil {
@@ -152,12 +157,6 @@ func (vs *Server) GetBlock(ctx context.Context, req *ethpb.BlockRequest) (*ethpb
 	// If vanguard chain is enabled, we set the latest pandora sharding info into beacon block so that
 	// we do not need to make another api call for getting latest sharding info
 	if vs.EnableVanguardNode {
-		headBlk, err := vs.HeadFetcher.HeadBlock(ctx)
-		if err != nil {
-			log.WithField("slot", blk.Slot).Debug("Failed to retrieve head block")
-			return nil, status.Errorf(codes.Internal, "Could not get head block: %v", err)
-		}
-
 		if headBlk == nil || headBlk.Block().IsNil() {
 			log.WithField("slot", blk.Slot).Debug("Head block of chain was nil")
 			return blk, nil
@@ -165,13 +164,8 @@ func (vs *Server) GetBlock(ctx context.Context, req *ethpb.BlockRequest) (*ethpb
 
 		canonicalPandoraShards := headBlk.Block().Body().PandoraShards()
 		if len(canonicalPandoraShards) > 0 {
-			log.WithField("slot", headBlk.Block().Slot).
-				WithField("blockNumber", canonicalPandoraShards[0].BlockNumber).
-				WithField("hash", hexutil.Encode(canonicalPandoraShards[0].Hash)).
-				WithField("sealHash", hexutil.Encode(canonicalPandoraShards[0].SealHash)).
-				WithField("StateRoot", hexutil.Encode(canonicalPandoraShards[0].StateRoot)).
-				WithField("signature", hexutil.Encode(canonicalPandoraShards[0].Signature)).
-				Debug("pandora canonical sharding info")
+			log.WithField("headSlot", headBlk.Block().Slot).WithField("canonicalPanBlockNum", canonicalPandoraShards[0].BlockNumber).
+				WithField("canonicalPanBlockHash", hexutil.Encode(canonicalPandoraShards[0].Hash)).Debug("Pandora canonical sharding info")
 		}
 		blk.Body.PandoraShard = canonicalPandoraShards
 	}

@@ -116,22 +116,26 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 			s.setLatestSentEpoch(nextEpoch)
 		}
 
+		parentRoot := bytesutil.ToBytes32(b.ParentRoot())
+		parentBlk, err := s.cfg.BeaconDB.Block(s.ctx, parentRoot)
+		if err != nil {
+			return errors.Wrapf(errParentDoesNotExist, "vanguard node doesn't have a parent in db with slot: "+
+				"%d and parentRoot: %#x", b.Slot(), b.ParentRoot())
+		}
+
+		// verify pandora sharding info in live sync mode
+		if err := s.verifyPandoraShardInfo(parentBlk, signed); err != nil {
+			return errors.Wrap(err, "could not verify pandora shard info onBlock")
+		}
+
+		// publish block to orchestrator and rpc service for sending minimal consensus info
+		s.publishBlock(signed)
+
 		if s.OrcVerification() {
-			// verify pandora sharding info in live sync mode
-			if err := s.verifyPandoraShardInfo(signed); err != nil {
-				return errors.Wrap(err, "could not verify pandora shard info onBlock")
-			}
-
-			// publish block to orchestrator and rpc service for sending minimal consensus info
-			s.publishBlock(signed)
-
 			// waiting for orchestrator confirmation in live-sync mode
 			if err := s.waitForConfirmation(signed); err != nil {
 				return errors.Wrap(err, "could not publish and verified by orchestrator client onBlock")
 			}
-		} else {
-			// publish block to orchestrator and rpc service for sending minimal consensus info
-			s.publishBlock(signed)
 		}
 	}
 
@@ -278,6 +282,7 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 				return nil, nil, errors.Wrap(err, "could not handle epoch boundary state")
 			}
 		}
+
 		if s.enableVanguardNode {
 			curEpoch := helpers.CurrentEpoch(preState)
 			nextEpoch := curEpoch + 1
@@ -291,6 +296,7 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 				s.setLatestSentEpoch(nextEpoch)
 			}
 		}
+
 		jCheckpoints[i] = preState.CurrentJustifiedCheckpoint()
 		fCheckpoints[i] = preState.FinalizedCheckpoint()
 		sigSet.Join(set)
@@ -302,14 +308,30 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 	if !verify {
 		return nil, nil, errors.New("batch block signature verification failed")
 	}
+
 	// Vanguard: Validated by vanguard node. Now intercepting the execution and publishing the block
 	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
 	if s.enableVanguardNode {
-		for _, b := range blks {
+		parentRoot := bytesutil.ToBytes32(blks[0].Block().ParentRoot())
+		parentBlk, err := s.cfg.BeaconDB.Block(s.ctx, parentRoot)
+		if err != nil {
+			return nil, nil, errors.Wrapf(errParentDoesNotExist, "could not verify pandora shard info "+
+				"onBlockBatch with slot: %d and parentHash: %#x", blks[0].Block().Slot(), blks[0].Block().ParentRoot())
+		}
+
+		for i := 0; i < len(blks); i++ {
+			if i > 0 {
+				parentBlk = blks[i-1]
+			}
+			// verify pandora sharding info in live sync mode
+			if err := s.verifyPandoraShardInfo(parentBlk, blks[i]); err != nil {
+				return nil, nil, errors.Wrap(err, "could not verify pandora shard info onBlockBatch")
+			}
 			// publish block and trigger rpc service for sending minimal consensus info
-			s.publishBlock(b)
+			s.publishBlock(blks[i])
 		}
 	}
+
 	for r, st := range boundaries {
 		if err := s.cfg.StateGen.SaveState(ctx, r, st); err != nil {
 			return nil, nil, err
