@@ -5,7 +5,7 @@ package rpc
 import (
 	"context"
 	"errors"
-	"fmt"
+	"github.com/prysmaticlabs/prysm/shared/rpcutil"
 	"net"
 	"sync"
 
@@ -135,8 +135,12 @@ func NewService(ctx context.Context, cfg *Config) *Service {
 
 // Start the gRPC server.
 func (s *Service) Start() {
-	address := fmt.Sprintf("%s:%s", s.cfg.Host, s.cfg.Port)
-	lis, err := net.Listen("tcp", address)
+	address, protocol, err := rpcutil.ResolveRpcAddressAndProtocol(s.cfg.Host, s.cfg.Port)
+	if err != nil {
+		log.Errorf("Could not ResolveRpcAddressAndProtocol in Start() %s: %v", address, err)
+	}
+
+	lis, err := net.Listen(protocol, address)
 	if err != nil {
 		log.Errorf("Could not listen to port in Start() %s: %v", address, err)
 	}

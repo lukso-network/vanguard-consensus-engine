@@ -157,8 +157,10 @@ func New(cliCtx *cli.Context) (*BeaconNode, error) {
 		return nil, err
 	}
 
-	if err := beacon.registerGRPCGateway(); err != nil {
-		return nil, err
+	if !cliCtx.Bool(cmd.DisableGrpcGateway.Name) {
+		if err := beacon.registerGRPCGateway(); err != nil {
+			return nil, err
+		}
 	}
 
 	if !cliCtx.Bool(cmd.DisableMonitoringFlag.Name) {
