@@ -7,6 +7,9 @@ package beaconclient
 
 import (
 	"context"
+	"github.com/prysmaticlabs/prysm/shared/rpcutil"
+	"net"
+	"time"
 
 	middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
@@ -145,6 +148,12 @@ func (s *Service) Start() {
 			"You are using an insecure gRPC connection to beacon chain! Please provide a certificate and key to use a secure connection",
 		)
 	}
+
+	beaconRpcAddr, protocol, err := rpcutil.ResolveRpcAddressAndProtocol(s.cfg.BeaconProvider, "")
+	if err != nil {
+		log.Errorf("Could not ResolveRpcAddressAndProtocol in Start() %s: %v", beaconRpcAddr, err)
+	}
+
 	beaconOpts := []grpc.DialOption{
 		dialOpt,
 		grpc.WithStatsHandler(&ocgrpc.ClientHandler{}),
@@ -161,9 +170,19 @@ func (s *Service) Start() {
 			grpcutils.LogRequests,
 		)),
 	}
-	conn, err := grpc.DialContext(s.ctx, s.cfg.BeaconProvider, beaconOpts...)
+
+	if "unix" == protocol {
+		dialer := func(addr string, t time.Duration) (net.Conn, error) {
+			return net.Dial(protocol, addr)
+		}
+
+		beaconOpts = append(beaconOpts, grpc.WithDialer(dialer))
+		beaconOpts = append(beaconOpts, grpc.WithInsecure())
+	}
+
+	conn, err := grpc.DialContext(s.ctx, beaconRpcAddr, beaconOpts...)
 	if err != nil {
-		log.Fatalf("Could not dial endpoint: %s, %v", s.cfg.BeaconProvider, err)
+		log.Fatalf("Could not dial endpoint: %s, %v", beaconRpcAddr, err)
 	}
 	s.beaconDialOptions = beaconOpts
 	log.Info("Successfully started gRPC connection")

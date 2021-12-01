@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/prysmaticlabs/prysm/shared/rpcutil"
 	"io"
+	"net"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/pkg/errors"
@@ -228,6 +231,11 @@ func prepareAllKeys(validatingKeys [][48]byte) (raw [][]byte, formatted []string
 }
 
 func prepareClients(cliCtx *cli.Context) (*ethpb.BeaconNodeValidatorClient, *ethpb.NodeClient, error) {
+	beaconRpcAddr, protocol, err := rpcutil.ResolveRpcAddressAndProtocol(cliCtx.String(flags.BeaconRPCProviderFlag.Name), "")
+	if err != nil {
+		log.Errorf("Could not ResolveRpcAddressAndProtocol in prepareClients() %s: %v", beaconRpcAddr, err)
+	}
+
 	dialOpts := client.ConstructDialOptions(
 		cliCtx.Int(cmd.GrpcMaxCallRecvMsgSizeFlag.Name),
 		cliCtx.String(flags.CertFlag.Name),
@@ -238,12 +246,21 @@ func prepareClients(cliCtx *cli.Context) (*ethpb.BeaconNodeValidatorClient, *eth
 		return nil, nil, errors.New("failed to construct dial options")
 	}
 
+	if "unix" == protocol {
+		dialer := func(addr string, t time.Duration) (net.Conn, error) {
+			return net.Dial(protocol, addr)
+		}
+
+		dialOpts = append(dialOpts, grpc.WithDialer(dialer))
+		dialOpts = append(dialOpts, grpc.WithInsecure())
+	}
+
 	grpcHeaders := strings.Split(cliCtx.String(flags.GrpcHeadersFlag.Name), ",")
 	cliCtx.Context = grpcutils.AppendHeaders(cliCtx.Context, grpcHeaders)
 
-	conn, err := grpc.DialContext(cliCtx.Context, cliCtx.String(flags.BeaconRPCProviderFlag.Name), dialOpts...)
+	conn, err := grpc.DialContext(cliCtx.Context, beaconRpcAddr, dialOpts...)
 	if err != nil {
-		return nil, nil, errors.Wrapf(err, "could not dial endpoint %s", flags.BeaconRPCProviderFlag.Name)
+		return nil, nil, errors.Wrapf(err, "could not dial endpoint %s", beaconRpcAddr)
 	}
 	validatorClient := ethpb.NewBeaconNodeValidatorClient(conn)
 	nodeClient := ethpb.NewNodeClient(conn)

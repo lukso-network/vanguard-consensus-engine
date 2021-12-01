@@ -38,6 +38,11 @@ jobs:
           bazel build //validator
           mv ./bazel-bin/cmd/validator/validator_/validator ./bazel-bin/cmd/validator/validator_/lukso-validator-Linux-x86_64
 
+      - name: Build slasher
+        run: |
+          bazel build //slasher
+          mv ./bazel-bin/cmd/slasher/slasher_/slasher ./bazel-bin/cmd/slasher/slasher_/lukso-slasher-Linux-x86_64
+
       - name: Prepare tag name
         uses: olegtarasov/get-tag@v2.1
         id: tagName
