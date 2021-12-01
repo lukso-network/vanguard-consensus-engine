@@ -17,16 +17,16 @@ var (
 	// Getting confirmation status from orchestrator after each confirmationStatusFetchingInverval
 	confirmationStatusFetchingInverval = 500 * time.Millisecond
 	// maxPendingBlockTryLimit is the maximum limit for pending status of a block
-	maxPendingBlockTryLimit          = 40
-	errInvalidBlock                  = errors.New("invalid block found in orchestrator")
-	errPendingBlockCtxIsDone         = errors.New("pending block confirmation context is done, reinitialize")
-	errPendingBlockTryLimitExceed    = errors.New("maximum wait is exceeded and orchestrator can not verify the block")
-	errUnknownStatus                 = errors.New("invalid status from orchestrator")
-	errInvalidRPCClient              = errors.New("invalid orchestrator rpc client or no client initiated")
-	errInvalidPandoraShardInfo       = errors.New("invalid pandora shard info")
-	errInvalidPandoraShardInfoLength = errors.New("invalid pandora shard info length")
-	errInvalidRpcClientResLen        = errors.New("invalid length of orchestrator confirmation response")
-	errInvalidConfirmationData       = errors.New("invalid orchestrator confirmation")
+	maxPendingBlockTryLimit       = 40
+	errInvalidBlock               = errors.New("invalid block found in orchestrator")
+	errPendingBlockCtxIsDone      = errors.New("pending block confirmation context is done, reinitialize")
+	errPendingBlockTryLimitExceed = errors.New("maximum wait is exceeded and orchestrator can not verify the block")
+	errUnknownStatus              = errors.New("invalid status from orchestrator")
+	errInvalidRPCClient           = errors.New("invalid orchestrator rpc client or no client initiated")
+	errInvalidPandoraShardInfo    = errors.New("invalid pandora shard info")
+	errInvalidRpcClientResLen     = errors.New("invalid length of orchestrator confirmation response")
+	errInvalidConfirmationData    = errors.New("invalid orchestrator confirmation")
+	errParentDoesNotExist         = errors.New("beacon node doesn't have a parent in db with root")
 )
 
 // ConfirmedData is the data which is sent after getting confirmation from orchestrator
@@ -221,33 +221,31 @@ func (s *Service) waitForConfirmation(b interfaces.SignedBeaconBlock) error {
 }
 
 // verifyPandoraShardInfo
-func (s *Service) verifyPandoraShardInfo(signedBlk interfaces.SignedBeaconBlock) error {
+func (s *Service) verifyPandoraShardInfo(parentBlk, curdBlk interfaces.SignedBeaconBlock) error {
 	// For slot #1, we don't have shard info for previous block so short circuit here
-	if signedBlk.Block().Slot() == 1 {
+	if curdBlk.Block().Slot() == 1 {
 		return nil
 	}
 	// Checking length of current block's pandora shard info
-	curPandoraShards := signedBlk.Block().Body().PandoraShards()
-	if len(curPandoraShards) > 0 {
+	curPanShards := curdBlk.Block().Body().PandoraShards()
+	parentPanShards := parentBlk.Block().Body().PandoraShards()
+
+	if len(curPanShards) > 0 && len(parentPanShards) > 0 {
 		// Checking current block pandora shard's parent with canonical head's pandora shard's header hash
-		canonicalHeadBlock := s.head.block
-		if canonicalHeadBlock != nil && len(canonicalHeadBlock.Block().Body().PandoraShards()) > 0 {
-			parentPandoraShards := canonicalHeadBlock.Block().Body().PandoraShards()
-			canonicalShardingHash := common.BytesToHash(parentPandoraShards[0].Hash)
-			canonicalShardingBlkNum := parentPandoraShards[0].BlockNumber
+		canonicalShardingHash := common.BytesToHash(parentPanShards[0].Hash)
+		canonicalShardingBlkNum := parentPanShards[0].BlockNumber
 
-			curShardingParentHash := common.BytesToHash(curPandoraShards[0].ParentHash)
-			curShardingBlockNumber := curPandoraShards[0].BlockNumber
-			commonLog := log.WithField("slot", signedBlk.Block().Slot()).WithField("canonicalShardingHash", canonicalShardingHash).
-				WithField("canonicalShardingBlkNum", canonicalShardingBlkNum).WithField("curShardingParentHash", curShardingParentHash).
-				WithField("curShardingBlockNumber", curShardingBlockNumber)
+		curShardingParentHash := common.BytesToHash(curPanShards[0].ParentHash)
+		curShardingBlockNumber := curPanShards[0].BlockNumber
+		commonLog := log.WithField("slot", curdBlk.Block().Slot()).WithField("canonicalShardingHash", canonicalShardingHash).
+			WithField("canonicalShardingBlkNum", canonicalShardingBlkNum).WithField("curShardingParentHash", curShardingParentHash).
+			WithField("curShardingBlockNumber", curShardingBlockNumber)
 
-			if curShardingParentHash != canonicalShardingHash && curShardingBlockNumber != canonicalShardingBlkNum+1 {
-				commonLog.WithError(errInvalidPandoraShardInfo).Error("Failed to verify pandora sharding info")
-				return errInvalidPandoraShardInfo
-			}
-			commonLog.Debug("Successfully verified pandora sharding info")
+		if curShardingParentHash != canonicalShardingHash && curShardingBlockNumber != canonicalShardingBlkNum+1 {
+			commonLog.WithError(errInvalidPandoraShardInfo).Error("Failed to verify pandora sharding info")
+			return errInvalidPandoraShardInfo
 		}
+		commonLog.Info("Verified pandora sharding info")
 	}
 
 	return nil
