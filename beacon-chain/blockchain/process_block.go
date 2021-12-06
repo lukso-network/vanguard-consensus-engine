@@ -321,9 +321,37 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 	// Vanguard: Validated by vanguard node. Now intercepting the execution and publishing the block
 	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
 	if s.enableVanguardNode {
-		for _, b := range blks {
+		parentRoot := bytesutil.ToBytes32(blks[0].Block().ParentRoot())
+		parentBlk, err := s.cfg.BeaconDB.Block(s.ctx, parentRoot)
+
+		if err != nil {
+			return nil, nil, errors.Wrapf(errParentDoesNotExist, "could not verify pandora shard info "+
+				"onBlockBatch with slot: %d and parentHash: %#x", blks[0].Block().Slot(), blks[0].Block().ParentRoot())
+		}
+
+		for i := 0; i < len(blks); i++ {
+			if i > 0 {
+				parentBlk = blks[i-1]
+			}
+
+			// verify pandora sharding info in live sync mode
+			parentBlkPhase0, currentErr := parentBlk.PbPhase0Block()
+
+			if nil != currentErr {
+				return nil, nil, errors.Wrap(err, "could not cast parent block to phase 0 block")
+			}
+
+			signedBlockPhase0, currentErr := blks[i].PbPhase0Block()
+
+			if nil != currentErr {
+				return nil, nil, errors.Wrap(err, "could not cast signed block to phase 0 block")
+			}
+			// verify pandora sharding info in live sync mode
+			if err := s.VerifyPandoraShardInfo(parentBlkPhase0, signedBlockPhase0); err != nil {
+				return nil, nil, errors.Wrap(err, "could not verify pandora shard info onBlockBatch")
+			}
 			// publish block and trigger rpc service for sending minimal consensus info
-			s.publishBlock(b)
+			s.publishBlock(blks[i])
 		}
 	}
 	for r, st := range boundaries {
