@@ -10,6 +10,7 @@ import (
 	testDB "github.com/prysmaticlabs/prysm/beacon-chain/db/testing"
 	"github.com/prysmaticlabs/prysm/beacon-chain/state/stategen"
 	eth "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
+	ethpb "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/proto/eth/v1alpha1/wrapper"
 	"github.com/prysmaticlabs/prysm/proto/interfaces"
 	vanTypes "github.com/prysmaticlabs/prysm/shared/params"
@@ -152,6 +153,26 @@ func TestService_VerifyPandoraShardInfo(t *testing.T) {
 		signedBlock := &eth.SignedBeaconBlock{Block: &eth.BeaconBlock{}}
 		currentErr := s.VerifyPandoraShardInfo(signedBlock)
 		require.Equal(t, errInvalidPandoraShardInfo, currentErr)
+	})
+}
+
+func TestGuardPandoraShardHeader(t *testing.T) {
+	pandoraBlock := &ethpb.PandoraShard{}
+
+	t.Run("should throw an error when hash is empty", func(t *testing.T) {
+		require.Equal(t, errInvalidPandoraShardInfo, GuardPandoraShardHeader(pandoraBlock))
+	})
+
+	pandoraBlock.Hash = []byte("0xde6f0b6c17077334abd585da38b251871251cb26fa3456be135825ea45c06f12")
+
+	t.Run("should throw an error when parent hash is empty", func(t *testing.T) {
+		require.Equal(t, errInvalidPandoraShardInfo, GuardPandoraShardHeader(pandoraBlock))
+	})
+
+	pandoraBlock.ParentHash = []byte("0x67b96c7bbdbf2186c868ac7565a24d250c8ecbf4f43cb50bd78f11b73681c025")
+
+	t.Run("should pass when parent hash and hash is not empty", func(t *testing.T) {
+		require.NoError(t, GuardPandoraShardHeader(pandoraBlock))
 	})
 }
 

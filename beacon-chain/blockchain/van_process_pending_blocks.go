@@ -339,7 +339,7 @@ func (s *Service) VerifyPandoraShardInfo(signedBlk *ethpb.SignedBeaconBlock) err
 
 	pandoraShard := pandoraShards[0]
 
-	err := guardPandoraShardHeader(pandoraShard)
+	err := GuardPandoraShardHeader(pandoraShard)
 
 	if nil != err {
 		log.WithField("shard", pandoraShard).Error("pandora shard is invalid")
@@ -367,8 +367,14 @@ func (s *Service) VerifyPandoraShardInfo(signedBlk *ethpb.SignedBeaconBlock) err
 	return nil
 }
 
-func guardPandoraShardHeader(pandoraShard *ethpb.PandoraShard) (err error) {
-	if nil == pandoraShard.Hash || string(pandoraShard.Hash) == string(types2.EmptyUncleHash.Bytes()) {
+func GuardPandoraShardHeader(pandoraShard *ethpb.PandoraShard) (err error) {
+	emptyHashString := types2.EmptyUncleHash.String()
+
+	if nil == pandoraShard.Hash || string(pandoraShard.Hash) == emptyHashString {
+		return errInvalidPandoraShardInfo
+	}
+
+	if nil == pandoraShard.ParentHash || string(pandoraShard.ParentHash) == emptyHashString {
 		return errInvalidPandoraShardInfo
 	}
 
