@@ -380,7 +380,7 @@ func GuardPandoraConsecutiveness(
 	}
 
 	if blockNumber != canonicalBlkNumber+1 {
-		return errNonConsecutivePandoraShardInfo
+		return fmt.Errorf("%s:, %d != %d", errNonConsecutivePandoraShardInfo, blockNumber, canonicalBlkNumber)
 	}
 
 	return nil

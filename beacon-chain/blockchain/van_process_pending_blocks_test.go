@@ -167,19 +167,22 @@ func TestService_VerifyPandoraShardInfo(t *testing.T) {
 		require.Equal(t, errInvalidPandoraShardInfo, currentErr)
 	})
 
+	headSlot := int64(25)
+	headPandoraShard := &gethTypes.Header{
+		Number:     big.NewInt(headSlot),
+		ParentHash: common.HexToHash("0x67b96c7bbdbf2186c868ac7565a24d250c8ecbf4f43cb50bd78f11b73681c025"),
+	}
+
 	wrappedBlock = wrapper.WrappedPhase0SignedBeaconBlock(testutil.NewBeaconBlockWithPandoraSharding(
-		&gethTypes.Header{
-			Number:     big.NewInt(25),
-			ParentHash: common.HexToHash("0x67b96c7bbdbf2186c868ac7565a24d250c8ecbf4f43cb50bd78f11b73681c025"),
-		},
-		types.Slot(25),
+		headPandoraShard,
+		types.Slot(headSlot),
 	))
 	s.head = &head{block: wrappedBlock, state: newState}
 
 	t.Run("should throw an error when parent does not match and is nonconsecutive", func(t *testing.T) {
 		signedBlock := testutil.HydrateSignedBeaconBlock(&ethpb_v1alpha1.SignedBeaconBlock{
 			Block: &ethpb_v1alpha1.BeaconBlock{
-				Slot: 8,
+				Slot: types.Slot(headSlot + 1),
 			},
 		})
 		shard0 := &ethpb.PandoraShard{
@@ -190,6 +193,26 @@ func TestService_VerifyPandoraShardInfo(t *testing.T) {
 		signedBlock.Block.Body.PandoraShard = pandoraShards
 		currentErr := s.VerifyPandoraShardInfo(signedBlock)
 		require.Equal(t, errNonConsecutivePandoraShardInfo, currentErr)
+	})
+
+	t.Run("should pass when consecutiveness is present", func(t *testing.T) {
+		signedBlock := testutil.HydrateSignedBeaconBlock(&ethpb_v1alpha1.SignedBeaconBlock{
+			Block: &ethpb_v1alpha1.BeaconBlock{
+				Slot: types.Slot(headSlot + 1),
+			},
+		})
+		headPandoraShardHash := common.HexToHash("0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
+		shard0 := &ethpb.PandoraShard{
+			ParentHash: headPandoraShardHash.Bytes(),
+			// This should be headSlot + 1, but in test `NewBeaconBlockWithPandoraSharding` method IDK for what sake
+			// its doing head-1 during construction, so it stays as headSlot. I don't change the test method to
+			// not do massive refactor and cause next problems. Although it should be written better in helper method.
+			BlockNumber: uint64(headSlot),
+		}
+		pandoraShards := make([]*ethpb.PandoraShard, 1)
+		pandoraShards[0] = shard0
+		signedBlock.Block.Body.PandoraShard = pandoraShards
+		require.NoError(t, s.VerifyPandoraShardInfo(signedBlock))
 	})
 }
 
