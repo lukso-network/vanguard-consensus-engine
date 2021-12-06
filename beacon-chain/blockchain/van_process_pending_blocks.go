@@ -22,16 +22,17 @@ var (
 	// Getting confirmation status from orchestrator after each confirmationStatusFetchingInverval
 	confirmationStatusFetchingInverval = 500 * time.Millisecond
 	// maxPendingBlockTryLimit is the maximum limit for pending status of a block
-	maxPendingBlockTryLimit          = 40
-	errInvalidBlock                  = errors.New("invalid block found in orchestrator")
-	errPendingBlockCtxIsDone         = errors.New("pending block confirmation context is done, reinitialize")
-	errPendingBlockTryLimitExceed    = errors.New("maximum wait is exceeded and orchestrator can not verify the block")
-	errUnknownStatus                 = errors.New("invalid status from orchestrator")
-	errInvalidRPCClient              = errors.New("invalid orchestrator rpc client or no client initiated")
-	errPendingQueueUnprocessed       = errors.New("pending queue is un-processed")
-	errInvalidPandoraShardInfo       = errors.New("invalid pandora shard info")
-	errInvalidBeaconBlock            = errors.New("invalid beacon block")
-	errInvalidPandoraShardInfoLength = errors.New("invalid pandora shard info length")
+	maxPendingBlockTryLimit           = 40
+	errInvalidBlock                   = errors.New("invalid block found in orchestrator")
+	errPendingBlockCtxIsDone          = errors.New("pending block confirmation context is done, reinitialize")
+	errPendingBlockTryLimitExceed     = errors.New("maximum wait is exceeded and orchestrator can not verify the block")
+	errUnknownStatus                  = errors.New("invalid status from orchestrator")
+	errInvalidRPCClient               = errors.New("invalid orchestrator rpc client or no client initiated")
+	errPendingQueueUnprocessed        = errors.New("pending queue is un-processed")
+	errInvalidPandoraShardInfo        = errors.New("invalid pandora shard info")
+	errNonConsecutivePandoraShardInfo = errors.New("nonconsecutive pandora shard info")
+	errInvalidBeaconBlock             = errors.New("invalid beacon block")
+	errInvalidPandoraShardInfoLength  = errors.New("invalid pandora shard info length")
 )
 
 // PendingBlocksFetcher retrieves the cached un-confirmed beacon blocks from cache
@@ -352,7 +353,9 @@ func (s *Service) VerifyPandoraShardInfo(signedBlk *ethpb.SignedBeaconBlock) err
 	parentHash := common.BytesToHash(pandoraShardParentHash)
 	blockNumber := signedPandoraShards[0].BlockNumber
 
-	if parentHash != canonicalHash && blockNumber != canonicalBlkNum+1 {
+	err = GuardPandoraConsecutiveness(parentHash, canonicalHash, blockNumber, canonicalBlkNum)
+
+	if nil != err {
 		log.WithField("slot", signedBlk.Block.Slot).
 			WithField("canonicalHash", canonicalHash).
 			WithField("canonicalBlkNum", canonicalBlkNum).
@@ -360,7 +363,24 @@ func (s *Service) VerifyPandoraShardInfo(signedBlk *ethpb.SignedBeaconBlock) err
 			WithField("blockNumber", blockNumber).
 			WithError(errInvalidPandoraShardInfo).
 			Error("Failed to process block")
-		return errInvalidPandoraShardInfo
+		return err
+	}
+
+	return nil
+}
+
+func GuardPandoraConsecutiveness(
+	parentHash common.Hash,
+	canonicalHash common.Hash,
+	blockNumber uint64,
+	canonicalBlkNumber uint64,
+) (err error) {
+	if parentHash != canonicalHash {
+		return errNonConsecutivePandoraShardInfo
+	}
+
+	if blockNumber != canonicalBlkNumber+1 {
+		return errNonConsecutivePandoraShardInfo
 	}
 
 	return nil

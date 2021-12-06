@@ -12,6 +12,7 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/state/stategen"
 	eth "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 	ethpb "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
+	ethpb_v1alpha1 "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/proto/eth/v1alpha1/wrapper"
 	"github.com/prysmaticlabs/prysm/proto/interfaces"
 	vanTypes "github.com/prysmaticlabs/prysm/shared/params"
@@ -176,9 +177,19 @@ func TestService_VerifyPandoraShardInfo(t *testing.T) {
 	s.head = &head{block: wrappedBlock, state: newState}
 
 	t.Run("should throw an error when parent does not match and is nonconsecutive", func(t *testing.T) {
-		signedBlock := &eth.SignedBeaconBlock{Block: &eth.BeaconBlock{}}
+		signedBlock := testutil.HydrateSignedBeaconBlock(&ethpb_v1alpha1.SignedBeaconBlock{
+			Block: &ethpb_v1alpha1.BeaconBlock{
+				Slot: 8,
+			},
+		})
+		shard0 := &ethpb.PandoraShard{
+			ParentHash: []byte("0x67b96c7bbdbf2186c868ac7565a24d250c8ecbf4f43cb50bd78f11b73681c025"),
+		}
+		pandoraShards := make([]*ethpb.PandoraShard, 1)
+		pandoraShards[0] = shard0
+		signedBlock.Block.Body.PandoraShard = pandoraShards
 		currentErr := s.VerifyPandoraShardInfo(signedBlock)
-		require.Equal(t, errInvalidPandoraShardInfo, currentErr)
+		require.Equal(t, errNonConsecutivePandoraShardInfo, currentErr)
 	})
 }
 
@@ -199,6 +210,46 @@ func TestGuardPandoraShardHeader(t *testing.T) {
 
 	t.Run("should pass when parent hash and hash is not empty", func(t *testing.T) {
 		require.NoError(t, GuardPandoraShardHeader(pandoraBlock))
+	})
+}
+
+func TestGuardPandoraConsecutiveness(t *testing.T) {
+	t.Run("should return err when parent hash does not match", func(t *testing.T) {
+		require.Equal(
+			t,
+			errNonConsecutivePandoraShardInfo,
+			GuardPandoraConsecutiveness(
+				common.HexToHash("0xa"),
+				common.HexToHash("0xb"),
+				2,
+				8,
+			),
+		)
+	})
+
+	t.Run("should return err when block number is nonconsecutive", func(t *testing.T) {
+		require.Equal(
+			t,
+			errNonConsecutivePandoraShardInfo,
+			GuardPandoraConsecutiveness(
+				common.HexToHash("0xa"),
+				common.HexToHash("0xa"),
+				2,
+				8,
+			),
+		)
+	})
+
+	t.Run("should pass when consecutiveness is present", func(t *testing.T) {
+		require.NoError(
+			t,
+			GuardPandoraConsecutiveness(
+				common.HexToHash("0xa"),
+				common.HexToHash("0xa"),
+				3,
+				2,
+			),
+		)
 	})
 }
 
