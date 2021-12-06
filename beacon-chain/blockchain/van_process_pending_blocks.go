@@ -321,13 +321,12 @@ func (s *Service) VerifyPandoraShardInfo(signedBlk *ethpb.SignedBeaconBlock) err
 		return errInvalidPandoraShardInfo
 	}
 
-	headBlk := s.headBlock()
-
-	if headBlk.IsNil() {
-		log.Error("head block is nil")
+	if !s.hasHeadState() {
+		log.Error("head state is nil")
 		return errInvalidBeaconBlock
 	}
 
+	headBlk := s.headBlock()
 	headBlock := headBlk.Block()
 	headBlockBody := headBlock.Body()
 	pandoraShards := headBlockBody.PandoraShards()
