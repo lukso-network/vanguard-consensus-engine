@@ -3,6 +3,8 @@ package blockchain
 import (
 	"context"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common"
+	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"math/big"
 	"strconv"
 	"testing"
@@ -34,6 +36,29 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/timeutils"
 )
 
+func TestStore_OnBlock_VanguardMode(t *testing.T) {
+	ctx := context.Background()
+	beaconDB := testDB.SetupDB(t)
+
+	cfg := &Config{
+		BeaconDB:           beaconDB,
+		StateGen:           stategen.New(beaconDB),
+		ForkChoiceStore:    protoarray.New(0, 0, [32]byte{}),
+		EnableVanguardNode: true,
+	}
+	service, err := NewService(ctx, cfg)
+	require.NoError(t, err)
+	genesisStateRoot := [32]byte{}
+	genesis := blocks.NewGenesisBlock(genesisStateRoot[:])
+	assert.NoError(t, beaconDB.SaveBlock(ctx, wrapper.WrappedPhase0SignedBeaconBlock(genesis)))
+	validGenesisRoot, err := genesis.Block.HashTreeRoot()
+	require.NoError(t, err)
+	st, err := testutil.NewBeaconState()
+	require.NoError(t, err)
+	require.NoError(t, service.cfg.BeaconDB.SaveState(ctx, st.Copy(), validGenesisRoot))
+	//	 TODO: test onBlock side effects on blockTree1
+}
+
 func TestStore_OnBlock(t *testing.T) {
 	ctx := context.Background()
 	beaconDB := testDB.SetupDB(t)
@@ -53,7 +78,7 @@ func TestStore_OnBlock(t *testing.T) {
 	st, err := testutil.NewBeaconState()
 	require.NoError(t, err)
 	require.NoError(t, service.cfg.BeaconDB.SaveState(ctx, st.Copy(), validGenesisRoot))
-	roots, err := blockTree1(t, beaconDB, validGenesisRoot[:])
+	roots, err := blockTree1(t, beaconDB, validGenesisRoot[:], false)
 	require.NoError(t, err)
 	random := testutil.NewBeaconBlock()
 	random.Block.Slot = 1
@@ -368,7 +393,7 @@ func TestFillForkChoiceMissingBlocks_CanSave(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, service.cfg.BeaconDB.SaveState(ctx, st.Copy(), validGenesisRoot))
-	roots, err := blockTree1(t, beaconDB, validGenesisRoot[:])
+	roots, err := blockTree1(t, beaconDB, validGenesisRoot[:], false)
 	require.NoError(t, err)
 
 	beaconState, _ := testutil.DeterministicGenesisState(t, 32)
@@ -406,7 +431,7 @@ func TestFillForkChoiceMissingBlocks_RootsMatch(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, service.cfg.BeaconDB.SaveState(ctx, st.Copy(), validGenesisRoot))
-	roots, err := blockTree1(t, beaconDB, validGenesisRoot[:])
+	roots, err := blockTree1(t, beaconDB, validGenesisRoot[:], false)
 	require.NoError(t, err)
 
 	beaconState, _ := testutil.DeterministicGenesisState(t, 32)
@@ -483,9 +508,16 @@ func TestFillForkChoiceMissingBlocks_FilterFinalized(t *testing.T) {
 // B0           /- B5 - B7
 //    \- B3 - B4 - B6 - B8
 // (B1, and B3 are all from the same slots)
-func blockTree1(t *testing.T, beaconDB db.Database, genesisRoot []byte) ([][]byte, error) {
+// To not interfere with other parts of the system `vanguardEnabled` steers to introduce pandora shard feature
+func blockTree1(t *testing.T, beaconDB db.Database, genesisRoot []byte, vanguardEnabled bool) ([][]byte, error) {
 	genesisRoot = bytesutil.PadTo(genesisRoot, 32)
 	b0 := testutil.NewBeaconBlock()
+	var pandoraFirstShardHeader *gethTypes.Header
+
+	if vanguardEnabled {
+		pandoraFirstShardHeader = &gethTypes.Header{Number: big.NewInt(0), ParentHash: common.HexToHash("0x0")}
+		b0 = testutil.NewBeaconBlockWithPandoraSharding(pandoraFirstShardHeader, 0)
+	}
 	b0.Block.Slot = 0
 	b0.Block.ParentRoot = genesisRoot
 	r0, err := b0.Block.HashTreeRoot()
@@ -493,6 +525,14 @@ func blockTree1(t *testing.T, beaconDB db.Database, genesisRoot []byte) ([][]byt
 		return nil, err
 	}
 	b1 := testutil.NewBeaconBlock()
+	if vanguardEnabled {
+		pandoraHeader := &gethTypes.Header{}
+		parentPandoraShardBlockNumber := int64(b0.Block.Body.PandoraShard[0].BlockNumber)
+		parentPandoraShardBlockHash := b0.Block.Body.PandoraShard[0].Hash
+		pandoraHeader.Number = big.NewInt(0).Add(big.NewInt(parentPandoraShardBlockNumber), big.NewInt(1))
+		pandoraHeader.ParentHash = common.BytesToHash(parentPandoraShardBlockHash)
+		b1 = testutil.NewBeaconBlockWithPandoraSharding(pandoraHeader, 1)
+	}
 	b1.Block.Slot = 1
 	b1.Block.ParentRoot = r0[:]
 	r1, err := b1.Block.HashTreeRoot()
@@ -500,6 +540,16 @@ func blockTree1(t *testing.T, beaconDB db.Database, genesisRoot []byte) ([][]byt
 		return nil, err
 	}
 	b3 := testutil.NewBeaconBlock()
+
+	if vanguardEnabled {
+		pandoraHeader := &gethTypes.Header{}
+		parentPandoraShardBlockNumber := int64(b1.Block.Body.PandoraShard[0].BlockNumber)
+		parentPandoraShardBlockHash := b1.Block.Body.PandoraShard[0].Hash
+		pandoraHeader.Number = big.NewInt(0).Add(big.NewInt(parentPandoraShardBlockNumber), big.NewInt(1))
+		pandoraHeader.ParentHash = common.BytesToHash(parentPandoraShardBlockHash)
+		b3 = testutil.NewBeaconBlockWithPandoraSharding(pandoraHeader, 1)
+	}
+	// TODO: add vanguard logic to each of the blocks
 	b3.Block.Slot = 3
 	b3.Block.ParentRoot = r0[:]
 	r3, err := b3.Block.HashTreeRoot()
