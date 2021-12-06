@@ -334,23 +334,24 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 				parentBlk = blks[i-1]
 			}
 
-			// verify pandora sharding info in live sync mode
 			parentBlkPhase0, currentErr := parentBlk.PbPhase0Block()
 
 			if nil != currentErr {
-				return nil, nil, errors.Wrap(err, "could not cast parent block to phase 0 block")
+				return nil, nil, errors.Wrap(currentErr, "could not cast parent block to phase 0 block")
 			}
 
 			signedBlockPhase0, currentErr := blks[i].PbPhase0Block()
 
 			if nil != currentErr {
-				return nil, nil, errors.Wrap(err, "could not cast signed block to phase 0 block")
+				return nil, nil, errors.Wrap(currentErr, "could not cast signed block to phase 0 block")
 			}
-			// verify pandora sharding info in live sync mode
-			if err := s.VerifyPandoraShardInfo(parentBlkPhase0, signedBlockPhase0); err != nil {
-				return nil, nil, errors.Wrap(err, "could not verify pandora shard info onBlockBatch")
+
+			currentErr = s.VerifyPandoraShardInfo(parentBlkPhase0, signedBlockPhase0)
+
+			if nil != currentErr {
+				return nil, nil, errors.Wrap(currentErr, "could not verify pandora shard info onBlockBatch")
 			}
-			// publish block and trigger rpc service for sending minimal consensus info
+
 			s.publishBlock(blks[i])
 		}
 	}
