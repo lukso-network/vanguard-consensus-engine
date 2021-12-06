@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
+	types2 "github.com/ethereum/go-ethereum/core/types"
 	"github.com/pkg/errors"
 	types "github.com/prysmaticlabs/eth2-types"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/feed"
@@ -29,6 +30,7 @@ var (
 	errInvalidRPCClient              = errors.New("invalid orchestrator rpc client or no client initiated")
 	errPendingQueueUnprocessed       = errors.New("pending queue is un-processed")
 	errInvalidPandoraShardInfo       = errors.New("invalid pandora shard info")
+	errInvalidBeaconBlock            = errors.New("invalid beacon block")
 	errInvalidPandoraShardInfoLength = errors.New("invalid pandora shard info length")
 )
 
@@ -303,29 +305,72 @@ func (s *Service) sortedPendingSlots() ([]*vanTypes.ConfirmationReqData, error) 
 	return reqData, nil
 }
 
-func (s *Service) verifyPandoraShardInfo(signedBlk *ethpb.SignedBeaconBlock) error {
-	if len(signedBlk.Block.Body.PandoraShard) == 0 {
-		return errInvalidPandoraShardInfoLength
+func (s *Service) VerifyPandoraShardInfo(signedBlk *ethpb.SignedBeaconBlock) error {
+	signedBlock := signedBlk.Block
+
+	if nil == signedBlock {
+		log.Error("signed block is nil")
+		return errInvalidPandoraShardInfo
 	}
+
+	signedBlockBody := signedBlock.Body
+	signedPandoraShards := signedBlockBody.GetPandoraShard()
+
+	if len(signedPandoraShards) != 1 {
+		log.WithField("slot", signedBlock.Slot).Error("signed pandora shard is invalid")
+		return errInvalidPandoraShardInfo
+	}
+
 	headBlk := s.headBlock()
-	pandoraShards := headBlk.Block().Body().PandoraShards()
-	if headBlk != nil && len(pandoraShards) > 0 {
-		canonicalHash := common.BytesToHash(pandoraShards[0].Hash)
-		canonicalBlkNum := pandoraShards[0].BlockNumber
 
-		parentHash := common.BytesToHash(signedBlk.Block.Body.PandoraShard[0].ParentHash)
-		blockNumber := signedBlk.Block.Body.PandoraShard[0].BlockNumber
-
-		if parentHash != canonicalHash && blockNumber != canonicalBlkNum+1 {
-			log.WithField("slot", signedBlk.Block.Slot).
-				WithField("canonicalHash", canonicalHash).
-				WithField("canonicalBlkNum", canonicalBlkNum).
-				WithField("parentHash", parentHash).
-				WithField("blockNumber", blockNumber).
-				WithError(errInvalidPandoraShardInfo).
-				Error("Failed to process block")
-			return errInvalidPandoraShardInfo
-		}
+	if headBlk.IsNil() {
+		log.Error("head block is nil")
+		return errInvalidBeaconBlock
 	}
+
+	headBlock := headBlk.Block()
+	headBlockBody := headBlock.Body()
+	pandoraShards := headBlockBody.PandoraShards()
+
+	if len(pandoraShards) < 1 {
+		log.WithField("slot", headBlock.Slot()).Error("pandora shard is not present")
+		return errInvalidPandoraShardInfo
+	}
+
+	pandoraShard := pandoraShards[0]
+
+	err := guardPandoraShardHeader(pandoraShard)
+
+	if nil != err {
+		log.WithField("shard", pandoraShard).Error("pandora shard is invalid")
+		return err
+	}
+
+	canonicalHash := common.BytesToHash(pandoraShards[0].Hash)
+	canonicalBlkNum := pandoraShards[0].BlockNumber
+
+	pandoraShardParentHash := signedPandoraShards[0].ParentHash
+	parentHash := common.BytesToHash(pandoraShardParentHash)
+	blockNumber := signedPandoraShards[0].BlockNumber
+
+	if parentHash != canonicalHash && blockNumber != canonicalBlkNum+1 {
+		log.WithField("slot", signedBlk.Block.Slot).
+			WithField("canonicalHash", canonicalHash).
+			WithField("canonicalBlkNum", canonicalBlkNum).
+			WithField("parentHash", parentHash).
+			WithField("blockNumber", blockNumber).
+			WithError(errInvalidPandoraShardInfo).
+			Error("Failed to process block")
+		return errInvalidPandoraShardInfo
+	}
+
 	return nil
+}
+
+func guardPandoraShardHeader(pandoraShard *ethpb.PandoraShard) (err error) {
+	if nil == pandoraShard.Hash || string(pandoraShard.Hash) == string(types2.EmptyUncleHash.Bytes()) {
+		return errInvalidPandoraShardInfo
+	}
+
+	return
 }

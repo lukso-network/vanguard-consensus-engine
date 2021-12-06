@@ -2,12 +2,14 @@ package blockchain
 
 import (
 	"context"
+	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/golang/mock/gomock"
 	types "github.com/prysmaticlabs/eth2-types"
 	mock "github.com/prysmaticlabs/prysm/beacon-chain/blockchain/testing"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/blocks"
 	testDB "github.com/prysmaticlabs/prysm/beacon-chain/db/testing"
 	"github.com/prysmaticlabs/prysm/beacon-chain/state/stategen"
+	eth "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/proto/eth/v1alpha1/wrapper"
 	"github.com/prysmaticlabs/prysm/proto/interfaces"
 	vanTypes "github.com/prysmaticlabs/prysm/shared/params"
@@ -15,6 +17,7 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
 	"github.com/prysmaticlabs/prysm/shared/testutil/require"
 	"github.com/prysmaticlabs/prysm/shared/van_mock"
+	"math/big"
 	"sort"
 	"testing"
 	"time"
@@ -98,6 +101,58 @@ func TestService_fetchOrcConfirmations(t *testing.T) {
 		confirmationStatus[i] = &vanTypes.ConfirmationResData{Slot: types.Slot(i), Status: vanTypes.Verified}
 		require.NoError(t, s.pendingBlockCache.AddPendingBlock(wrappedBlk))
 	}
+}
+
+func TestService_VerifyPandoraShardInfo(t *testing.T) {
+	ctx := context.Background()
+	//var mockClient *van_mock.MockClient
+	ctrl := gomock.NewController(t)
+	mockedOrcClient := van_mock.NewMockClient(ctrl)
+	cfg := &Config{
+		BlockNotifier:      &mock.MockBlockNotifier{RecordEvents: true},
+		OrcRPCClient:       mockedOrcClient,
+		EnableVanguardNode: true,
+	}
+	s, err := NewService(ctx, cfg)
+
+	require.NoError(t, err)
+	require.NotNil(t, s)
+
+	t.Run("should throw an error when signed block is empty", func(t *testing.T) {
+		signedBlock := &eth.SignedBeaconBlock{}
+		currentErr := s.VerifyPandoraShardInfo(signedBlock)
+		require.Equal(t, errInvalidPandoraShardInfo, currentErr)
+	})
+
+	t.Run("should throw an error when signed block is without sharding part", func(t *testing.T) {
+		signedBlock := &eth.SignedBeaconBlock{Block: &eth.BeaconBlock{}}
+		currentErr := s.VerifyPandoraShardInfo(signedBlock)
+		require.Equal(t, errInvalidPandoraShardInfo, currentErr)
+	})
+
+	wrappedBlock := wrapper.WrappedPhase0SignedBeaconBlock(testutil.NewBeaconBlock())
+	s.head = &head{block: wrappedBlock}
+
+	t.Run("should throw an error when head block lacks the sharding info", func(t *testing.T) {
+		pandoraShards := make([]*eth.PandoraShard, 1)
+		signedBlock := &eth.SignedBeaconBlock{Block: &eth.BeaconBlock{
+			Body: &eth.BeaconBlockBody{PandoraShard: pandoraShards},
+		}}
+		currentErr := s.VerifyPandoraShardInfo(signedBlock)
+		require.Equal(t, errInvalidPandoraShardInfo, currentErr)
+	})
+
+	wrappedBlock = wrapper.WrappedPhase0SignedBeaconBlock(testutil.NewBeaconBlockWithPandoraSharding(
+		&gethTypes.Header{Number: big.NewInt(25)},
+		types.Slot(5),
+	))
+	s.head = &head{block: wrappedBlock}
+
+	t.Run("should throw an error with invalid pandora shard", func(t *testing.T) {
+		signedBlock := &eth.SignedBeaconBlock{Block: &eth.BeaconBlock{}}
+		currentErr := s.VerifyPandoraShardInfo(signedBlock)
+		require.Equal(t, errInvalidPandoraShardInfo, currentErr)
+	})
 }
 
 // TestService_waitForConfirmationBlock checks waitForConfirmationBlock method
