@@ -32,6 +32,7 @@ var (
 	errInvalidPandoraShardInfo        = errors.New("invalid pandora shard info")
 	errNonConsecutivePandoraShardInfo = errors.New("nonconsecutive pandora shard info")
 	errInvalidBeaconBlock             = errors.New("invalid beacon block")
+	errParentDoesNotExist             = errors.New("beacon node doesn't have a parent in db with root")
 	errInvalidPandoraShardInfoLength  = errors.New("invalid pandora shard info length")
 )
 
@@ -306,11 +307,19 @@ func (s *Service) sortedPendingSlots() ([]*vanTypes.ConfirmationReqData, error) 
 	return reqData, nil
 }
 
-func (s *Service) VerifyPandoraShardInfo(signedBlk *ethpb.SignedBeaconBlock) error {
+func (s *Service) VerifyPandoraShardInfo(
+	parentBlock *ethpb.SignedBeaconBlock,
+	signedBlk *ethpb.SignedBeaconBlock,
+) error {
+	if nil == signedBlk || nil == signedBlk.Block {
+		log.Error("signed block is nil")
+		return errInvalidPandoraShardInfo
+	}
+
 	signedBlock := signedBlk.Block
 
-	if nil == signedBlock {
-		log.Error("signed block is nil")
+	if nil == parentBlock || nil == parentBlock.Block {
+		log.Error("parent block is nil")
 		return errInvalidPandoraShardInfo
 	}
 
@@ -322,18 +331,13 @@ func (s *Service) VerifyPandoraShardInfo(signedBlk *ethpb.SignedBeaconBlock) err
 		return errInvalidPandoraShardInfo
 	}
 
-	if !s.hasHeadState() {
-		log.Error("head state is nil")
-		return errInvalidBeaconBlock
-	}
-
-	headBlk := s.headBlock()
-	headBlock := headBlk.Block()
-	headBlockBody := headBlock.Body()
-	pandoraShards := headBlockBody.PandoraShards()
+	headBlk := parentBlock
+	headBlock := headBlk.GetBlock()
+	headBlockBody := headBlock.GetBody()
+	pandoraShards := headBlockBody.PandoraShard
 
 	if len(pandoraShards) < 1 {
-		log.WithField("slot", headBlock.Slot()).Error("pandora shard is not present")
+		log.WithField("slot", headBlock.Slot).Error("pandora shard is not present")
 		return errInvalidPandoraShardInfo
 	}
 

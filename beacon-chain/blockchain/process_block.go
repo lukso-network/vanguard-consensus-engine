@@ -105,7 +105,7 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
 	if s.enableVanguardNode {
 		curEpoch := helpers.CurrentEpoch(postState)
-		nextEpoch := curEpoch+1
+		nextEpoch := curEpoch + 1
 		if s.latestSentEpoch < nextEpoch {
 			proposerIndices, pubKeys, err := helpers.ProposerIndicesInCache(postState.Copy(), nextEpoch)
 			if err != nil {
@@ -115,8 +115,34 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 			s.publishEpochInfo(signed.Block().Slot(), proposerIndices, pubKeys)
 			s.latestSentEpoch = nextEpoch
 		}
+
+		parentRoot := bytesutil.ToBytes32(b.ParentRoot())
+		parentBlk, err := s.cfg.BeaconDB.Block(s.ctx, parentRoot)
+		if err != nil {
+			return errors.Wrapf(errParentDoesNotExist, "vanguard node doesn't have a parent in db with slot: "+
+				"%d and parentRoot: %#x", b.Slot(), b.ParentRoot())
+		}
+
+		// verify pandora sharding info in live sync mode
+		parentBlkPhase0, err := parentBlk.PbPhase0Block()
+
+		if nil != err {
+			return errors.Wrap(err, "could not cast parent block to phase 0 block")
+		}
+
+		signedBlockPhase0, err := signed.PbPhase0Block()
+
+		if nil != err {
+			return errors.Wrap(err, "could not cast signed block to phase 0 block")
+		}
+
+		if err := s.VerifyPandoraShardInfo(parentBlkPhase0, signedBlockPhase0); err != nil {
+			return errors.Wrap(err, "could not verify pandora shard info onBlock")
+		}
+
 		// publish block to orchestrator and rpc service for sending minimal consensus info
 		s.publishBlock(signed)
+
 		if s.orcVerification {
 			// waiting for orchestrator confirmation in live-sync mode
 			if err := s.waitForConfirmation(ctx, signed); err != nil {
@@ -270,7 +296,7 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 		}
 		if s.enableVanguardNode {
 			curEpoch := helpers.CurrentEpoch(preState)
-			nextEpoch := curEpoch+1
+			nextEpoch := curEpoch + 1
 			if s.latestSentEpoch < nextEpoch {
 				proposerIndices, pubKeys, err := helpers.ProposerIndicesInCache(preState.Copy(), nextEpoch)
 				if err != nil {

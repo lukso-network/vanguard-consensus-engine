@@ -121,49 +121,44 @@ func TestService_VerifyPandoraShardInfo(t *testing.T) {
 	require.NotNil(t, s)
 
 	t.Run("should throw an error when signed block is empty", func(t *testing.T) {
-		signedBlock := &eth.SignedBeaconBlock{}
-		currentErr := s.VerifyPandoraShardInfo(signedBlock)
+		currentErr := s.VerifyPandoraShardInfo(nil, nil)
+		require.Equal(t, errInvalidPandoraShardInfo, currentErr)
+	})
+
+	t.Run("should throw an error when parent block is empty", func(t *testing.T) {
+		signedBlock := &eth.SignedBeaconBlock{Block: &eth.BeaconBlock{}}
+		currentErr := s.VerifyPandoraShardInfo(nil, signedBlock)
 		require.Equal(t, errInvalidPandoraShardInfo, currentErr)
 	})
 
 	t.Run("should throw an error when signed block is without sharding part", func(t *testing.T) {
 		signedBlock := &eth.SignedBeaconBlock{Block: &eth.BeaconBlock{}}
-		currentErr := s.VerifyPandoraShardInfo(signedBlock)
+		parentBlock := &eth.SignedBeaconBlock{Block: &eth.BeaconBlock{}}
+		currentErr := s.VerifyPandoraShardInfo(parentBlock, signedBlock)
 		require.Equal(t, errInvalidPandoraShardInfo, currentErr)
 	})
-
-	t.Run("should throw and error when head is nil", func(t *testing.T) {
-		pandoraShards := make([]*eth.PandoraShard, 1)
-		signedBlock := &eth.SignedBeaconBlock{Block: &eth.BeaconBlock{
-			Body: &eth.BeaconBlockBody{PandoraShard: pandoraShards},
-		}}
-		currentErr := s.VerifyPandoraShardInfo(signedBlock)
-		require.Equal(t, errInvalidBeaconBlock, currentErr)
-	})
-
-	wrappedBlock := wrapper.WrappedPhase0SignedBeaconBlock(testutil.NewBeaconBlock())
-	newState, err := testutil.NewBeaconState()
-	require.NoError(t, err)
-	s.head = &head{block: wrappedBlock, state: newState}
 
 	t.Run("should throw an error when signed block has invalid pandora shard", func(t *testing.T) {
+		wrappedBlock := wrapper.WrappedPhase0SignedBeaconBlock(testutil.NewBeaconBlock())
+		parentBlock, currentErr := wrappedBlock.PbPhase0Block()
+		require.NoError(t, currentErr)
 		pandoraShards := make([]*eth.PandoraShard, 1)
 		signedBlock := &eth.SignedBeaconBlock{Block: &eth.BeaconBlock{
 			Body: &eth.BeaconBlockBody{PandoraShard: pandoraShards},
 		}}
-		currentErr := s.VerifyPandoraShardInfo(signedBlock)
+		currentErr = s.VerifyPandoraShardInfo(parentBlock, signedBlock)
 		require.Equal(t, errInvalidPandoraShardInfo, currentErr)
 	})
 
-	wrappedBlock = wrapper.WrappedPhase0SignedBeaconBlock(testutil.NewBeaconBlockWithPandoraSharding(
-		&gethTypes.Header{Number: big.NewInt(25)},
-		types.Slot(5),
-	))
-	s.head = &head{block: wrappedBlock, state: newState}
-
 	t.Run("should throw an error with invalid pandora shard", func(t *testing.T) {
+		wrappedBlock := wrapper.WrappedPhase0SignedBeaconBlock(testutil.NewBeaconBlockWithPandoraSharding(
+			&gethTypes.Header{Number: big.NewInt(25)},
+			types.Slot(5),
+		))
+		parentBlock, currentErr := wrappedBlock.PbPhase0Block()
+		require.NoError(t, currentErr)
 		signedBlock := &eth.SignedBeaconBlock{Block: &eth.BeaconBlock{}}
-		currentErr := s.VerifyPandoraShardInfo(signedBlock)
+		currentErr = s.VerifyPandoraShardInfo(parentBlock, signedBlock)
 		require.Equal(t, errInvalidPandoraShardInfo, currentErr)
 	})
 
@@ -173,13 +168,14 @@ func TestService_VerifyPandoraShardInfo(t *testing.T) {
 		ParentHash: common.HexToHash("0x67b96c7bbdbf2186c868ac7565a24d250c8ecbf4f43cb50bd78f11b73681c025"),
 	}
 
-	wrappedBlock = wrapper.WrappedPhase0SignedBeaconBlock(testutil.NewBeaconBlockWithPandoraSharding(
-		headPandoraShard,
-		types.Slot(headSlot),
-	))
-	s.head = &head{block: wrappedBlock, state: newState}
-
 	t.Run("should throw an error when parent does not match and is nonconsecutive", func(t *testing.T) {
+		wrappedBlock := wrapper.WrappedPhase0SignedBeaconBlock(testutil.NewBeaconBlockWithPandoraSharding(
+			headPandoraShard,
+			types.Slot(headSlot),
+		))
+		parentBlock, currentErr := wrappedBlock.PbPhase0Block()
+		require.NoError(t, currentErr)
+
 		signedBlock := testutil.HydrateSignedBeaconBlock(&ethpb_v1alpha1.SignedBeaconBlock{
 			Block: &ethpb_v1alpha1.BeaconBlock{
 				Slot: types.Slot(headSlot + 1),
@@ -191,11 +187,17 @@ func TestService_VerifyPandoraShardInfo(t *testing.T) {
 		pandoraShards := make([]*ethpb.PandoraShard, 1)
 		pandoraShards[0] = shard0
 		signedBlock.Block.Body.PandoraShard = pandoraShards
-		currentErr := s.VerifyPandoraShardInfo(signedBlock)
+		currentErr = s.VerifyPandoraShardInfo(parentBlock, signedBlock)
 		require.Equal(t, errNonConsecutivePandoraShardInfo, currentErr)
 	})
 
 	t.Run("should pass when consecutiveness is present", func(t *testing.T) {
+		wrappedBlock := wrapper.WrappedPhase0SignedBeaconBlock(testutil.NewBeaconBlockWithPandoraSharding(
+			headPandoraShard,
+			types.Slot(headSlot),
+		))
+		parentBlock, currentErr := wrappedBlock.PbPhase0Block()
+		require.NoError(t, currentErr)
 		signedBlock := testutil.HydrateSignedBeaconBlock(&ethpb_v1alpha1.SignedBeaconBlock{
 			Block: &ethpb_v1alpha1.BeaconBlock{
 				Slot: types.Slot(headSlot + 1),
@@ -212,7 +214,7 @@ func TestService_VerifyPandoraShardInfo(t *testing.T) {
 		pandoraShards := make([]*ethpb.PandoraShard, 1)
 		pandoraShards[0] = shard0
 		signedBlock.Block.Body.PandoraShard = pandoraShards
-		require.NoError(t, s.VerifyPandoraShardInfo(signedBlock))
+		require.NoError(t, s.VerifyPandoraShardInfo(parentBlock, signedBlock))
 	})
 }
 
