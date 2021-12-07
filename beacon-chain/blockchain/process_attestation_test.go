@@ -33,7 +33,7 @@ func TestStore_OnAttestation_ErrorConditions(t *testing.T) {
 	service, err := NewService(ctx, cfg)
 	require.NoError(t, err)
 
-	_, err = blockTree1(t, beaconDB, []byte{'g'})
+	_, err = blockTree1(t, beaconDB, []byte{'g'}, false)
 	require.NoError(t, err)
 
 	BlkWithOutState := testutil.NewBeaconBlock()
