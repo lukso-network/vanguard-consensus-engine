@@ -58,7 +58,6 @@ func TestStore_OnBlock_VanguardMode(t *testing.T) {
 	require.NoError(t, service.cfg.BeaconDB.SaveState(ctx, st.Copy(), validGenesisRoot))
 	_, err = blockTree1(t, beaconDB, validGenesisRoot[:], true)
 	require.NoError(t, err)
-	// TODO: solve invalid marshal ssz
 	// TODO: test onBlock side effects on blockTree1
 }
 
@@ -581,6 +580,16 @@ func blockTree1(t *testing.T, beaconDB db.Database, genesisRoot []byte, vanguard
 		return nil, err
 	}
 	b4 := testutil.NewBeaconBlock()
+
+	if vanguardEnabled {
+		pandoraHeader := &gethTypes.Header{}
+		parentPandoraShardBlockNumber := int64(b3.Block.Body.PandoraShard[0].BlockNumber)
+		parentPandoraShardBlockHash := b3.Block.Body.PandoraShard[0].Hash
+		pandoraHeader.Number = big.NewInt(0).Add(big.NewInt(parentPandoraShardBlockNumber), big.NewInt(4))
+		pandoraHeader.ParentHash = common.BytesToHash(parentPandoraShardBlockHash)
+		b4 = testutil.NewBeaconBlockWithPandoraSharding(pandoraHeader, 4)
+	}
+
 	b4.Block.Slot = 4
 	b4.Block.ParentRoot = r3[:]
 	r4, err := b4.Block.HashTreeRoot()
@@ -588,6 +597,16 @@ func blockTree1(t *testing.T, beaconDB db.Database, genesisRoot []byte, vanguard
 		return nil, err
 	}
 	b5 := testutil.NewBeaconBlock()
+
+	if vanguardEnabled {
+		pandoraHeader := &gethTypes.Header{}
+		parentPandoraShardBlockNumber := int64(b4.Block.Body.PandoraShard[0].BlockNumber)
+		parentPandoraShardBlockHash := b4.Block.Body.PandoraShard[0].Hash
+		pandoraHeader.Number = big.NewInt(0).Add(big.NewInt(parentPandoraShardBlockNumber), big.NewInt(5))
+		pandoraHeader.ParentHash = common.BytesToHash(parentPandoraShardBlockHash)
+		b5 = testutil.NewBeaconBlockWithPandoraSharding(pandoraHeader, 5)
+	}
+
 	b5.Block.Slot = 5
 	b5.Block.ParentRoot = r4[:]
 	r5, err := b5.Block.HashTreeRoot()
@@ -595,6 +614,16 @@ func blockTree1(t *testing.T, beaconDB db.Database, genesisRoot []byte, vanguard
 		return nil, err
 	}
 	b6 := testutil.NewBeaconBlock()
+
+	if vanguardEnabled {
+		pandoraHeader := &gethTypes.Header{}
+		parentPandoraShardBlockNumber := int64(b4.Block.Body.PandoraShard[0].BlockNumber)
+		parentPandoraShardBlockHash := b4.Block.Body.PandoraShard[0].Hash
+		pandoraHeader.Number = big.NewInt(0).Add(big.NewInt(parentPandoraShardBlockNumber), big.NewInt(6))
+		pandoraHeader.ParentHash = common.BytesToHash(parentPandoraShardBlockHash)
+		b6 = testutil.NewBeaconBlockWithPandoraSharding(pandoraHeader, 6)
+	}
+
 	b6.Block.Slot = 6
 	b6.Block.ParentRoot = r4[:]
 	r6, err := b6.Block.HashTreeRoot()
@@ -602,6 +631,16 @@ func blockTree1(t *testing.T, beaconDB db.Database, genesisRoot []byte, vanguard
 		return nil, err
 	}
 	b7 := testutil.NewBeaconBlock()
+
+	if vanguardEnabled {
+		pandoraHeader := &gethTypes.Header{}
+		parentPandoraShardBlockNumber := int64(b5.Block.Body.PandoraShard[0].BlockNumber)
+		parentPandoraShardBlockHash := b5.Block.Body.PandoraShard[0].Hash
+		pandoraHeader.Number = big.NewInt(0).Add(big.NewInt(parentPandoraShardBlockNumber), big.NewInt(7))
+		pandoraHeader.ParentHash = common.BytesToHash(parentPandoraShardBlockHash)
+		b7 = testutil.NewBeaconBlockWithPandoraSharding(pandoraHeader, 7)
+	}
+
 	b7.Block.Slot = 7
 	b7.Block.ParentRoot = r5[:]
 	r7, err := b7.Block.HashTreeRoot()
@@ -609,6 +648,16 @@ func blockTree1(t *testing.T, beaconDB db.Database, genesisRoot []byte, vanguard
 		return nil, err
 	}
 	b8 := testutil.NewBeaconBlock()
+
+	if vanguardEnabled {
+		pandoraHeader := &gethTypes.Header{}
+		parentPandoraShardBlockNumber := int64(b6.Block.Body.PandoraShard[0].BlockNumber)
+		parentPandoraShardBlockHash := b6.Block.Body.PandoraShard[0].Hash
+		pandoraHeader.Number = big.NewInt(0).Add(big.NewInt(parentPandoraShardBlockNumber), big.NewInt(8))
+		pandoraHeader.ParentHash = common.BytesToHash(parentPandoraShardBlockHash)
+		b8 = testutil.NewBeaconBlockWithPandoraSharding(pandoraHeader, 8)
+	}
+
 	b8.Block.Slot = 8
 	b8.Block.ParentRoot = r6[:]
 	r8, err := b8.Block.HashTreeRoot()
