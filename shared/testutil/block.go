@@ -569,6 +569,8 @@ func NewBeaconBlockWithPandoraSharding(panHeader *gethTypes.Header, slot types.S
 	beaconBlock := NewBeaconBlock()
 	beaconBlock.Block.Slot = slot
 
+	sealBytes := make([]byte, 32)
+
 	panState := new(ethpb.PandoraShard)
 	panState.BlockNumber = panHeader.Number.Uint64() - 1
 	panState.Hash = gethTypes.EmptyRootHash.Bytes()
@@ -576,6 +578,7 @@ func NewBeaconBlockWithPandoraSharding(panHeader *gethTypes.Header, slot types.S
 	panState.StateRoot = panHeader.Root.Bytes()
 	panState.TxHash = panHeader.TxHash.Bytes()
 	panState.ReceiptHash = panHeader.ReceiptHash.Bytes()
+	panState.SealHash = sealBytes
 	panState.Signature = make([]byte, params.BeaconConfig().BLSSignatureLength)
 
 	pandoraShards := make([]*ethpb.PandoraShard, 1)
