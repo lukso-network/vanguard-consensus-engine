@@ -56,7 +56,31 @@ func TestStore_OnBlock_VanguardMode(t *testing.T) {
 	st, err := testutil.NewBeaconState()
 	require.NoError(t, err)
 	require.NoError(t, service.cfg.BeaconDB.SaveState(ctx, st.Copy(), validGenesisRoot))
-	//	 TODO: test onBlock side effects on blockTree1
+	_, err = blockTree1(t, beaconDB, validGenesisRoot[:], true)
+	require.NoError(t, err)
+	// TODO: solve invalid marshal ssz
+	// TODO: test onBlock side effects on blockTree1
+}
+
+// TestMarshalAndUnmarshalSignedBeaconBlock will assure that marshalling and unmarshalling
+// is working with and without Pandora mode
+func TestMarshalAndUnmarshalSignedBeaconBlock(t *testing.T) {
+	t.Run("should marshal and unmarshal blocks without pandora", func(t *testing.T) {
+		blockWithoutPandora := testutil.NewBeaconBlock()
+		buffer, currentErr := blockWithoutPandora.MarshalSSZ()
+		require.NoError(t, currentErr)
+		require.NoError(t, blockWithoutPandora.UnmarshalSSZ(buffer))
+	})
+
+	t.Run("should marshal and unmarshal blocks with pandora", func(t *testing.T) {
+		blockWithoutPandora := testutil.NewBeaconBlockWithPandoraSharding(
+			&gethTypes.Header{Number: big.NewInt(1)},
+			1,
+		)
+		buffer, currentErr := blockWithoutPandora.MarshalSSZ()
+		require.NoError(t, currentErr)
+		require.NoError(t, blockWithoutPandora.UnmarshalSSZ(buffer))
+	})
 }
 
 func TestStore_OnBlock(t *testing.T) {
