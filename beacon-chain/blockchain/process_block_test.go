@@ -36,7 +36,7 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/timeutils"
 )
 
-func TestStore_OnBlock_VanguardMode(t *testing.T) {
+func TestStore_VanguardMode_OnBlock(t *testing.T) {
 	ctx := context.Background()
 	beaconDB := testDB.SetupDB(t)
 
@@ -53,6 +53,9 @@ func TestStore_OnBlock_VanguardMode(t *testing.T) {
 	assert.NoError(t, beaconDB.SaveBlock(ctx, wrapper.WrappedPhase0SignedBeaconBlock(genesis)))
 	validGenesisRoot, err := genesis.Block.HashTreeRoot()
 	require.NoError(t, err)
+	service.finalizedCheckpt = &ethpb.Checkpoint{
+		Root: validGenesisRoot[:],
+	}
 	st, err := testutil.NewBeaconState()
 	require.NoError(t, err)
 	require.NoError(t, service.cfg.BeaconDB.SaveState(ctx, st.Copy(), validGenesisRoot))
@@ -79,13 +82,34 @@ func TestStore_OnBlock_VanguardMode(t *testing.T) {
 		wantErrString string
 	}{
 		{
+			name: "could not get finalized block",
+			blk: func() *ethpb.SignedBeaconBlock {
+				b := testutil.NewBeaconBlock()
+				b.Block.ParentRoot = randomParentRoot[:]
+				return b
+			}(),
+			s:             st.Copy(),
+			wantErrString: "is not a descendent of the current finalized block",
+		},
+		{
+			name: "same slot as finalized block",
+			blk: func() *ethpb.SignedBeaconBlock {
+				b := testutil.NewBeaconBlock()
+				b.Block.Slot = 0
+				b.Block.ParentRoot = randomParentRoot2
+				return b
+			}(),
+			s:             st.Copy(),
+			wantErrString: "block is equal or earlier than finalized block, slot 0 < slot 0",
+		},
+		{
 			name: "should not pass consecutive guard in pandora shard because of invalid hash",
 			blk: func() (pandoraBlock *ethpb.SignedBeaconBlock) {
 				pandoraHeader := &gethTypes.Header{}
 				// TODO: IMHO refactor needed. PandoraShardBlockNumber should be *big.Int
-				parentPandoraShardBlockNumber := int64(8)
+				parentPandoraShardBlockNumber := int64(9)
 				parentPandoraShardBlockHash := common.HexToHash("0xabcdef1")
-				pandoraHeader.Number = big.NewInt(0).Add(big.NewInt(parentPandoraShardBlockNumber), big.NewInt(1))
+				pandoraHeader.Number = big.NewInt(0).Add(big.NewInt(parentPandoraShardBlockNumber), big.NewInt(9))
 				pandoraHeader.ParentHash = parentPandoraShardBlockHash
 				pandoraBlock = testutil.NewBeaconBlockWithPandoraSharding(pandoraHeader, 9)
 				pandoraBlock.Block.ParentRoot = validGenesisRoot[:]
@@ -111,7 +135,6 @@ func TestStore_OnBlock_VanguardMode(t *testing.T) {
 			assert.ErrorContains(t, tt.wantErrString, err)
 		})
 	}
-
 }
 
 // TestMarshalAndUnmarshalSignedBeaconBlock will assure that marshalling and unmarshalling
@@ -601,6 +624,7 @@ func blockTree1(t *testing.T, beaconDB db.Database, genesisRoot []byte, vanguard
 		return nil, err
 	}
 	b1 := testutil.NewBeaconBlock()
+
 	if vanguardEnabled {
 		pandoraHeader := &gethTypes.Header{}
 		parentPandoraShardBlockNumber := int64(b0.Block.Body.PandoraShard[0].BlockNumber)
@@ -609,6 +633,7 @@ func blockTree1(t *testing.T, beaconDB db.Database, genesisRoot []byte, vanguard
 		pandoraHeader.ParentHash = common.BytesToHash(parentPandoraShardBlockHash)
 		b1 = testutil.NewBeaconBlockWithPandoraSharding(pandoraHeader, 1)
 	}
+
 	b1.Block.Slot = 1
 	b1.Block.ParentRoot = r0[:]
 	r1, err := b1.Block.HashTreeRoot()
@@ -621,9 +646,9 @@ func blockTree1(t *testing.T, beaconDB db.Database, genesisRoot []byte, vanguard
 		pandoraHeader := &gethTypes.Header{}
 		parentPandoraShardBlockNumber := int64(b1.Block.Body.PandoraShard[0].BlockNumber)
 		parentPandoraShardBlockHash := b1.Block.Body.PandoraShard[0].Hash
-		pandoraHeader.Number = big.NewInt(0).Add(big.NewInt(parentPandoraShardBlockNumber), big.NewInt(1))
+		pandoraHeader.Number = big.NewInt(0).Add(big.NewInt(parentPandoraShardBlockNumber), big.NewInt(3))
 		pandoraHeader.ParentHash = common.BytesToHash(parentPandoraShardBlockHash)
-		b3 = testutil.NewBeaconBlockWithPandoraSharding(pandoraHeader, 1)
+		b3 = testutil.NewBeaconBlockWithPandoraSharding(pandoraHeader, 3)
 	}
 	// TODO: add vanguard logic to each of the blocks
 	b3.Block.Slot = 3
