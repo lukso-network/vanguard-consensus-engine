@@ -56,9 +56,62 @@ func TestStore_OnBlock_VanguardMode(t *testing.T) {
 	st, err := testutil.NewBeaconState()
 	require.NoError(t, err)
 	require.NoError(t, service.cfg.BeaconDB.SaveState(ctx, st.Copy(), validGenesisRoot))
-	_, err = blockTree1(t, beaconDB, validGenesisRoot[:], true)
+	roots, err := blockTree1(t, beaconDB, validGenesisRoot[:], true)
 	require.NoError(t, err)
+	random := testutil.NewBeaconBlock()
+	random.Block.Slot = 1
+	random.Block.ParentRoot = validGenesisRoot[:]
+	assert.NoError(t, beaconDB.SaveBlock(ctx, wrapper.WrappedPhase0SignedBeaconBlock(random)))
+	randomParentRoot, err := random.Block.HashTreeRoot()
+	assert.NoError(t, err)
+	require.NoError(t, service.cfg.BeaconDB.SaveStateSummary(ctx, &pb.StateSummary{Slot: st.Slot(), Root: randomParentRoot[:]}))
+	require.NoError(t, service.cfg.BeaconDB.SaveState(ctx, st.Copy(), randomParentRoot))
+	randomParentRoot2 := roots[1]
+	require.NoError(t, service.cfg.BeaconDB.SaveStateSummary(ctx, &pb.StateSummary{Slot: st.Slot(), Root: randomParentRoot2}))
+	require.NoError(t, service.cfg.BeaconDB.SaveState(ctx, st.Copy(), bytesutil.ToBytes32(randomParentRoot2)))
+
 	// TODO: test onBlock side effects on blockTree1
+	tests := []struct {
+		name          string
+		blk           *ethpb.SignedBeaconBlock
+		s             iface.BeaconState
+		time          uint64
+		wantErrString string
+	}{
+		{
+			name: "should not pass consecutive guard in pandora shard because of invalid hash",
+			blk: func() (pandoraBlock *ethpb.SignedBeaconBlock) {
+				pandoraHeader := &gethTypes.Header{}
+				// TODO: IMHO refactor needed. PandoraShardBlockNumber should be *big.Int
+				parentPandoraShardBlockNumber := int64(8)
+				parentPandoraShardBlockHash := common.HexToHash("0xabcdef1")
+				pandoraHeader.Number = big.NewInt(0).Add(big.NewInt(parentPandoraShardBlockNumber), big.NewInt(1))
+				pandoraHeader.ParentHash = parentPandoraShardBlockHash
+				pandoraBlock = testutil.NewBeaconBlockWithPandoraSharding(pandoraHeader, 9)
+				pandoraBlock.Block.ParentRoot = validGenesisRoot[:]
+				pandoraBlock.Block.Slot = 9
+				return
+			}(),
+			s:             st.Copy(),
+			wantErrString: "ubilubu asff",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service.justifiedCheckpt = &ethpb.Checkpoint{Root: validGenesisRoot[:]}
+			service.bestJustifiedCheckpt = &ethpb.Checkpoint{Root: validGenesisRoot[:]}
+			service.finalizedCheckpt = &ethpb.Checkpoint{Root: validGenesisRoot[:]}
+			service.prevFinalizedCheckpt = &ethpb.Checkpoint{Root: validGenesisRoot[:]}
+			service.finalizedCheckpt.Root = roots[0]
+
+			root, err := tt.blk.Block.HashTreeRoot()
+			assert.NoError(t, err)
+			err = service.onBlock(ctx, wrapper.WrappedPhase0SignedBeaconBlock(tt.blk), root)
+			assert.ErrorContains(t, tt.wantErrString, err)
+		})
+	}
+
 }
 
 // TestMarshalAndUnmarshalSignedBeaconBlock will assure that marshalling and unmarshalling
