@@ -50,8 +50,9 @@ func TestStore_VanguardMode_OnBlock(t *testing.T) {
 		beaconDB = testDB.SetupDB(t)
 
 		cfg := &Config{
-			BeaconDB: beaconDB,
-			StateGen: stategen.New(beaconDB),
+			BeaconDB:           beaconDB,
+			StateGen:           stategen.New(beaconDB),
+			EnableVanguardNode: true,
 		}
 		service, err := NewService(ctx, cfg)
 		require.NoError(t, err)
@@ -64,6 +65,7 @@ func TestStore_VanguardMode_OnBlock(t *testing.T) {
 		service.finalizedCheckpt = &ethpb.Checkpoint{
 			Root: gRoot[:],
 		}
+		service.genesisRoot = gRoot
 		service.cfg.ForkChoiceStore = protoarray.New(0, 0, [32]byte{})
 		service.saveInitSyncBlock(gRoot, wrapper.WrappedPhase0SignedBeaconBlock(genesis))
 		require.NoError(t, service.cfg.BeaconDB.SaveBlock(ctx, wrapper.WrappedPhase0SignedBeaconBlock(genesis)))
@@ -77,11 +79,16 @@ func TestStore_VanguardMode_OnBlock(t *testing.T) {
 		pandoraHeaders [10]*gethTypes.Header,
 		signatures [10][]byte,
 	) (blks []interfaces.SignedBeaconBlock, blkRoots [][32]byte) {
-		bState := st.Copy()
-
 		for i := 1; i < 10; i++ {
+			bState := st.Copy()
 			pandoraShards := make([]*ethpb.PandoraShard, 1)
 			pandoraHeader := pandoraHeaders[i-1]
+			signature := signatures[i-1]
+
+			if len(signature) != 96 {
+				tempSignature := [96]byte{}
+				signature = tempSignature[:]
+			}
 
 			pandoraShards[0] = &ethpb.PandoraShard{
 				BlockNumber: pandoraHeader.Number.Uint64(),
@@ -91,7 +98,7 @@ func TestStore_VanguardMode_OnBlock(t *testing.T) {
 				TxHash:      pandoraHeader.TxHash.Bytes(),
 				ReceiptHash: pandoraHeader.TxHash.Bytes(),
 				SealHash:    sealHash(pandoraHeader).Bytes(),
-				Signature:   signatures[i-1],
+				Signature:   signature,
 			}
 
 			b, currentErr := testutil.GenerateFullBlock(
@@ -100,7 +107,14 @@ func TestStore_VanguardMode_OnBlock(t *testing.T) {
 				testutil.DefaultBlockGenConfig(),
 				types.Slot(i),
 			)
+
 			require.NoError(t, currentErr)
+			b.Block.Body.PandoraShard = pandoraShards
+
+			if i == 1 {
+				b.Block.ParentRoot = service.genesisRoot[:]
+			}
+
 			bState, currentErr = state.ExecuteStateTransition(ctx, bState, wrapper.WrappedPhase0SignedBeaconBlock(b))
 			require.NoError(t, currentErr)
 			root, currentErr := b.Block.HashTreeRoot()
@@ -141,17 +155,12 @@ func TestStore_VanguardMode_OnBlock(t *testing.T) {
 	t.Run("should pass on consecutive block batch with not signed data", func(t *testing.T) {
 		currentDB, service := setupDbAndService()
 		signatures := [10][]byte{}
+
 		blks, blockRoots := prepareBlocksWithPandoraShards(
 			service,
 			prepareConsecutiveHeaders(genesisHeader),
 			signatures,
 		)
-
-		block, err := blks[0].PbPhase0Block()
-		require.NoError(t, err)
-
-		var genesisRoot [32]byte
-		copy(genesisRoot[:], block.Block.ParentRoot)
 
 		require.Equal(t, true, currentDB.HasBlock(ctx, blockRoots[0]))
 		require.Equal(t, true, currentDB.HasState(ctx, blockRoots[0]))
