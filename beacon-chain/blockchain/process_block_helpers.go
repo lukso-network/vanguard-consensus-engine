@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/pkg/errors"
 	types "github.com/prysmaticlabs/eth2-types"
@@ -67,7 +68,7 @@ func (s *Service) verifyBlkPreState(ctx context.Context, b interfaces.BeaconBloc
 	// during initial syncing. There's no risk given a state summary object is just a
 	// a subset of the block object.
 	if !s.cfg.BeaconDB.HasStateSummary(ctx, parentRoot) && !s.cfg.BeaconDB.HasBlock(ctx, parentRoot) {
-		return errors.New("could not reconstruct parent state")
+		return errors.Wrap(errors.New("could not reconstruct parent state"), fmt.Sprintf("parentRoot: %s, blockSlot: %d", common.BytesToHash(parentRoot[:]).String(), b.Slot()))
 	}
 
 	if err := s.VerifyBlkDescendant(ctx, bytesutil.ToBytes32(b.ParentRoot())); err != nil {

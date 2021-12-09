@@ -3,7 +3,10 @@ package blockchain
 import (
 	"context"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rlp"
+	"golang.org/x/crypto/sha3"
 	"math/big"
 	"strconv"
 	"testing"
@@ -37,40 +40,126 @@ import (
 
 func TestStore_VanguardMode_OnBlock(t *testing.T) {
 	ctx := context.Background()
-	beaconDB := testDB.SetupDB(t)
 
-	cfg := &Config{
-		BeaconDB:           beaconDB,
-		StateGen:           stategen.New(beaconDB),
-		ForkChoiceStore:    protoarray.New(0, 0, [32]byte{}),
-		EnableVanguardNode: true,
+	st, keys := testutil.DeterministicGenesisState(t, 64)
+
+	setupDbAndService := func() (
+		beaconDB db.Database,
+		service *Service,
+	) {
+		beaconDB = testDB.SetupDB(t)
+
+		cfg := &Config{
+			BeaconDB: beaconDB,
+			StateGen: stategen.New(beaconDB),
+		}
+		service, err := NewService(ctx, cfg)
+		require.NoError(t, err)
+
+		genesisStateRoot := [32]byte{}
+		genesis := blocks.NewGenesisBlock(genesisStateRoot[:])
+		assert.NoError(t, beaconDB.SaveBlock(ctx, wrapper.WrappedPhase0SignedBeaconBlock(genesis)))
+		gRoot, err := genesis.Block.HashTreeRoot()
+		require.NoError(t, err)
+		service.finalizedCheckpt = &ethpb.Checkpoint{
+			Root: gRoot[:],
+		}
+		service.cfg.ForkChoiceStore = protoarray.New(0, 0, [32]byte{})
+		service.saveInitSyncBlock(gRoot, wrapper.WrappedPhase0SignedBeaconBlock(genesis))
+		require.NoError(t, service.cfg.BeaconDB.SaveBlock(ctx, wrapper.WrappedPhase0SignedBeaconBlock(genesis)))
+		require.NoError(t, service.cfg.BeaconDB.SaveState(ctx, st.Copy(), genesisStateRoot))
+
+		return
 	}
-	service, err := NewService(ctx, cfg)
-	require.NoError(t, err)
-	genesisStateRoot := [32]byte{}
-	genesis := blocks.NewGenesisBlock(genesisStateRoot[:])
-	assert.NoError(t, beaconDB.SaveBlock(ctx, wrapper.WrappedPhase0SignedBeaconBlock(genesis)))
-	validGenesisRoot, err := genesis.Block.HashTreeRoot()
-	require.NoError(t, err)
-	service.finalizedCheckpt = &ethpb.Checkpoint{
-		Root: validGenesisRoot[:],
+
+	prepareBlocksWithPandoraShards := func(
+		service *Service,
+		pandoraHeaders [10]*gethTypes.Header,
+		signatures [10][]byte,
+	) (blks []interfaces.SignedBeaconBlock, blkRoots [][32]byte) {
+		bState := st.Copy()
+
+		for i := 1; i < 10; i++ {
+			pandoraShards := make([]*ethpb.PandoraShard, 1)
+			pandoraHeader := pandoraHeaders[i-1]
+
+			pandoraShards[0] = &ethpb.PandoraShard{
+				BlockNumber: pandoraHeader.Number.Uint64(),
+				Hash:        pandoraHeader.Hash().Bytes(),
+				ParentHash:  pandoraHeader.ParentHash.Bytes(),
+				StateRoot:   pandoraHeader.Root.Bytes(),
+				TxHash:      pandoraHeader.TxHash.Bytes(),
+				ReceiptHash: pandoraHeader.TxHash.Bytes(),
+				SealHash:    sealHash(pandoraHeader).Bytes(),
+				Signature:   signatures[i-1],
+			}
+
+			b, currentErr := testutil.GenerateFullBlock(
+				bState,
+				keys,
+				testutil.DefaultBlockGenConfig(),
+				types.Slot(i),
+			)
+			require.NoError(t, currentErr)
+			bState, currentErr = state.ExecuteStateTransition(ctx, bState, wrapper.WrappedPhase0SignedBeaconBlock(b))
+			require.NoError(t, currentErr)
+			root, currentErr := b.Block.HashTreeRoot()
+			require.NoError(t, currentErr)
+			service.saveInitSyncBlock(root, wrapper.WrappedPhase0SignedBeaconBlock(b))
+			blks = append(blks, wrapper.WrappedPhase0SignedBeaconBlock(b))
+			blkRoots = append(blkRoots, root)
+			require.NoError(t, service.cfg.BeaconDB.SaveBlock(ctx, wrapper.WrappedPhase0SignedBeaconBlock(b)))
+			require.NoError(t, service.cfg.BeaconDB.SaveState(ctx, bState, root))
+		}
+
+		return
 	}
-	st, err := testutil.NewBeaconState()
-	require.NoError(t, err)
-	require.NoError(t, service.cfg.BeaconDB.SaveState(ctx, st.Copy(), validGenesisRoot))
-	roots, err := blockTree1(t, beaconDB, validGenesisRoot[:])
-	require.NoError(t, err)
-	random := testutil.NewBeaconBlock()
-	random.Block.Slot = 1
-	random.Block.ParentRoot = validGenesisRoot[:]
-	assert.NoError(t, beaconDB.SaveBlock(ctx, wrapper.WrappedPhase0SignedBeaconBlock(random)))
-	randomParentRoot, err := random.Block.HashTreeRoot()
-	assert.NoError(t, err)
-	require.NoError(t, service.cfg.BeaconDB.SaveStateSummary(ctx, &pb.StateSummary{Slot: st.Slot(), Root: randomParentRoot[:]}))
-	require.NoError(t, service.cfg.BeaconDB.SaveState(ctx, st.Copy(), randomParentRoot))
-	randomParentRoot2 := roots[1]
-	require.NoError(t, service.cfg.BeaconDB.SaveStateSummary(ctx, &pb.StateSummary{Slot: st.Slot(), Root: randomParentRoot2}))
-	require.NoError(t, service.cfg.BeaconDB.SaveState(ctx, st.Copy(), bytesutil.ToBytes32(randomParentRoot2)))
+
+	genesisHeader := &gethTypes.Header{
+		ParentHash:  common.HexToHash("0xb"),
+		TxHash:      common.HexToHash("0xa"),
+		Number:      big.NewInt(1),
+		Root:        common.HexToHash("0xc"),
+		ReceiptHash: common.HexToHash("0xd"),
+	}
+
+	prepareConsecutiveHeaders := func(parentHeader *gethTypes.Header) (headers [10]*gethTypes.Header) {
+		headers = [10]*gethTypes.Header{}
+
+		for i := 1; i <= len(headers); i++ {
+			if 1 == i {
+				headers[i-1] = parentHeader
+				continue
+			}
+
+			headers[i-1] = headers[i-2]
+		}
+
+		return
+	}
+
+	t.Run("should pass on consecutive block batch with not signed data", func(t *testing.T) {
+		currentDB, service := setupDbAndService()
+		signatures := [10][]byte{}
+		blks, blockRoots := prepareBlocksWithPandoraShards(
+			service,
+			prepareConsecutiveHeaders(genesisHeader),
+			signatures,
+		)
+
+		block, err := blks[0].PbPhase0Block()
+		require.NoError(t, err)
+
+		var genesisRoot [32]byte
+		copy(genesisRoot[:], block.Block.ParentRoot)
+
+		require.Equal(t, true, currentDB.HasBlock(ctx, blockRoots[0]))
+		require.Equal(t, true, currentDB.HasState(ctx, blockRoots[0]))
+		assert.NotNil(t, blks)
+		assert.NotNil(t, blockRoots)
+		_, _, currentErr := service.onBlockBatch(ctx, blks, blockRoots)
+		require.NoError(t, currentErr)
+	})
 
 	// TODO: test onBlock side effects on blockTree1
 }
@@ -1110,4 +1199,29 @@ func TestRemoveBlockAttestationsInPool_NonCanonical(t *testing.T) {
 	require.NoError(t, service.cfg.AttPool.SaveAggregatedAttestations(atts))
 	require.NoError(t, service.pruneCanonicalAttsFromPool(ctx, r, wrapper.WrappedPhase0SignedBeaconBlock(b)))
 	require.Equal(t, 1, service.cfg.AttPool.AggregatedAttestationCount())
+}
+
+// SealHash returns the hash of a block prior to it being sealed.
+func sealHash(header *gethTypes.Header) (hash common.Hash) {
+	hasher := sha3.NewLegacyKeccak256()
+
+	if err := rlp.Encode(hasher, []interface{}{
+		header.ParentHash,
+		header.UncleHash,
+		header.Coinbase,
+		header.Root,
+		header.TxHash,
+		header.ReceiptHash,
+		header.Bloom,
+		header.Difficulty,
+		header.Number,
+		header.GasLimit,
+		header.GasUsed,
+		header.Time,
+		header.Extra,
+	}); err != nil {
+		return gethTypes.EmptyRootHash
+	}
+	hasher.Sum(hash[:0])
+	return hash
 }

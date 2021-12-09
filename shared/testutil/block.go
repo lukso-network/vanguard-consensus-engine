@@ -75,6 +75,7 @@ func GenerateFullBlock(
 	privs []bls.SecretKey,
 	conf *BlockGenConfig,
 	slot types.Slot,
+	pandoraShards ...*ethpb.PandoraShard,
 ) (*ethpb.SignedBeaconBlock, error) {
 	ctx := context.Background()
 	currentSlot := bState.Slot()
@@ -177,7 +178,7 @@ func GenerateFullBlock(
 			VoluntaryExits:    exits,
 			Deposits:          newDeposits,
 			Graffiti:          make([]byte, 32),
-			PandoraShard:      []*ethpb.PandoraShard{},
+			PandoraShard:      pandoraShards,
 		},
 	}
 	if err := bState.SetSlot(currentSlot); err != nil {
