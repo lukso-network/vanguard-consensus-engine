@@ -144,7 +144,7 @@ func TestStore_VanguardMode_OnBlock(t *testing.T) {
 		return
 	}
 
-	t.Run("should pass on consecutive block batch with not signed data", func(t *testing.T) {
+	t.Run("should return pandora verification error", func(t *testing.T) {
 		currentDB, service := setupDbAndService()
 		blks, blockRoots, states := prepareBlocksWithPandoraShards(
 			service,
@@ -166,13 +166,12 @@ func TestStore_VanguardMode_OnBlock(t *testing.T) {
 		require.NoError(t, service.cfg.StateGen.SaveState(ctx, blockRoots[0], parentState))
 		require.NoError(t, currentDB.SaveBlock(context.Background(), blks[0]))
 		require.NoError(t, currentDB.SaveState(context.Background(), states[0], blockRoots[0]))
-
 		_, _, currentErr := service.onBlockBatch(ctx, blks[1:], blockRoots[1:])
-		require.NoError(t, currentErr)
+		require.ErrorContains(t, "could not verify pandora shard info", currentErr)
 
+		currentErr = service.onBlock(ctx, blks[1], blockRoots[1])
+		require.ErrorContains(t, "could not verify pandora shard info", currentErr)
 	})
-
-	// TODO: test onBlock side effects on blockTree1
 }
 
 // TestMarshalAndUnmarshalSignedBeaconBlock will assure that marshalling and unmarshalling
