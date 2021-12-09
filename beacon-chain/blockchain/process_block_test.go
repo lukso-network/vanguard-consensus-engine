@@ -53,6 +53,7 @@ func TestStore_VanguardMode_OnBlock(t *testing.T) {
 			BeaconDB:           beaconDB,
 			StateGen:           stategen.New(beaconDB),
 			EnableVanguardNode: true,
+			StateNotifier:      &mock.MockStateNotifier{},
 		}
 		service, err := NewService(ctx, cfg)
 		require.NoError(t, err)
