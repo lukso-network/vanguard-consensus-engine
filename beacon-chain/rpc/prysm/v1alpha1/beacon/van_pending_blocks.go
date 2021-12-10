@@ -173,7 +173,13 @@ func (bs *Server) StreamNewPendingBlocks(
 					return status.Errorf(codes.Internal, "Could not send over stream: %v", err)
 				}
 
-				blockInfo, err := prepareBlockInfo(unwrappedBlk, false)
+				// orchestrator needs to know about syncing status
+				var disableDelete bool
+				if !bs.PendingQueueFetcher.OrcVerification() {
+					disableDelete = true
+				}
+
+				blockInfo, err := prepareBlockInfo(unwrappedBlk, disableDelete)
 				if err != nil {
 					return err
 				}
