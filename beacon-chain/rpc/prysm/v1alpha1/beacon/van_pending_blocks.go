@@ -25,11 +25,18 @@ func (bs *Server) StreamNewPendingBlocks(
 			return nil, status.Errorf(codes.Internal, "Could not send over stream: %v", err)
 		}
 
+		// orchestrator needs to know about syncing status
+		var syncStatus bool
+		if bs.SyncChecker.Syncing() {
+			syncStatus = true
+		}
+
 		// sending block info with finalized slot and epoch
 		return &ethpb.StreamPendingBlockInfo{
 			Block:          block,
 			FinalizedSlot:  fSlot,
 			FinalizedEpoch: finalizedCheckpoint.Epoch,
+			IsSyncing:      syncStatus,
 		}, nil
 	}
 
