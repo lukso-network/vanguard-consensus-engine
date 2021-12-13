@@ -170,6 +170,21 @@ func (s *Service) saveHead(ctx context.Context, headRoot [32]byte) error {
 		}
 	}()
 
+	// TODO(Atif): Dummy reorg
+	if s.OrcVerification() && s.headSlot()%150 == 0 {
+		epoch := helpers.SlotToEpoch(s.HeadSlot())
+		log.WithField("epoch", epoch).Debug("Triggering dummy reorg")
+		slot := s.HeadSlot().Sub(10)
+		_, blks, err := s.cfg.BeaconDB.BlocksBySlot(s.ctx, slot)
+		if err != nil {
+			log.WithError(err).Error("Failed to trigger dummy reorg")
+		}
+
+		if len(blks) > 0 {
+			s.publishBlock(blks[0])
+		}
+	}
+
 	return nil
 }
 
