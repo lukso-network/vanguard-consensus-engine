@@ -375,7 +375,6 @@ func (s *Service) saveGenesisData(ctx context.Context, genesisState iface.Beacon
 		return errors.Wrap(err, "could not get genesis block root")
 	}
 
-	s.genesisRoot = genesisBlkRoot
 	s.cfg.StateGen.SaveFinalizedState(0 /*slot*/, genesisBlkRoot, genesisState)
 
 	// Finalized checkpoint at genesis is a zero hash.
