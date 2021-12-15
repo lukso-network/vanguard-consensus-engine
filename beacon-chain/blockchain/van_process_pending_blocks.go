@@ -316,11 +316,20 @@ func (s *Service) VerifyPandoraShardInfo(
 		return errInvalidPandoraShardInfo
 	}
 
+	headBlk := parentBlock
+	headBlock := headBlk.GetBlock()
 	signedBlock := signedBlk.Block
 
-	if nil == parentBlock || nil == parentBlock.Block {
-		log.Error("parent block is nil")
-		return errInvalidPandoraShardInfo
+	// Assumption is that block must be produced in first epoch on top of genesis block (block 0)
+	// TODO: genesisBlock.Block.PandoraShards should be filled with at least 1 shard
+	// TODO: s.genesisRoot is not equal genesisPhase0Block.HashTreeRoot(). Check out why. They should be the same.
+	headHashRoot := [32]byte{}
+	copy(headHashRoot[:], signedBlock.ParentRoot)
+
+	if s.genesisRoot == headHashRoot {
+		log.Warn("genesis hash tree root match")
+
+		return nil
 	}
 
 	signedBlockBody := signedBlock.Body
@@ -331,13 +340,11 @@ func (s *Service) VerifyPandoraShardInfo(
 		return errInvalidPandoraShardInfo
 	}
 
-	headBlk := parentBlock
-	headBlock := headBlk.GetBlock()
 	headBlockBody := headBlock.GetBody()
-	pandoraShards := headBlockBody.PandoraShard
+	pandoraShards := headBlockBody.GetPandoraShard()
 
 	if len(pandoraShards) < 1 {
-		log.WithField("slot", headBlock.Slot).Error("pandora shard is not present")
+		log.WithField("headBlock", headBlock).Error("pandora shard is not present")
 		return errInvalidPandoraShardInfo
 	}
 
