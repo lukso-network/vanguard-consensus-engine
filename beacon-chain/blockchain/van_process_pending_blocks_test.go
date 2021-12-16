@@ -198,6 +198,6 @@ func getBeaconBlocks(from, to int) []interfaces.SignedBeaconBlock {
 // Helper method to generate pending queue with random block
 func getBeaconBlock(slot types.Slot) interfaces.SignedBeaconBlock {
 	b := testutil.NewBeaconBlock()
-	b.Block.Slot = types.Slot(slot)
+	b.Block.Slot = slot
 	return wrapper.WrappedPhase0SignedBeaconBlock(b)
 }
