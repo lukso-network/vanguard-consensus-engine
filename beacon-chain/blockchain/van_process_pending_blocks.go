@@ -45,33 +45,12 @@ type orcConfirmationData struct {
 // PendingQueueFetcher interface use when validator calls GetBlock api for proposing new beancon block
 type PendingQueueFetcher interface {
 	CanPropose() bool
-	ActivateOrcVerification()
-	DeactivateOrcVerification()
-	OrcVerification() bool
 }
 
 func (s *Service) CanPropose() bool {
 	s.canProposeLock.RLock()
 	defer s.canProposeLock.RUnlock()
 	return s.canPropose
-}
-
-func (s *Service) ActivateOrcVerification() {
-	s.orcVerificationLock.Lock()
-	defer s.orcVerificationLock.Unlock()
-	s.orcVerification = true
-}
-
-func (s *Service) DeactivateOrcVerification() {
-	s.orcVerificationLock.Lock()
-	defer s.orcVerificationLock.Unlock()
-	s.orcVerification = false
-}
-
-func (s *Service) OrcVerification() bool {
-	s.orcVerificationLock.RLock()
-	defer s.orcVerificationLock.RUnlock()
-	return s.orcVerification
 }
 
 func (s *Service) setLatestSentEpoch(epoch types.Epoch) {

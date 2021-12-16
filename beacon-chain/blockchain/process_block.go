@@ -142,11 +142,9 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 		// publish block to orchestrator and rpc service for sending minimal consensus info
 		s.publishBlock(signed)
 
-		if s.OrcVerification() {
-			// waiting for orchestrator confirmation in live-sync mode
-			if err := s.waitForConfirmation(signed); err != nil {
-				return errors.Wrap(err, "could not publish and verified by orchestrator client onBlock")
-			}
+		// waiting for orchestrator confirmation in live-sync mode
+		if err := s.waitForConfirmation(signed); err != nil {
+			return errors.Wrap(err, "could not publish and verified by orchestrator client onBlock")
 		}
 	}
 

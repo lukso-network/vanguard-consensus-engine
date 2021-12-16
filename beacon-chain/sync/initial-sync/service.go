@@ -104,11 +104,6 @@ func (s *Service) Start() {
 		s.markSynced(genesis)
 		return
 	}
-	// Vanguard: Deactivating verification from orchestrator client
-	if s.cfg.EnableVanguardNode {
-		log.Info("Deactivating orchestrator verification in initial sync mode")
-		s.cfg.Chain.DeactivateOrcVerification()
-	}
 	s.waitForMinimumPeers()
 	if err := s.roundRobinSync(genesis); err != nil {
 		if errors.Is(s.ctx.Err(), context.Canceled) {
