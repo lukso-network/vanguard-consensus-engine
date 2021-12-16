@@ -349,6 +349,11 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 			}
 			// publish block and trigger rpc service for sending minimal consensus info
 			s.publishBlock(blks[i])
+
+			// waiting for orchestrator confirmation in regular sync mode
+			if err := s.waitForConfirmation(blks[i]); err != nil {
+				return nil, nil, errors.Wrap(err, "could not publish and verified by orchestrator client onBlock")
+			}
 		}
 	}
 
