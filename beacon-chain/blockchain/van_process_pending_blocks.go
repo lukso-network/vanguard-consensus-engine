@@ -315,17 +315,16 @@ func (s *Service) VerifyPandoraShardInfo(
 ) error {
 	if nil == signedBlk || nil == signedBlk.Block {
 		log.Error("signed block is nil")
-		return errInvalidPandoraShardInfo
+		return errors.Wrap(errInvalidPandoraShardInfo, "signed block is nil")
 	}
 
-	headBlk := parentBlock
-	headBlock := headBlk.GetBlock()
 	signedBlock := signedBlk.Block
+	headBlk := parentBlock
 
-	if nil == parentBlock || nil == parentBlock.Block {
-		log.WithField("signed", signedBlock).
-			WithField("parent", parentBlock).Error("parent block is nil")
-		return errInvalidPandoraShardInfo
+	if nil == headBlk {
+		log.WithField("slot", signedBlock.Slot).Error("head block is nil")
+
+		return errInvalidBeaconBlock
 	}
 
 	// Assumption is that block must be produced in first epoch on top of genesis block (block 0)
@@ -336,12 +335,7 @@ func (s *Service) VerifyPandoraShardInfo(
 
 	signedBlockBody := signedBlock.Body
 	signedPandoraShards := signedBlockBody.GetPandoraShard()
-
-	if len(signedPandoraShards) < 1 {
-		log.WithField("slot", signedBlock.Slot).Error("signed pandora shard is invalid")
-		return errInvalidPandoraShardInfo
-	}
-
+	headBlock := headBlk.GetBlock()
 	headBlockBody := headBlock.GetBody()
 	headPandoraShards := headBlockBody.GetPandoraShard()
 
