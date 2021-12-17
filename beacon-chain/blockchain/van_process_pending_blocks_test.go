@@ -364,7 +364,7 @@ func Test_GuardPandoraShardSignature(t *testing.T) {
 		require.NoError(t, currentErr)
 		currentErr = GuardPandoraShardSignature(
 			&ethpb.PandoraShard{
-				SealHash:  common.BytesToHash([]byte{}).Bytes(),
+				SealHash:  pandoraSealHash.Bytes(),
 				Signature: validPandoraSignature.Marshal(),
 			},
 			invalidKey.PublicKey(),
@@ -375,7 +375,13 @@ func Test_GuardPandoraShardSignature(t *testing.T) {
 	})
 
 	t.Run("should pass if signature is verified", func(t *testing.T) {
-
+		require.NoError(t, GuardPandoraShardSignature(
+			&ethpb.PandoraShard{
+				SealHash:  pandoraSealHash.Bytes(),
+				Signature: validPandoraSignature.Marshal(),
+			},
+			randKey.PublicKey(),
+		))
 	})
 }
 
