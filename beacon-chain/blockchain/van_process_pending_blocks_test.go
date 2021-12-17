@@ -10,6 +10,7 @@ import (
 	mock "github.com/prysmaticlabs/prysm/beacon-chain/blockchain/testing"
 	"github.com/prysmaticlabs/prysm/beacon-chain/core/blocks"
 	testDB "github.com/prysmaticlabs/prysm/beacon-chain/db/testing"
+	"github.com/prysmaticlabs/prysm/beacon-chain/forkchoice/protoarray"
 	"github.com/prysmaticlabs/prysm/beacon-chain/state/stategen"
 	eth "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 	ethpb "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
@@ -112,10 +113,15 @@ func TestService_VerifyPandoraShardInfo(t *testing.T) {
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	mockedOrcClient := van_mock.NewMockClient(ctrl)
+	beaconDB := testDB.SetupDB(t)
+	stateGen := stategen.New(beaconDB)
 	cfg := &Config{
 		BlockNotifier:      &mock.MockBlockNotifier{RecordEvents: true},
 		OrcRPCClient:       mockedOrcClient,
 		EnableVanguardNode: true,
+		ForkChoiceStore:    protoarray.New(0, 0, [32]byte{}),
+		BeaconDB:           beaconDB,
+		StateGen:           stateGen,
 	}
 	s, err := NewService(ctx, cfg)
 
@@ -140,13 +146,30 @@ func TestService_VerifyPandoraShardInfo(t *testing.T) {
 		require.Equal(t, errInvalidPandoraShardInfo, currentErr)
 	})
 
+	st, _ := testutil.DeterministicGenesisState(t, 64)
+	genesisStateRoot := [32]byte{}
+	genesis := blocks.NewGenesisBlock(genesisStateRoot[:])
+	assert.NoError(t, beaconDB.SaveBlock(ctx, wrapper.WrappedPhase0SignedBeaconBlock(genesis)))
+	gRoot, err := genesis.Block.HashTreeRoot()
+	require.NoError(t, err)
+	s.finalizedCheckpt = &ethpb.Checkpoint{
+		Root: gRoot[:],
+	}
+	s.genesisRoot = gRoot
+	s.cfg.ForkChoiceStore = protoarray.New(0, 0, [32]byte{})
+	s.saveInitSyncBlock(gRoot, wrapper.WrappedPhase0SignedBeaconBlock(genesis))
+	require.NoError(t, s.cfg.BeaconDB.SaveBlock(ctx, wrapper.WrappedPhase0SignedBeaconBlock(genesis)))
+	require.NoError(t, s.cfg.BeaconDB.SaveState(ctx, st.Copy(), genesisStateRoot))
+	require.NoError(t, s.cfg.BeaconDB.SaveGenesisData(ctx, st.Copy()))
+
 	t.Run("should throw an error when signed block has invalid pandora shard", func(t *testing.T) {
 		wrappedBlock := wrapper.WrappedPhase0SignedBeaconBlock(testutil.NewBeaconBlock())
 		parentBlock, currentErr := wrappedBlock.PbPhase0Block()
 		require.NoError(t, currentErr)
 		pandoraShards := make([]*eth.PandoraShard, 1)
 		signedBlock := &eth.SignedBeaconBlock{Block: &eth.BeaconBlock{
-			Body: &eth.BeaconBlockBody{PandoraShard: pandoraShards},
+			ParentRoot: gRoot[:],
+			Body:       &eth.BeaconBlockBody{PandoraShard: pandoraShards},
 		}}
 		currentErr = s.VerifyPandoraShardInfo(parentBlock, signedBlock)
 		require.Equal(t, errInvalidPandoraShardInfo, currentErr)

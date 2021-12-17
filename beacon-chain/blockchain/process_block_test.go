@@ -642,7 +642,6 @@ func TestFillForkChoiceMissingBlocks_FilterFinalized(t *testing.T) {
 // B0           /- B5 - B7
 //    \- B3 - B4 - B6 - B8
 // (B1, and B3 are all from the same slots)
-// To not interfere with other parts of the system `vanguardEnabled` steers to introduce pandora shard feature
 func blockTree1(t *testing.T, beaconDB db.Database, genesisRoot []byte) ([][]byte, error) {
 	genesisRoot = bytesutil.PadTo(genesisRoot, 32)
 	b0 := testutil.NewBeaconBlock()

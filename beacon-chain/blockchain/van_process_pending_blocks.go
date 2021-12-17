@@ -15,7 +15,6 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/bls"
 	"github.com/prysmaticlabs/prysm/shared/event"
 	vanTypes "github.com/prysmaticlabs/prysm/shared/params"
-	"github.com/sirupsen/logrus"
 	"sort"
 	"time"
 )
@@ -329,111 +328,33 @@ func (s *Service) VerifyPandoraShardInfo(
 		return errInvalidPandoraShardInfo
 	}
 
-	commonLog := log.WithField("slot", signedBlk.Block.Slot).
-		WithField("canonicalHash", canonicalHash).
-		WithField("canonicalBlkNum", canonicalBlkNum).
-		WithField("parentHash", parentHash).
-		WithField("blockNumber", blockNumber)
-
 	// Assumption is that block must be produced in first epoch on top of genesis block (block 0)
 	// TODO: genesisBlock.Block.PandoraShards should be filled with at least 1 shard
 	// TODO: s.genesisRoot is sometimes not equal genesisPhase0Block.HashTreeRoot(). Check out why. They should be the same.
 	headHashRoot := [32]byte{}
 	copy(headHashRoot[:], signedBlock.ParentRoot)
 
-	// TODO: Get the shard signature verification for this case running, but not consecutiveness check
-	if s.genesisRoot == headHashRoot {
-		log.Warn("genesis hash tree root match")
-
-		return nil
-	}
-
 	signedBlockBody := signedBlock.Body
 	signedPandoraShards := signedBlockBody.GetPandoraShard()
 
-	if len(signedPandoraShards) != 1 {
+	if len(signedPandoraShards) < 1 {
 		log.WithField("slot", signedBlock.Slot).Error("signed pandora shard is invalid")
 		return errInvalidPandoraShardInfo
 	}
 
 	headBlockBody := headBlock.GetBody()
-	pandoraShards := headBlockBody.GetPandoraShard()
+	headPandoraShards := headBlockBody.GetPandoraShard()
 
-	if len(pandoraShards) < 1 {
-		log.WithField("headBlock", headBlock).
-			WithField("signedBlock", signedBlk).
-			Error("pandora shard is not present")
-		return errInvalidPandoraShardInfo
-	}
-
-	err := s.guardPandoraShardsSignatures(signedBlock.ProposerIndex, commonLog)
-
-	pandoraShard := pandoraShards[0]
-
-	err := GuardPandoraShard(pandoraShard)
+	err := s.guardPandoraShardsAndSignatures(
+		signedBlock.ProposerIndex,
+		signedBlock.Slot,
+		headHashRoot,
+		headPandoraShards,
+		signedPandoraShards...,
+	)
 
 	if nil != err {
-		log.WithField("shard", pandoraShard).Error("pandora shard is invalid")
 		return err
-	}
-
-	canonicalHash := common.BytesToHash(pandoraShards[0].Hash)
-	canonicalBlkNum := pandoraShards[0].BlockNumber
-
-	pandoraShardParentHash := signedPandoraShards[0].ParentHash
-	parentHash := common.BytesToHash(pandoraShardParentHash)
-	blockNumber := signedPandoraShards[0].BlockNumber
-	commonLog := log.WithField("slot", signedBlk.Block.Slot).
-		WithField("canonicalHash", canonicalHash).
-		WithField("canonicalBlkNum", canonicalBlkNum).
-		WithField("parentHash", parentHash).
-		WithField("blockNumber", blockNumber)
-
-	err = GuardPandoraConsecutiveness(parentHash, canonicalHash, blockNumber, canonicalBlkNum)
-
-	if nil != err {
-		commonLog.WithError(errInvalidPandoraShardInfo).Error("Failed to process block")
-
-		return errors.Wrap(errInvalidPandoraShardInfo, err.Error())
-	}
-
-	// Calculate the epoch and get the state from head
-	// get validator public key from state
-	// Pass it down to GuardPandoraShard
-	proposerIndex := signedBlock.ProposerIndex
-	headState, err := s.HeadState(s.ctx)
-
-	if nil != err {
-		commonLog.WithError(errInvalidPandoraShardInfo).Error("could not get head state")
-
-		return errors.Wrap(errInvalidPandoraShardInfo, err.Error())
-	}
-
-	proposer, err := headState.ValidatorAtIndex(proposerIndex)
-
-	if nil != err {
-		commonLog.WithError(errInvalidPandoraShardInfo).Error("could not get proposer at head state")
-
-		return errors.Wrap(errInvalidPandoraShardInfo, err.Error())
-	}
-
-	proposerPubKey := proposer.PublicKey
-	blsPubKey, err := bls.PublicKeyFromBytes(proposerPubKey)
-
-	if nil != err {
-		commonLog.WithError(errInvalidPandoraShardInfo).Error("could not cast public key to bls public key")
-		return err
-	}
-
-	for shardIndex, shard := range signedPandoraShards {
-		err = GuardPandoraShardSignature(shard, blsPubKey)
-
-		if nil != err {
-			commonLog.WithField("shardNumber", shardIndex).
-				WithError(err).Error("shard did not pass verification")
-
-			return err
-		}
 	}
 
 	return nil
@@ -519,9 +440,12 @@ func GuardPandoraShardSignature(pandoraShard *ethpb.PandoraShard, validatorPubli
 
 // TODO: worth to consider if this should be a public function detached from service  and tested separately
 // TODO: worth to consider time checks on pandora shards to be in boundaries of slot
-func (s *Service) guardPandoraShardsSignatures(
+// guardPandoraShardsAndSignatures assures about the len of pandora shards and logs all the needed information
+func (s *Service) guardPandoraShardsAndSignatures(
 	proposerIndex types.ValidatorIndex,
 	slot types.Slot,
+	beaconBlockParentRoot [32]byte,
+	canonicalPandoraShards []*ethpb.PandoraShard,
 	signedPandoraShards ...*ethpb.PandoraShard,
 ) (err error) {
 	// Calculate the epoch and get the state from head
@@ -531,7 +455,7 @@ func (s *Service) guardPandoraShardsSignatures(
 		WithField("proposerIndex", proposerIndex).
 		WithField("pandoraShards", signedPandoraShards)
 
-	headState, err := s.HeadState(s.ctx)
+	headState, err := s.cfg.StateGen.StateByRoot(s.ctx, beaconBlockParentRoot)
 
 	if nil != err {
 		commonLog.WithError(errInvalidPandoraShardInfo).Error("could not get head state")
@@ -540,22 +464,29 @@ func (s *Service) guardPandoraShardsSignatures(
 	}
 
 	if len(signedPandoraShards) < 1 {
-		errorMsg := "empty Pandora shards"
+		errorMsg := "empty signed Pandora shards"
 		commonLog.Error(errorMsg)
 
 		return errors.Wrap(errInvalidPandoraShardInfo, errorMsg)
 	}
 
 	for shardIndex, shard := range signedPandoraShards {
-		canonicalHash := common.BytesToHash(shard.Hash)
-		canonicalBlkNum := shard.BlockNumber
+		if nil == shard {
+			errMsg := "signed shard cannot be nil"
+			commonLog.WithField("shardIndex", shardIndex).
+				WithField("signedPandoraShards", signedPandoraShards).
+				Error(errMsg)
+
+			return errors.Wrap(errInvalidPandoraShardInfo, errMsg)
+		}
+
+		//currentEpoch := helpers.SlotToEpoch(slot)
+
 		pandoraShardParentHash := shard.ParentHash
 		parentHash := common.BytesToHash(pandoraShardParentHash)
 		blockNumber := shard.BlockNumber
 
-		commonLog.WithField("canonicalHash", canonicalHash).
-			WithField("canonicalBlkNum", canonicalBlkNum).
-			WithField("parentHash", parentHash).
+		commonLog.WithField("parentHash", parentHash).
 			WithField("blockNumber", blockNumber).
 			WithField("shardIndex", shardIndex)
 
@@ -582,6 +513,52 @@ func (s *Service) guardPandoraShardsSignatures(
 				WithError(currentErr).Error("shard did not pass verification")
 
 			return err
+		}
+
+		// TODO: consider if beacon block0 (genesis) should also have []*PandoraShard filled in during initBeaconChain
+		// As soon as it will be filled with empty data rest of the code will collapse, so this is a fallback
+		// to serve current real-life scenario during synchronization
+		if s.genesisRoot == beaconBlockParentRoot {
+			log.Warn("genesis hash tree root match")
+
+			break
+		}
+
+		if len(canonicalPandoraShards) != len(signedPandoraShards) {
+			errMsg := "incompatible pandora shards"
+			log.Warn(errMsg)
+
+			return errors.Wrap(errInvalidPandoraShardInfo, errMsg)
+		}
+
+		currentErr = GuardPandoraShard(shard)
+
+		if nil != currentErr {
+			commonLog.WithField("shard", shard).Error("pandora shard is invalid")
+
+			return errors.Wrap(errInvalidPandoraShardInfo, currentErr.Error())
+		}
+
+		parentShard := canonicalPandoraShards[shardIndex]
+		currentErr = GuardPandoraShard(parentShard)
+
+		if nil != currentErr {
+			commonLog.WithField("shard", shard).Error("pandora parent shard is invalid")
+
+			return errors.Wrap(errInvalidPandoraShardInfo, currentErr.Error())
+		}
+
+		currentErr = GuardPandoraConsecutiveness(
+			parentHash,
+			common.BytesToHash(parentShard.Hash),
+			blockNumber,
+			parentShard.BlockNumber,
+		)
+
+		if nil != currentErr {
+			commonLog.WithError(errInvalidPandoraShardInfo).Error("Failed to process block")
+
+			return errors.Wrap(errInvalidPandoraShardInfo, currentErr.Error())
 		}
 	}
 
