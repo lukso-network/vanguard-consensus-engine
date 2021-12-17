@@ -152,6 +152,19 @@ func TestService_VerifyPandoraShardInfo(t *testing.T) {
 		require.Equal(t, errInvalidPandoraShardInfo, currentErr)
 	})
 
+	t.Run("should return an error when state is not present", func(t *testing.T) {
+
+	})
+
+	t.Run("should return error if there is a genesis root match but signature is invalid", func(t *testing.T) {
+
+	})
+
+	// TODO: Assure that block no 1 will also be checked about its signature, but not consecutiveness on a shard
+	t.Run("should return nil if there is a genesis root match at parent and signature is present", func(t *testing.T) {
+
+	})
+
 	t.Run("should throw an error with invalid pandora shard", func(t *testing.T) {
 		wrappedBlock := wrapper.WrappedPhase0SignedBeaconBlock(testutil.NewBeaconBlockWithPandoraSharding(
 			&gethTypes.Header{Number: big.NewInt(25)},
@@ -193,6 +206,10 @@ func TestService_VerifyPandoraShardInfo(t *testing.T) {
 		require.Equal(t, errNonConsecutivePandoraShardInfo, currentErr)
 	})
 
+	t.Run("should fail when consecutiveness is present but signature is invalid", func(t *testing.T) {
+
+	})
+
 	t.Run("should pass when consecutiveness is present", func(t *testing.T) {
 		wrappedBlock := wrapper.WrappedPhase0SignedBeaconBlock(testutil.NewBeaconBlockWithPandoraSharding(
 			headPandoraShard,
@@ -224,19 +241,19 @@ func TestGuardPandoraShardHeader(t *testing.T) {
 	pandoraBlock := &ethpb.PandoraShard{}
 
 	t.Run("should throw an error when hash is empty", func(t *testing.T) {
-		require.Equal(t, errInvalidPandoraShardInfo, GuardPandoraShardHeader(pandoraBlock))
+		require.Equal(t, errInvalidPandoraShardInfo, GuardPandoraShard(pandoraBlock))
 	})
 
 	pandoraBlock.Hash = []byte("0xde6f0b6c17077334abd585da38b251871251cb26fa3456be135825ea45c06f12")
 
 	t.Run("should throw an error when parent hash is empty", func(t *testing.T) {
-		require.Equal(t, errInvalidPandoraShardInfo, GuardPandoraShardHeader(pandoraBlock))
+		require.Equal(t, errInvalidPandoraShardInfo, GuardPandoraShard(pandoraBlock))
 	})
 
 	pandoraBlock.ParentHash = []byte("0x67b96c7bbdbf2186c868ac7565a24d250c8ecbf4f43cb50bd78f11b73681c025")
 
 	t.Run("should pass when parent hash and hash is not empty", func(t *testing.T) {
-		require.NoError(t, GuardPandoraShardHeader(pandoraBlock))
+		require.NoError(t, GuardPandoraShard(pandoraBlock))
 	})
 }
 
