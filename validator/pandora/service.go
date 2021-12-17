@@ -22,8 +22,9 @@ var (
 )
 
 type ExtraData struct {
-	Slot          uint64
-	Epoch         uint64
+	Slot  uint64
+	Epoch uint64
+	// TODO: remove it. We do not use proposer index
 	ProposerIndex uint64
 }
 

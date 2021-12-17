@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/prysmaticlabs/prysm/validator/pandora"
+	"golang.org/x/crypto/sha3"
 	"math/big"
 
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
@@ -29,6 +30,24 @@ type BlockGenConfig struct {
 	NumAttestations      uint64
 	NumDeposits          uint64
 	NumVoluntaryExits    uint64
+}
+
+// TODO: remove the struct in //validator/pandora package and use only this one. For now I leave it only in testutil.
+type ExtraData struct {
+	Slot  uint64
+	Epoch uint64
+}
+
+// TODO: remove the struct in //validator/pandora package and use only this one. For now I leave it only in testutil.
+const SignatureSize = 96
+
+// TODO: remove the struct in //validator/pandora package and use only this one. For now I leave it only in testutil.
+type BlsSignatureBytes [SignatureSize]byte
+
+// TODO: remove the struct in //validator/pandora package and use only this one. For now I leave it only in testutil.
+type PandoraExtraDataSig struct {
+	ExtraData
+	BlsSignatureBytes *BlsSignatureBytes
 }
 
 // DefaultBlockGenConfig returns the block config that utilizes the
@@ -516,8 +535,9 @@ func HydrateV1BeaconBlockBody(b *v1.BeaconBlockBody) *v1.BeaconBlockBody {
 func NewPandoraBlock(slot types.Slot, proposerIndex uint64) (*gethTypes.Header, *pandora.ExtraData) {
 	epoch := types.Epoch(slot / params.BeaconConfig().SlotsPerEpoch)
 	extraData := pandora.ExtraData{
-		Slot:          uint64(slot),
-		Epoch:         uint64(epoch),
+		Slot:  uint64(slot),
+		Epoch: uint64(epoch),
+		// TODO: remove it. We do not use proposer index
 		ProposerIndex: proposerIndex,
 	}
 	extraDataByte, err := rlp.EncodeToBytes(extraData)
@@ -587,4 +607,29 @@ func NewBeaconBlockWithPandoraSharding(panHeader *gethTypes.Header, slot types.S
 
 	beaconBlock.Block.Body.PandoraShard = pandoraShards
 	return beaconBlock
+}
+
+// SealHash returns the hash of a block prior to it being sealed.
+func SealHash(header *gethTypes.Header) (hash common.Hash) {
+	hasher := sha3.NewLegacyKeccak256()
+
+	if err := rlp.Encode(hasher, []interface{}{
+		header.ParentHash,
+		header.UncleHash,
+		header.Coinbase,
+		header.Root,
+		header.TxHash,
+		header.ReceiptHash,
+		header.Bloom,
+		header.Difficulty,
+		header.Number,
+		header.GasLimit,
+		header.GasUsed,
+		header.Time,
+		header.Extra,
+	}); err != nil {
+		return gethTypes.EmptyRootHash
+	}
+	hasher.Sum(hash[:0])
+	return hash
 }

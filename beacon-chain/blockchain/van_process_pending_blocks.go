@@ -12,6 +12,7 @@ import (
 	statefeed "github.com/prysmaticlabs/prysm/beacon-chain/core/feed/state"
 	ethpb "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/proto/interfaces"
+	"github.com/prysmaticlabs/prysm/shared/bls"
 	"github.com/prysmaticlabs/prysm/shared/event"
 	vanTypes "github.com/prysmaticlabs/prysm/shared/params"
 	"sort"
@@ -34,6 +35,7 @@ var (
 	errInvalidBeaconBlock             = errors.New("invalid beacon block")
 	errParentDoesNotExist             = errors.New("beacon node doesn't have a parent in db with root")
 	errInvalidPandoraShardInfoLength  = errors.New("invalid pandora shard info length")
+	errInvalidBlsSignature            = errors.New("invalid bls signature")
 )
 
 // PendingBlocksFetcher retrieves the cached un-confirmed beacon blocks from cache
@@ -322,7 +324,7 @@ func (s *Service) VerifyPandoraShardInfo(
 
 	// Assumption is that block must be produced in first epoch on top of genesis block (block 0)
 	// TODO: genesisBlock.Block.PandoraShards should be filled with at least 1 shard
-	// TODO: s.genesisRoot is not equal genesisPhase0Block.HashTreeRoot(). Check out why. They should be the same.
+	// TODO: s.genesisRoot is sometimes not equal genesisPhase0Block.HashTreeRoot(). Check out why. They should be the same.
 	headHashRoot := [32]byte{}
 	copy(headHashRoot[:], signedBlock.ParentRoot)
 
@@ -344,7 +346,9 @@ func (s *Service) VerifyPandoraShardInfo(
 	pandoraShards := headBlockBody.GetPandoraShard()
 
 	if len(pandoraShards) < 1 {
-		log.WithField("headBlock", headBlock).Error("pandora shard is not present")
+		log.WithField("headBlock", headBlock).
+			WithField("signedBlock", signedBlk).
+			Error("pandora shard is not present")
 		return errInvalidPandoraShardInfo
 	}
 
@@ -386,8 +390,13 @@ func GuardPandoraConsecutiveness(
 	blockNumber uint64,
 	canonicalBlkNumber uint64,
 ) (err error) {
-	if parentHash != canonicalHash {
-		return errNonConsecutivePandoraShardInfo
+	if parentHash.String() != canonicalHash.String() {
+		return fmt.Errorf(
+			"%s:, %s != %s. ",
+			errNonConsecutivePandoraShardInfo,
+			parentHash.String(),
+			canonicalHash.String(),
+		)
 	}
 
 	if blockNumber != canonicalBlkNumber+1 {
@@ -406,6 +415,48 @@ func GuardPandoraShardHeader(pandoraShard *ethpb.PandoraShard) (err error) {
 
 	if nil == pandoraShard.ParentHash || string(pandoraShard.ParentHash) == emptyHashString {
 		return errInvalidPandoraShardInfo
+	}
+
+	return
+}
+
+func GuardPandoraShardSignature(pandoraShard *ethpb.PandoraShard, validatorPublicKey bls.PublicKey) (err error) {
+	if nil == pandoraShard {
+		err = errors.Wrap(errInvalidPandoraShardInfo, "pandora shard is missing")
+
+		return
+	}
+
+	if nil == validatorPublicKey {
+		err = errors.Wrap(errInvalidBlsSignature, "bls signature is missing")
+
+		return
+	}
+
+	if nil == pandoraShard.SealHash || 32 != len(pandoraShard.SealHash) {
+		err = errors.Wrap(errInvalidPandoraShardInfo, "seal hash is invalid")
+
+		return
+	}
+
+	if nil == pandoraShard.Signature || 96 != len(pandoraShard.Signature) {
+		err = errors.Wrap(errInvalidBlsSignature, "pandora shard signature is invalid")
+
+		return
+	}
+
+	blsSignature, err := bls.SignatureFromBytes(pandoraShard.Signature)
+
+	if nil != err {
+		err = errors.Wrap(err, "could not create bls signature")
+
+		return
+	}
+
+	if !blsSignature.Verify(validatorPublicKey, pandoraShard.SealHash) {
+		err = errors.Wrap(errInvalidBlsSignature, "pandora shard signature did not verify")
+
+		return
 	}
 
 	return

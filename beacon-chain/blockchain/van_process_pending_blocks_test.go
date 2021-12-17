@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/ethereum/go-ethereum/common"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/golang/mock/gomock"
 	types "github.com/prysmaticlabs/eth2-types"
 	mock "github.com/prysmaticlabs/prysm/beacon-chain/blockchain/testing"
@@ -15,6 +16,7 @@ import (
 	ethpb_v1alpha1 "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/proto/eth/v1alpha1/wrapper"
 	"github.com/prysmaticlabs/prysm/proto/interfaces"
+	"github.com/prysmaticlabs/prysm/shared/bls"
 	vanTypes "github.com/prysmaticlabs/prysm/shared/params"
 	"github.com/prysmaticlabs/prysm/shared/testutil"
 	"github.com/prysmaticlabs/prysm/shared/testutil/assert"
@@ -275,6 +277,105 @@ func TestGuardPandoraConsecutiveness(t *testing.T) {
 				2,
 			),
 		)
+	})
+}
+
+func Test_GuardPandoraShardSignature(t *testing.T) {
+	randKey, err := bls.RandKey()
+	require.NoError(t, err)
+
+	t.Run("should return error when shard is nil", func(t *testing.T) {
+		currentErr := GuardPandoraShardSignature(nil, nil)
+		require.ErrorContains(t, "pandora shard is missing", currentErr)
+		require.ErrorContains(t, errInvalidPandoraShardInfo.Error(), currentErr)
+	})
+
+	t.Run("should return error because of lack of bls public key", func(t *testing.T) {
+		currentErr := GuardPandoraShardSignature(&ethpb.PandoraShard{}, nil)
+		require.ErrorContains(t, "bls signature is missing", currentErr)
+		require.ErrorContains(t, errInvalidBlsSignature.Error(), currentErr)
+	})
+
+	t.Run("should return error because of lack of seal hash", func(t *testing.T) {
+		currentErr := GuardPandoraShardSignature(&ethpb.PandoraShard{}, randKey.PublicKey())
+		require.ErrorContains(t, "seal hash is invalid", currentErr)
+		require.ErrorContains(t, errInvalidPandoraShardInfo.Error(), currentErr)
+	})
+
+	t.Run("should return error because of lack of signature", func(t *testing.T) {
+		currentErr := GuardPandoraShardSignature(
+			&ethpb.PandoraShard{SealHash: common.BytesToHash([]byte{}).Bytes()},
+			randKey.PublicKey(),
+		)
+		require.ErrorContains(t, "pandora shard signature is invalid", currentErr)
+		require.ErrorContains(t, errInvalidBlsSignature.Error(), currentErr)
+
+		currentErr = GuardPandoraShardSignature(
+			&ethpb.PandoraShard{
+				SealHash:  common.BytesToHash([]byte{}).Bytes(),
+				Signature: common.BytesToHash([]byte{}).Bytes(),
+			},
+			randKey.PublicKey(),
+		)
+		require.ErrorContains(t, "pandora shard signature is invalid", currentErr)
+		require.ErrorContains(t, errInvalidBlsSignature.Error(), currentErr)
+	})
+
+	t.Run("should return error because of invalid signature", func(t *testing.T) {
+		signatureBytes := make([]byte, 96)
+		currentErr := GuardPandoraShardSignature(
+			&ethpb.PandoraShard{
+				SealHash:  common.BytesToHash([]byte{}).Bytes(),
+				Signature: signatureBytes,
+			},
+			randKey.PublicKey(),
+		)
+		require.ErrorContains(t, "could not create bls signature", currentErr)
+		require.ErrorContains(t, "could not unmarshal bytes into signature", currentErr)
+	})
+
+	pandoraHeader := &gethTypes.Header{
+		ParentHash:  common.Hash{},
+		UncleHash:   common.Hash{},
+		Coinbase:    common.Address{},
+		Root:        common.Hash{},
+		TxHash:      common.Hash{},
+		ReceiptHash: common.Hash{},
+		Bloom:       gethTypes.Bloom{},
+		Difficulty:  big.NewInt(0),
+		Number:      big.NewInt(1),
+		GasLimit:    0,
+		GasUsed:     0,
+		Time:        0,
+		Extra:       nil,
+		MixDigest:   common.Hash{},
+		Nonce:       gethTypes.BlockNonce{},
+		BaseFee:     nil,
+	}
+
+	pandoraExtraData := testutil.ExtraData{Slot: 56, Epoch: 2}
+	pandoraHeader.Extra, err = rlp.EncodeToBytes(pandoraExtraData)
+	require.NoError(t, err)
+	pandoraSealHash := testutil.SealHash(pandoraHeader)
+	validPandoraSignature := randKey.Sign(pandoraSealHash.Bytes())
+
+	t.Run("should not pass if signature is not verified", func(t *testing.T) {
+		invalidKey, currentErr := bls.RandKey()
+		require.NoError(t, currentErr)
+		currentErr = GuardPandoraShardSignature(
+			&ethpb.PandoraShard{
+				SealHash:  common.BytesToHash([]byte{}).Bytes(),
+				Signature: validPandoraSignature.Marshal(),
+			},
+			invalidKey.PublicKey(),
+		)
+
+		require.ErrorContains(t, "pandora shard signature did not verify", currentErr)
+		require.ErrorContains(t, "invalid bls signature", currentErr)
+	})
+
+	t.Run("should pass if signature is verified", func(t *testing.T) {
+
 	})
 }
 

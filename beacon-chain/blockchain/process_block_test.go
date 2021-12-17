@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rlp"
-	"golang.org/x/crypto/sha3"
 	"math/big"
 	"strconv"
 	"testing"
@@ -84,7 +82,7 @@ func TestStore_VanguardMode_OnBlock(t *testing.T) {
 		for i := 1; i < 10; i++ {
 			pandoraShards := make([]*ethpb.PandoraShard, 1)
 			pandoraHeader := pandoraHeaders[i-1]
-			hashToSeal := sealHash(pandoraHeader)
+			hashToSeal := testutil.SealHash(pandoraHeader)
 			sealedSignature := keys[i-1].Sign(hashToSeal.Bytes())
 			signature := sealedSignature.Marshal()
 
@@ -95,7 +93,7 @@ func TestStore_VanguardMode_OnBlock(t *testing.T) {
 				StateRoot:   pandoraHeader.Root.Bytes(),
 				TxHash:      pandoraHeader.TxHash.Bytes(),
 				ReceiptHash: pandoraHeader.TxHash.Bytes(),
-				SealHash:    sealHash(pandoraHeader).Bytes(),
+				SealHash:    testutil.SealHash(pandoraHeader).Bytes(),
 				Signature:   signature,
 			}
 
@@ -1209,29 +1207,4 @@ func TestRemoveBlockAttestationsInPool_NonCanonical(t *testing.T) {
 	require.NoError(t, service.cfg.AttPool.SaveAggregatedAttestations(atts))
 	require.NoError(t, service.pruneCanonicalAttsFromPool(ctx, r, wrapper.WrappedPhase0SignedBeaconBlock(b)))
 	require.Equal(t, 1, service.cfg.AttPool.AggregatedAttestationCount())
-}
-
-// SealHash returns the hash of a block prior to it being sealed.
-func sealHash(header *gethTypes.Header) (hash common.Hash) {
-	hasher := sha3.NewLegacyKeccak256()
-
-	if err := rlp.Encode(hasher, []interface{}{
-		header.ParentHash,
-		header.UncleHash,
-		header.Coinbase,
-		header.Root,
-		header.TxHash,
-		header.ReceiptHash,
-		header.Bloom,
-		header.Difficulty,
-		header.Number,
-		header.GasLimit,
-		header.GasUsed,
-		header.Time,
-		header.Extra,
-	}); err != nil {
-		return gethTypes.EmptyRootHash
-	}
-	hasher.Sum(hash[:0])
-	return hash
 }

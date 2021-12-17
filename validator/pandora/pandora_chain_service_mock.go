@@ -52,8 +52,9 @@ func DialRPCClient(endpoint string) (*PandoraClient, error) {
 // getDummyEncodedExtraData prepares rlp encoded extra data
 func getDummyEncodedExtraData() (*ExtraData, []byte, error) {
 	extraData := ExtraData{
-		Slot:          98,
-		Epoch:         3,
+		Slot:  98,
+		Epoch: 3,
+		// TODO: remove it. We do not use proposer index
 		ProposerIndex: 23,
 	}
 	extraDataByte, err := rlp.EncodeToBytes(extraData)
