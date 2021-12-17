@@ -222,7 +222,8 @@ func TestService_VerifyPandoraShardInfo(t *testing.T) {
 		signedParentBlock, currentErr := parentBlock.PbPhase0Block()
 		require.NoError(t, currentErr)
 
-		require.Equal(t, nil, s.VerifyPandoraShardInfo(
+		// TODO: fill this with proper implementation
+		require.Equal(t, errInvalidPandoraShardInfo, s.VerifyPandoraShardInfo(
 			signedParentBlock,
 			signedBlock,
 		))
