@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
@@ -384,6 +385,10 @@ func GuardPandoraShard(pandoraShard *ethpb.PandoraShard) (err error) {
 	}
 
 	if nil == pandoraShard.ParentHash || string(pandoraShard.ParentHash) == emptyHashString {
+		return errInvalidPandoraShardInfo
+	}
+
+	if bytes.Equal(pandoraShard.Hash, pandoraShard.ParentHash) {
 		return errInvalidPandoraShardInfo
 	}
 

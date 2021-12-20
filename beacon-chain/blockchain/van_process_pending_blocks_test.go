@@ -14,7 +14,6 @@ import (
 	"github.com/prysmaticlabs/prysm/beacon-chain/state/stategen"
 	eth "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 	ethpb "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
-	ethpb_v1alpha1 "github.com/prysmaticlabs/prysm/proto/eth/v1alpha1"
 	"github.com/prysmaticlabs/prysm/proto/eth/v1alpha1/wrapper"
 	"github.com/prysmaticlabs/prysm/proto/interfaces"
 	"github.com/prysmaticlabs/prysm/shared/bls"
@@ -195,12 +194,15 @@ func TestService_VerifyPandoraShardInfo(t *testing.T) {
 		require.ErrorContains(t, "empty signed Pandora shards", currentErr)
 	})
 
+	pandoraShards0Block0Hash := common.HexToHash("0xabcd").Bytes()
+	pandoraShards0Block1Hash := common.HexToHash("0xabc").Bytes()
+
 	t.Run("should return error if there is a genesis root match but signature is invalid", func(t *testing.T) {
 		pandoraShards := make([]*eth.PandoraShard, 1)
 		pandoraShards[0] = &ethpb.PandoraShard{
 			BlockNumber: 1,
-			Hash:        common.HexToHash("0xabc").Bytes(),
-			ParentHash:  common.HexToHash("0xabcd").Bytes(),
+			Hash:        pandoraShards0Block1Hash,
+			ParentHash:  pandoraShards0Block0Hash,
 			StateRoot:   common.HexToHash("0xabcde").Bytes(),
 			TxHash:      common.HexToHash("0xabcdf").Bytes(),
 			ReceiptHash: common.HexToHash("0xabcda").Bytes(),
@@ -231,12 +233,14 @@ func TestService_VerifyPandoraShardInfo(t *testing.T) {
 		require.ErrorContains(t, "pandora shard signature did not verify", currentErr)
 	})
 
+	// TODO: this test suite can be refactored a bit to not rely on state of the service, but to create new service for each case
+	// Order of the tests matter from that point from logical point of view (state).
 	t.Run("should return nil if there is a genesis root match at parent and signature is present", func(t *testing.T) {
 		pandoraShards := make([]*eth.PandoraShard, 1)
 		pandoraShards[0] = &ethpb.PandoraShard{
 			BlockNumber: 1,
-			Hash:        common.HexToHash("0xabc").Bytes(),
-			ParentHash:  common.HexToHash("0xabcd").Bytes(),
+			Hash:        pandoraShards0Block1Hash,
+			ParentHash:  pandoraShards0Block0Hash,
 			StateRoot:   common.HexToHash("0xabcde").Bytes(),
 			TxHash:      common.HexToHash("0xabcdf").Bytes(),
 			ReceiptHash: common.HexToHash("0xabcda").Bytes(),
@@ -253,86 +257,111 @@ func TestService_VerifyPandoraShardInfo(t *testing.T) {
 		}}
 		parentBlock, currentErr := s.cfg.BeaconDB.GenesisBlock(ctx)
 		require.NoError(t, currentErr)
-		signedParentBlock, currentErr := parentBlock.PbPhase0Block()
+		signedParentBlock0, currentErr := parentBlock.PbPhase0Block()
 		require.NoError(t, currentErr)
 
 		currentErr = s.VerifyPandoraShardInfo(
-			signedParentBlock,
+			signedParentBlock0,
 			signedBlock,
 		)
 
 		require.NoError(t, currentErr)
-	})
 
-	t.Run("should throw an error with invalid pandora shard", func(t *testing.T) {
-		wrappedBlock := wrapper.WrappedPhase0SignedBeaconBlock(testutil.NewBeaconBlockWithPandoraSharding(
-			&gethTypes.Header{Number: big.NewInt(25)},
-			types.Slot(5),
-		))
-		parentBlock, currentErr := wrappedBlock.PbPhase0Block()
-		require.NoError(t, currentErr)
-		signedBlock := &eth.SignedBeaconBlock{Block: &eth.BeaconBlock{}}
-		currentErr = s.VerifyPandoraShardInfo(parentBlock, signedBlock)
-		require.Equal(t, errInvalidPandoraShardInfo, currentErr)
-	})
+		pandoraState := st.Copy()
 
-	headSlot := int64(25)
-	headPandoraShard := &gethTypes.Header{
-		Number:     big.NewInt(headSlot),
-		ParentHash: common.HexToHash("0x67b96c7bbdbf2186c868ac7565a24d250c8ecbf4f43cb50bd78f11b73681c025"),
-	}
+		fullBlock0, currentErr := testutil.GenerateFullBlock(
+			pandoraState,
+			keys,
+			testutil.DefaultBlockGenConfig(),
+			0,
+			pandoraShards...,
+		)
 
-	t.Run("should throw an error when parent does not match and is nonconsecutive", func(t *testing.T) {
-		wrappedBlock := wrapper.WrappedPhase0SignedBeaconBlock(testutil.NewBeaconBlockWithPandoraSharding(
-			headPandoraShard,
-			types.Slot(headSlot),
-		))
-		parentBlock, currentErr := wrappedBlock.PbPhase0Block()
 		require.NoError(t, currentErr)
 
-		signedBlock := testutil.HydrateSignedBeaconBlock(&ethpb_v1alpha1.SignedBeaconBlock{
-			Block: &ethpb_v1alpha1.BeaconBlock{
-				Slot: types.Slot(headSlot + 1),
-			},
+		signedBlock1HashTreeRoot, currentErr := fullBlock0.HashTreeRoot()
+		require.NoError(t, currentErr)
+
+		s.saveInitSyncBlock(gRoot, wrapper.WrappedPhase0SignedBeaconBlock(fullBlock0))
+		require.NoError(t, s.cfg.BeaconDB.SaveBlock(ctx, wrapper.WrappedPhase0SignedBeaconBlock(fullBlock0)))
+		require.NoError(t, s.cfg.BeaconDB.SaveState(ctx, pandoraState.Copy(), signedBlock1HashTreeRoot))
+
+		t.Run("should throw an error when pandora parent does not match and is nonconsecutive", func(t *testing.T) {
+			signedBlock2 := &eth.SignedBeaconBlock{Block: &eth.BeaconBlock{
+				ParentRoot: signedBlock1HashTreeRoot[:],
+				Body:       &eth.BeaconBlockBody{PandoraShard: pandoraShards},
+			}}
+
+			pandoraShardErr := s.VerifyPandoraShardInfo(
+				signedBlock,
+				signedBlock2,
+			)
+
+			require.ErrorContains(t, errNonConsecutivePandoraShardInfo.Error(), pandoraShardErr)
+			require.ErrorContains(t, common.Bytes2Hex(pandoraShards[0].GetHash()), pandoraShardErr)
 		})
-		shard0 := &ethpb.PandoraShard{
-			ParentHash: []byte("0x67b96c7bbdbf2186c868ac7565a24d250c8ecbf4f43cb50bd78f11b73681c025"),
-		}
-		pandoraShards := make([]*ethpb.PandoraShard, 1)
-		pandoraShards[0] = shard0
-		signedBlock.Block.Body.PandoraShard = pandoraShards
-		currentErr = s.VerifyPandoraShardInfo(parentBlock, signedBlock)
-		require.Equal(t, errNonConsecutivePandoraShardInfo, currentErr)
-	})
 
-	t.Run("should fail when consecutiveness is present but signature is invalid", func(t *testing.T) {
+		// TODO: WORTH TO CONSIDER TO CHECK IF PANDORA HASH WAS PREVIOUSLY IN WHOLE BRANCH TREE (heavy)
+		t.Run("should pass for next block when consecutiveness is present", func(t *testing.T) {
+			signedBlock2PandoraShards := make([]*ethpb.PandoraShard, 1)
 
-	})
+			signedBlock2PandoraShards[0] = &ethpb.PandoraShard{
+				BlockNumber: 2,
+				Hash:        common.HexToHash("0xfacd1234").Bytes(),
+				ParentHash:  pandoraShards0Block1Hash,
+				StateRoot:   common.HexToHash("0xabcde").Bytes(),
+				TxHash:      common.HexToHash("0xabcdf").Bytes(),
+				ReceiptHash: common.HexToHash("0xabcda").Bytes(),
+				SealHash:    common.HexToHash("0xabcdw").Bytes(),
+				Signature:   nil,
+			}
 
-	t.Run("should pass when consecutiveness is present", func(t *testing.T) {
-		wrappedBlock := wrapper.WrappedPhase0SignedBeaconBlock(testutil.NewBeaconBlockWithPandoraSharding(
-			headPandoraShard,
-			types.Slot(headSlot),
-		))
-		parentBlock, currentErr := wrappedBlock.PbPhase0Block()
-		require.NoError(t, currentErr)
-		signedBlock := testutil.HydrateSignedBeaconBlock(&ethpb_v1alpha1.SignedBeaconBlock{
-			Block: &ethpb_v1alpha1.BeaconBlock{
-				Slot: types.Slot(headSlot + 1),
-			},
+			pandoraBlock2Signature := keys[0].Sign(signedBlock2PandoraShards[0].SealHash)
+			signedBlock2PandoraShards[0].Signature = pandoraBlock2Signature.Marshal()
+
+			signedBlock2 := &eth.SignedBeaconBlock{Block: &eth.BeaconBlock{
+				ParentRoot: signedBlock1HashTreeRoot[:],
+				Body:       &eth.BeaconBlockBody{PandoraShard: signedBlock2PandoraShards},
+			}}
+
+			pandoraShardErr := s.VerifyPandoraShardInfo(
+				signedBlock,
+				signedBlock2,
+			)
+
+			require.NoError(t, pandoraShardErr)
 		})
-		headPandoraShardHash := common.HexToHash("0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
-		shard0 := &ethpb.PandoraShard{
-			ParentHash: headPandoraShardHash.Bytes(),
-			// This should be headSlot + 1, but in test `NewBeaconBlockWithPandoraSharding` method IDK for what sake
-			// its doing head-1 during construction, so it stays as headSlot. I don't change the test method to
-			// not do massive refactor and cause next problems. Although it should be written better in helper method.
-			BlockNumber: uint64(headSlot),
-		}
-		pandoraShards := make([]*ethpb.PandoraShard, 1)
-		pandoraShards[0] = shard0
-		signedBlock.Block.Body.PandoraShard = pandoraShards
-		require.NoError(t, s.VerifyPandoraShardInfo(parentBlock, signedBlock))
+
+		// This case is edgy, but Hash is not a function but constant. Somebody might mistakenly pass this invalid
+		// state during implementation in consumers of this code. It will prevent that lack of precision
+		t.Run("should not pass for next block when hash is the same as parent hash", func(t *testing.T) {
+			signedBlock2PandoraShards := make([]*ethpb.PandoraShard, 1)
+			signedBlock2PandoraShards[0] = &ethpb.PandoraShard{
+				BlockNumber: 2,
+				Hash:        common.HexToHash("0xabc").Bytes(),
+				ParentHash:  common.HexToHash("0xabc").Bytes(),
+				StateRoot:   common.HexToHash("0xabcde").Bytes(),
+				TxHash:      common.HexToHash("0xabcdf").Bytes(),
+				ReceiptHash: common.HexToHash("0xabcda").Bytes(),
+				SealHash:    common.HexToHash("0xabcdw").Bytes(),
+				Signature:   nil,
+			}
+
+			pandoraBlock2Signature := keys[0].Sign(signedBlock2PandoraShards[0].SealHash)
+			signedBlock2PandoraShards[0].Signature = pandoraBlock2Signature.Marshal()
+
+			signedBlock2 := &eth.SignedBeaconBlock{Block: &eth.BeaconBlock{
+				ParentRoot: signedBlock1HashTreeRoot[:],
+				Body:       &eth.BeaconBlockBody{PandoraShard: signedBlock2PandoraShards},
+			}}
+
+			pandoraShardErr := s.VerifyPandoraShardInfo(
+				signedBlock,
+				signedBlock2,
+			)
+
+			require.ErrorContains(t, errInvalidPandoraShardInfo.Error(), pandoraShardErr)
+		})
 	})
 }
 
@@ -346,6 +375,12 @@ func TestGuardPandoraShardHeader(t *testing.T) {
 	pandoraBlock.Hash = []byte("0xde6f0b6c17077334abd585da38b251871251cb26fa3456be135825ea45c06f12")
 
 	t.Run("should throw an error when parent hash is empty", func(t *testing.T) {
+		require.Equal(t, errInvalidPandoraShardInfo, GuardPandoraShard(pandoraBlock))
+	})
+
+	pandoraBlock.ParentHash = pandoraBlock.Hash
+
+	t.Run("should throw an error when parent hash is equal hash", func(t *testing.T) {
 		require.Equal(t, errInvalidPandoraShardInfo, GuardPandoraShard(pandoraBlock))
 	})
 
