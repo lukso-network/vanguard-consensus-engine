@@ -457,7 +457,7 @@ func (s *Service) guardPandoraShardsAndSignatures(
 	headState, err := s.cfg.StateGen.StateByRoot(s.ctx, beaconBlockParentRoot)
 
 	if nil != err {
-		commonLog.WithError(errInvalidPandoraShardInfo).Error("could not get head state")
+		commonLog.WithError(errInvalidPandoraShardInfo).Error("could not get head state during signature verification")
 
 		return errors.Wrap(errInvalidPandoraShardInfo, err.Error())
 	}

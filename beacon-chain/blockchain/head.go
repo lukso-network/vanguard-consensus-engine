@@ -129,7 +129,7 @@ func (s *Service) saveHead(ctx context.Context, headRoot [32]byte) error {
 		log.WithFields(logrus.Fields{
 			"newSlot": fmt.Sprintf("%d", newHeadSlot),
 			"oldSlot": fmt.Sprintf("%d", headSlot),
-		}).Debug("Chain reorg occurred")
+		}).Info("Chain reorg occurred")
 		absoluteSlotDifference := slotutil.AbsoluteValueSlotDifference(newHeadSlot, headSlot)
 		s.cfg.StateNotifier.StateFeed().Send(&feed.Event{
 			Type: statefeed.Reorg,
