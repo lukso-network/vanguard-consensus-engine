@@ -106,6 +106,8 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 	if s.enableVanguardNode {
 		curEpoch := helpers.CurrentEpoch(postState)
 		nextEpoch := curEpoch + 1
+		// TODO: this logic should be tested, In my opinion its not the best place to execute if below.
+		// Its crucial for our system to publish epoch info to consumers
 		if s.latestSentEpoch < nextEpoch {
 			proposerIndices, pubKeys, err := helpers.ProposerIndicesInCache(postState.Copy(), nextEpoch)
 			if err != nil {
@@ -123,7 +125,6 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 				"%d and parentRoot: %#x", b.Slot(), b.ParentRoot())
 		}
 
-		// verify pandora sharding info in live sync mode
 		parentBlkPhase0, err := parentBlk.PbPhase0Block()
 
 		if nil != err {
@@ -134,6 +135,17 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 
 		if nil != err {
 			return errors.Wrap(err, "could not cast signed block to phase 0 block")
+		}
+
+		// this fallback is for nil-block received as a parent in genesis conditions
+		// TODO: debug why for some cases for genesis block it is passing nil block
+		// Possible cause is bad design of the genesis vanguard block (lacking of pandora shards)
+		if s.genesisRoot == parentRoot && nil == parentBlkPhase0 {
+			parentBlk, err = s.cfg.BeaconDB.GenesisBlock(s.ctx)
+		}
+
+		if nil != err {
+			return errors.Wrap(err, "could not find genesis state in DB")
 		}
 
 		if err := s.VerifyPandoraShardInfo(parentBlkPhase0, signedBlockPhase0); err != nil {
@@ -294,6 +306,8 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 				return nil, nil, errors.Wrap(err, "could not handle epoch boundary state")
 			}
 		}
+		// TODO: this logic should be tested, In my opinion its not the best place to execute if below.
+		// Its crucial for our system to publish epoch info to consumers
 		if s.enableVanguardNode {
 			curEpoch := helpers.CurrentEpoch(preState)
 			nextEpoch := curEpoch + 1
@@ -327,6 +341,17 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 		if err != nil {
 			return nil, nil, errors.Wrapf(errParentDoesNotExist, "could not verify pandora shard info "+
 				"onBlockBatch with slot: %d and parentHash: %#x", blks[0].Block().Slot(), blks[0].Block().ParentRoot())
+		}
+
+		// this fallback is for nil-block received as a parent in genesis conditions
+		// TODO: debug why for some cases for genesis block it is passing nil block
+		// Possible cause is bad design of the genesis vanguard block (lacking of pandora shards)
+		if s.genesisRoot == parentRoot && nil == parentBlk {
+			parentBlk, err = s.cfg.BeaconDB.GenesisBlock(s.ctx)
+		}
+
+		if nil != err {
+			return nil, nil, errors.Wrap(err, "could not find genesis state in DB on block batch verification")
 		}
 
 		for i := 0; i < len(blks); i++ {
