@@ -344,7 +344,7 @@ func (s *Service) VerifyPandoraShardInfo(
 		signedBlock.Slot,
 		headHashRoot,
 		headPandoraShards,
-		signedPandoraShards...,
+		signedPandoraShards,
 	)
 
 	if nil != err {
@@ -440,7 +440,7 @@ func (s *Service) guardPandoraShardsAndSignatures(
 	slot types.Slot,
 	beaconBlockParentRoot [32]byte,
 	canonicalPandoraShards []*ethpb.PandoraShard,
-	signedPandoraShards ...*ethpb.PandoraShard,
+	signedPandoraShards []*ethpb.PandoraShard,
 ) (err error) {
 	// Calculate the epoch and get the state from head
 	// get validator public key from state
@@ -474,8 +474,6 @@ func (s *Service) guardPandoraShardsAndSignatures(
 			return errors.Wrap(errInvalidPandoraShardInfo, errMsg)
 		}
 
-		//currentEpoch := helpers.SlotToEpoch(slot)
-
 		pandoraShardParentHash := shard.ParentHash
 		parentHash := common.BytesToHash(pandoraShardParentHash)
 		blockNumber := shard.BlockNumber
@@ -506,7 +504,7 @@ func (s *Service) guardPandoraShardsAndSignatures(
 			commonLog.WithField("shardNumber", shardIndex).
 				WithError(currentErr).Error("shard did not pass verification")
 
-			return err
+			return errors.Wrap(errInvalidBlsSignature, currentErr.Error())
 		}
 
 		// TODO: consider if beacon block0 (genesis) should also have []*PandoraShard filled in during initBeaconChain

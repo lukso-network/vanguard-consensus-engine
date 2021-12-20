@@ -145,7 +145,7 @@ func TestService_VerifyPandoraShardInfo(t *testing.T) {
 		signedBlock := &eth.SignedBeaconBlock{Block: &eth.BeaconBlock{}}
 		parentBlock := &eth.SignedBeaconBlock{Block: &eth.BeaconBlock{}}
 		currentErr := s.VerifyPandoraShardInfo(parentBlock, signedBlock)
-		require.NotNil(t, errInvalidPandoraShardInfo)
+		require.NotNil(t, currentErr)
 		require.ErrorContains(t, errInvalidPandoraShardInfo.Error(), currentErr)
 		require.ErrorContains(t, "empty signed Pandora shards", currentErr)
 	})
@@ -166,7 +166,7 @@ func TestService_VerifyPandoraShardInfo(t *testing.T) {
 		require.ErrorContains(t, errInvalidPandoraShardInfo.Error(), currentErr)
 	})
 
-	st, _ := testutil.DeterministicGenesisState(t, 64)
+	st, keys := testutil.DeterministicGenesisState(t, 64)
 	genesisStateRoot := [32]byte{}
 	genesis := blocks.NewGenesisBlock(genesisStateRoot[:])
 	assert.NoError(t, beaconDB.SaveBlock(ctx, wrapper.WrappedPhase0SignedBeaconBlock(genesis)))
@@ -222,16 +222,46 @@ func TestService_VerifyPandoraShardInfo(t *testing.T) {
 		signedParentBlock, currentErr := parentBlock.PbPhase0Block()
 		require.NoError(t, currentErr)
 
-		// TODO: fill this with proper implementation
-		require.Equal(t, errInvalidPandoraShardInfo, s.VerifyPandoraShardInfo(
+		currentErr = s.VerifyPandoraShardInfo(
 			signedParentBlock,
 			signedBlock,
-		))
+		)
+
+		require.ErrorContains(t, errInvalidBlsSignature.Error(), currentErr)
+		require.ErrorContains(t, "pandora shard signature did not verify", currentErr)
 	})
 
-	// TODO: Assure that block no 1 will also be checked about its signature, but not consecutiveness on a shard
 	t.Run("should return nil if there is a genesis root match at parent and signature is present", func(t *testing.T) {
+		pandoraShards := make([]*eth.PandoraShard, 1)
+		pandoraShards[0] = &ethpb.PandoraShard{
+			BlockNumber: 1,
+			Hash:        common.HexToHash("0xabc").Bytes(),
+			ParentHash:  common.HexToHash("0xabcd").Bytes(),
+			StateRoot:   common.HexToHash("0xabcde").Bytes(),
+			TxHash:      common.HexToHash("0xabcdf").Bytes(),
+			ReceiptHash: common.HexToHash("0xabcda").Bytes(),
+			SealHash:    common.HexToHash("0xabcdw").Bytes(),
+			Signature:   nil,
+		}
 
+		signature := keys[0].Sign(pandoraShards[0].SealHash)
+		pandoraShards[0].Signature = signature.Marshal()
+
+		signedBlock := &eth.SignedBeaconBlock{Block: &eth.BeaconBlock{
+			ParentRoot: gRoot[:],
+			Body:       &eth.BeaconBlockBody{PandoraShard: pandoraShards},
+		}}
+		parentBlock, currentErr := s.cfg.BeaconDB.GenesisBlock(ctx)
+		require.NoError(t, currentErr)
+		signedParentBlock, currentErr := parentBlock.PbPhase0Block()
+		require.NoError(t, currentErr)
+
+		currentErr = s.VerifyPandoraShardInfo(
+			signedParentBlock,
+			signedBlock,
+		)
+
+		require.NoError(t, currentErr)
 	})
 
 	t.Run("should throw an error with invalid pandora shard", func(t *testing.T) {
