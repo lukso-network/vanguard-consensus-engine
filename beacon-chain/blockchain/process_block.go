@@ -134,7 +134,7 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 				"onBlock with slot: %d and parentHash: %#x", b.Slot(), b.ParentRoot())
 		}
 
-		// verify pandora sharding info in live sync mode
+		// verify pandora sharding info in regular sync mode
 		if err := s.verifyPandoraShardInfo(parentBlk, signed); err != nil {
 			return errors.Wrap(err, "could not verify pandora shard info onBlock")
 		}
@@ -142,11 +142,9 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 		// publish block to orchestrator and rpc service for sending minimal consensus info
 		s.publishBlock(signed)
 
-		if s.OrcVerification() {
-			// waiting for orchestrator confirmation in live-sync mode
-			if err := s.waitForConfirmation(signed); err != nil {
-				return errors.Wrap(err, "could not publish and verified by orchestrator client onBlock")
-			}
+		// waiting for orchestrator confirmation in regular sync mode
+		if err := s.waitForConfirmation(signed); err != nil {
+			return errors.Wrap(err, "could not publish and verified by orchestrator client onBlock")
 		}
 	}
 
@@ -345,12 +343,17 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 			if i > 0 {
 				parentBlk = blks[i-1]
 			}
-			// verify pandora sharding info in live sync mode
+			// verify pandora sharding info in regular sync mode
 			if err := s.verifyPandoraShardInfo(parentBlk, blks[i]); err != nil {
 				return nil, nil, errors.Wrap(err, "could not verify pandora shard info onBlockBatch")
 			}
 			// publish block and trigger rpc service for sending minimal consensus info
 			s.publishBlock(blks[i])
+
+			// waiting for orchestrator confirmation in regular sync mode
+			if err := s.waitForConfirmation(blks[i]); err != nil {
+				return nil, nil, errors.Wrap(err, "could not publish and verified by orchestrator client onBlock")
+			}
 		}
 	}
 

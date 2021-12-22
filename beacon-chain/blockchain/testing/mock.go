@@ -428,18 +428,6 @@ func (s *ChainService) ChainHeads() ([][32]byte, []types.Slot) {
 		[]types.Slot{0, 1}
 }
 
-func (s *ChainService) ActivateOrcVerification() {
-	return
-}
-
 func (s *ChainService) CanPropose() bool {
-	return true
-}
-
-func (s *ChainService) DeactivateOrcVerification() {
-	return
-}
-
-func (s *ChainService) OrcVerification() bool {
 	return true
 }

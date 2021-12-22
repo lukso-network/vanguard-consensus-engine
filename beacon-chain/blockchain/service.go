@@ -72,9 +72,7 @@ type Service struct {
 
 	// Vanguard: unconfirmed blocks need to store in cache for waiting final confirmation from orchestrator
 	enableVanguardNode  bool
-	orcVerification     bool
 	canPropose          bool
-	orcVerificationLock sync.RWMutex
 	canProposeLock      sync.RWMutex
 	latestSentEpochLock sync.RWMutex
 	orcRPCClient        orchestrator.Client
@@ -121,7 +119,6 @@ func NewService(ctx context.Context, cfg *Config) (*Service, error) {
 		// Vanguard consensus related fields initialization
 		orcRPCClient:       cfg.OrcRPCClient,
 		enableVanguardNode: cfg.EnableVanguardNode,
-		orcVerification:    true,
 		canPropose:         true,
 	}
 
