@@ -5,6 +5,7 @@ package initialsync
 
 import (
 	"context"
+	types "github.com/prysmaticlabs/eth2-types"
 	"time"
 
 	"github.com/paulbellamy/ratecounter"
@@ -163,6 +164,11 @@ func (s *Service) Resync() error {
 	}
 	log.WithField("slot", s.cfg.Chain.HeadSlot()).Info("Resync attempt complete")
 	return nil
+}
+
+// HighestFinalizedEpoch returns current finalized epoch of its connected peer
+func (s *Service) HighestFinalizedEpoch() types.Epoch {
+	return s.highestFinalizedEpoch()
 }
 
 func (s *Service) waitForMinimumPeers() {
