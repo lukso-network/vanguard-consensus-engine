@@ -27,6 +27,7 @@ func (bs *Server) StreamNewPendingBlocks(
 		fSlot, err := helpers.StartSlot(fEpoch + 1)
 
 		if highestFinalizedEpoch > fEpoch {
+			fEpoch = highestFinalizedEpoch
 			fSlot, err = helpers.StartSlot(highestFinalizedEpoch + 1)
 		}
 
