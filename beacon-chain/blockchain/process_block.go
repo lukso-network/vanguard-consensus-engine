@@ -104,7 +104,7 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 	// Vanguard: Validated by vanguard node. Now intercepting the execution and publishing the block
 	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
 	if s.enableVanguardNode {
-		curEpoch := helpers.CurrentEpoch(postState)
+		curEpoch := helpers.CurrentEpoch(preState)
 		nextEpoch := curEpoch + 1
 		// TODO: this logic should be tested, In my opinion its not the best place to execute if below.
 		// Its crucial for our system to publish epoch info to consumers
@@ -148,7 +148,7 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 			return errors.Wrap(err, "could not find genesis state in DB")
 		}
 
-		if err := s.VerifyPandoraShardInfo(parentBlkPhase0, signedBlockPhase0); err != nil {
+		if err := s.VerifyPandoraShardConsecutiveness(parentBlkPhase0, signedBlockPhase0); err != nil {
 			return errors.Wrap(err, "could not verify pandora shard info onBlock")
 		}
 
@@ -332,33 +332,12 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 	if !verify {
 		return nil, nil, errors.New("batch block signature verification failed")
 	}
-	// Vanguard: Validated by vanguard node. Now intercepting the execution and publishing the block
-	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
+	// Verify only block batch that we received starting from block 1 and block 0 as a parent.
+	// Do not dive into database because it might be missing due to round-robin sync
+	// Whole verification should be done after transition from initial(optimistic) sync to regular sync.
 	if s.enableVanguardNode {
-		parentRoot := bytesutil.ToBytes32(blks[0].Block().ParentRoot())
-		parentBlk, err := s.cfg.BeaconDB.Block(s.ctx, parentRoot)
-
-		if err != nil {
-			return nil, nil, errors.Wrapf(errParentDoesNotExist, "could not verify pandora shard info "+
-				"onBlockBatch with slot: %d and parentHash: %#x", blks[0].Block().Slot(), blks[0].Block().ParentRoot())
-		}
-
-		// this fallback is for nil-block received as a parent in genesis conditions
-		// TODO: debug why for some cases for genesis block it is passing nil block
-		// Possible cause is bad design of the genesis vanguard block (lacking of pandora shards)
-		if s.genesisRoot == parentRoot && nil == parentBlk {
-			parentBlk, err = s.cfg.BeaconDB.GenesisBlock(s.ctx)
-		}
-
-		if nil != err {
-			return nil, nil, errors.Wrap(err, "could not find genesis state in DB on block batch verification")
-		}
-
-		for i := 0; i < len(blks); i++ {
-			if i > 0 {
-				parentBlk = blks[i-1]
-			}
-
+		for i := 1; i < len(blks); i++ {
+			parentBlk := blks[i-1]
 			parentBlkPhase0, currentErr := parentBlk.PbPhase0Block()
 
 			if nil != currentErr {
@@ -371,7 +350,7 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 				return nil, nil, errors.Wrap(currentErr, "could not cast signed block to phase 0 block")
 			}
 
-			currentErr = s.VerifyPandoraShardInfo(parentBlkPhase0, signedBlockPhase0)
+			currentErr = s.VerifyPandoraShardConsecutiveness(parentBlkPhase0, signedBlockPhase0)
 
 			if nil != currentErr {
 				return nil, nil, errors.Wrap(currentErr, "could not verify pandora shard info onBlockBatch")

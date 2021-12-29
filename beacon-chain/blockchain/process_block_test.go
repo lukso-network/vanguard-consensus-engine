@@ -36,7 +36,8 @@ import (
 	"github.com/prysmaticlabs/prysm/shared/timeutils"
 )
 
-func TestStore_VanguardMode_OnBlock(t *testing.T) {
+// TODO: consider testing side effects not only that verification is attached
+func TestStore_VanguardMode_OnBlock_OnBlockBatch(t *testing.T) {
 	ctx := context.Background()
 
 	st, keys := testutil.DeterministicGenesisState(t, 64)

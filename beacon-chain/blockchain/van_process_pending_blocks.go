@@ -310,7 +310,7 @@ func (s *Service) sortedPendingSlots() ([]*vanTypes.ConfirmationReqData, error) 
 	return reqData, nil
 }
 
-func (s *Service) VerifyPandoraShardInfo(
+func (s *Service) VerifyPandoraShardConsecutiveness(
 	parentBlock *ethpb.SignedBeaconBlock,
 	signedBlk *ethpb.SignedBeaconBlock,
 ) error {
@@ -320,9 +320,8 @@ func (s *Service) VerifyPandoraShardInfo(
 	}
 
 	signedBlock := signedBlk.Block
-	headBlk := parentBlock
 
-	if nil == headBlk {
+	if nil == parentBlock {
 		log.WithField("slot", signedBlock.Slot).Error("head block is nil")
 
 		return errInvalidBeaconBlock
@@ -336,11 +335,11 @@ func (s *Service) VerifyPandoraShardInfo(
 
 	signedBlockBody := signedBlock.Body
 	signedPandoraShards := signedBlockBody.GetPandoraShard()
-	headBlock := headBlk.GetBlock()
+	headBlock := parentBlock.GetBlock()
 	headBlockBody := headBlock.GetBody()
 	headPandoraShards := headBlockBody.GetPandoraShard()
 
-	err := s.guardPandoraShardsAndSignatures(
+	err := s.guardPandoraShardConsecutiveness(
 		signedBlock.ProposerIndex,
 		signedBlock.Slot,
 		headHashRoot,
@@ -437,30 +436,17 @@ func GuardPandoraShardSignature(pandoraShard *ethpb.PandoraShard, validatorPubli
 	return
 }
 
-// TODO: worth to consider if this should be a public function detached from service  and tested separately
-// TODO: worth to consider time checks on pandora shards to be in boundaries of slot
-// guardPandoraShardsAndSignatures assures about the len of pandora shards and logs all the needed information
-func (s *Service) guardPandoraShardsAndSignatures(
+// guardPandoraShardConsecutiveness assures about the len of pandora shards and logs all the needed information
+func (s *Service) guardPandoraShardConsecutiveness(
 	proposerIndex types.ValidatorIndex,
 	slot types.Slot,
 	beaconBlockParentRoot [32]byte,
 	canonicalPandoraShards []*ethpb.PandoraShard,
 	signedPandoraShards []*ethpb.PandoraShard,
 ) (err error) {
-	// Calculate the epoch and get the state from head
-	// get validator public key from state
-	// guard all signatures
 	commonLog := log.WithField("slot", slot).
 		WithField("proposerIndex", proposerIndex).
 		WithField("pandoraShards", signedPandoraShards)
-
-	headState, err := s.cfg.StateGen.StateByRoot(s.ctx, beaconBlockParentRoot)
-
-	if nil != err {
-		commonLog.WithError(errInvalidPandoraShardInfo).Error("could not get head state during signature verification")
-
-		return errors.Wrap(errInvalidPandoraShardInfo, err.Error())
-	}
 
 	if len(signedPandoraShards) < 1 {
 		errorMsg := "empty signed Pandora shards"
@@ -487,31 +473,6 @@ func (s *Service) guardPandoraShardsAndSignatures(
 			WithField("blockNumber", blockNumber).
 			WithField("shardIndex", shardIndex)
 
-		proposer, currentErr := headState.ValidatorAtIndex(proposerIndex)
-
-		if nil != currentErr {
-			commonLog.WithError(errInvalidPandoraShardInfo).Error("could not get proposer at head state")
-
-			return errors.Wrap(errInvalidPandoraShardInfo, currentErr.Error())
-		}
-
-		proposerPubKey := proposer.PublicKey
-		blsPubKey, currentErr := bls.PublicKeyFromBytes(proposerPubKey)
-
-		if nil != currentErr {
-			commonLog.WithError(errInvalidPandoraShardInfo).Error("could not cast public key to bls public key")
-			return currentErr
-		}
-
-		currentErr = GuardPandoraShardSignature(shard, blsPubKey)
-
-		if nil != currentErr {
-			commonLog.WithField("shardNumber", shardIndex).
-				WithError(currentErr).Error("shard did not pass verification")
-
-			return errors.Wrap(errInvalidBlsSignature, currentErr.Error())
-		}
-
 		// TODO: consider if beacon block0 (genesis) should also have []*PandoraShard filled in during initBeaconChain
 		// As soon as it will be filled with empty data rest of the code will collapse, so this is a fallback
 		// to serve current real-life scenario during synchronization
@@ -528,7 +489,7 @@ func (s *Service) guardPandoraShardsAndSignatures(
 			return errors.Wrap(errInvalidPandoraShardInfo, errMsg)
 		}
 
-		currentErr = GuardPandoraShard(shard)
+		currentErr := GuardPandoraShard(shard)
 
 		if nil != currentErr {
 			commonLog.WithField("shard", shard).Error("pandora shard is invalid")
