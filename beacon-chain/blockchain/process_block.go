@@ -125,13 +125,15 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 				"%d and parentRoot: %#x", b.Slot(), b.ParentRoot())
 		}
 
-		if nil == parentBlk && !s.hasInitSyncBlock(parentRoot) {
+		isParentBlockNil := nil == parentBlk || parentBlk.IsNil()
+
+		if isParentBlockNil && !s.hasInitSyncBlock(parentRoot) {
 			return errors.Wrapf(errParentDoesNotExist, "vanguard node does not have block neither in db nor"+
 				"in its init cache with slot: %d and parentRoot: %#x", b.Slot(), b.ParentRoot(),
 			)
 		}
 
-		if nil == parentBlk || parentBlk.IsNil() {
+		if isParentBlockNil {
 			parentBlk = s.getInitSyncBlock(parentRoot)
 		}
 
@@ -390,9 +392,33 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 	// Verify only block batch that we received starting from block 1 and block 0 as a parent.
 	// Do not dive into database because it might be missing due to round-robin sync
 	// Whole verification should be done after transition from initial(optimistic) sync to regular sync.
+	// TODO: check for the parent from initCache and db as in `onBlock`
 	if s.enableVanguardNode {
-		for i := 1; i < len(blks); i++ {
-			parentBlk := blks[i-1]
+		parentRoot := bytesutil.ToBytes32(b.ParentRoot())
+		parentBlk, vanErr := s.cfg.BeaconDB.Block(s.ctx, parentRoot)
+
+		if vanErr != nil {
+			return nil, nil, errors.Wrapf(errParentDoesNotExist, "vanguard node doesn't have a parent in "+
+				"db with slot: %d and parentRoot: %#x", b.Slot(), b.ParentRoot())
+		}
+
+		isParentBlockNil := nil == parentBlk || parentBlk.IsNil()
+
+		if isParentBlockNil && !s.hasInitSyncBlock(parentRoot) {
+			return nil, nil, errors.Wrapf(errParentDoesNotExist, "vanguard node does not have block"+
+				"neither in db nor in its init cache with slot: %d and parentRoot: %#x", b.Slot(), b.ParentRoot(),
+			)
+		}
+
+		if isParentBlockNil {
+			parentBlk = s.getInitSyncBlock(parentRoot)
+		}
+
+		for i := 0; i < len(blks); i++ {
+			if i > 0 {
+				parentBlk = blks[i-1]
+			}
+
 			parentBlkPhase0, currentErr := parentBlk.PbPhase0Block()
 
 			if nil != currentErr {
