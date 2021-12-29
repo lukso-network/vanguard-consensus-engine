@@ -104,7 +104,7 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 	// Vanguard: Validated by vanguard node. Now intercepting the execution and publishing the block
 	// and waiting for confirmation from orchestrator. If Lukso vanguard flag is enabled then these segment of code will be executed
 	if s.enableVanguardNode {
-		curEpoch := helpers.CurrentEpoch(preState)
+		curEpoch := helpers.CurrentEpoch(postState)
 		nextEpoch := curEpoch + 1
 		// TODO: this logic should be tested, In my opinion its not the best place to execute if below.
 		// Its crucial for our system to publish epoch info to consumers
