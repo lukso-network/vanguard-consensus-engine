@@ -164,6 +164,39 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 			return errors.Wrap(err, "could not verify pandora shard info onBlock")
 		}
 
+		validator, err := preState.ValidatorAtIndex(b.ProposerIndex())
+
+		if nil != err {
+			return errors.Wrap(err, "could not get validator from state")
+		}
+
+		blsPubKey, err := bls.PublicKeyFromBytes(validator.GetPublicKey())
+
+		if nil != err {
+			return errors.Wrap(err, "could not cast validator from blsPubKey")
+		}
+
+		blockData := signed.Block()
+		blockBody := blockData.Body()
+		pandoraShards := blockBody.PandoraShards()
+
+		if nil == pandoraShards || len(pandoraShards) < 1 {
+			return errors.Wrap(errInvalidPandoraShardInfo, "empty pandora shards")
+		}
+
+		for shardIndex, shard := range pandoraShards {
+			currentErr := GuardPandoraShardSignature(shard, blsPubKey)
+
+			if nil != currentErr {
+				return errors.Wrapf(
+					currentErr,
+					"signature of shard did not verify. Slot: %d ShardIndex: %d",
+					blockData.Slot(),
+					shardIndex,
+				)
+			}
+		}
+
 		// publish block to orchestrator and rpc service for sending minimal consensus info
 		s.publishBlock(signed)
 
