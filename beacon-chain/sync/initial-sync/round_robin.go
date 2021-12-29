@@ -94,6 +94,8 @@ func (s *Service) syncToFinalizedEpoch(ctx context.Context, genesis time.Time) e
 		log.WithError(err).Debug("Error stopping queue")
 	}
 
+	// TODO: check consecutiveness of whole fetched data
+
 	return nil
 }
 

@@ -485,7 +485,7 @@ func Test_GuardPandoraShardSignature(t *testing.T) {
 			invalidKey.PublicKey(),
 		)
 
-		require.ErrorContains(t, "pandora shard signature did not verify", currentErr)
+		require.ErrorContains(t, "signature of shard did not verify", currentErr)
 		require.ErrorContains(t, "invalid bls signature", currentErr)
 	})
 

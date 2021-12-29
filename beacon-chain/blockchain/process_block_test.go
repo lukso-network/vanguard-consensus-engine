@@ -166,7 +166,8 @@ func TestStore_VanguardMode_OnBlock_OnBlockBatch(t *testing.T) {
 		require.NoError(t, currentDB.SaveBlock(context.Background(), blks[0]))
 		require.NoError(t, currentDB.SaveState(context.Background(), states[0], blockRoots[0]))
 		_, _, currentErr := service.onBlockBatch(ctx, blks[1:], blockRoots[1:])
-		require.ErrorContains(t, "could not verify pandora shard info", currentErr)
+		require.ErrorContains(t, "signature of shard did not verify", currentErr)
+		require.ErrorContains(t, "invalid bls signature", currentErr)
 
 		currentErr = service.onBlock(ctx, blks[1], blockRoots[1])
 		require.ErrorContains(t, "could not verify pandora shard info", currentErr)

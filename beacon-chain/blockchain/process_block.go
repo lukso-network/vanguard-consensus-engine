@@ -125,6 +125,16 @@ func (s *Service) onBlock(ctx context.Context, signed interfaces.SignedBeaconBlo
 				"%d and parentRoot: %#x", b.Slot(), b.ParentRoot())
 		}
 
+		if nil == parentBlk && !s.hasInitSyncBlock(parentRoot) {
+			return errors.Wrapf(errParentDoesNotExist, "vanguard node does not have block neither in db nor"+
+				"in its init cache with slot: %d and parentRoot: %#x", b.Slot(), b.ParentRoot(),
+			)
+		}
+
+		if nil == parentBlk || parentBlk.IsNil() {
+			parentBlk = s.getInitSyncBlock(parentRoot)
+		}
+
 		parentBlkPhase0, err := parentBlk.PbPhase0Block()
 
 		if nil != err {
@@ -294,6 +304,9 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 	}
 	var set *bls.SignatureSet
 	boundaries := make(map[[32]byte]iface.BeaconState)
+
+	// TODO: verification signature set for pandora shards
+	// TODO: verification of consecutiveness in shards
 	for i, b := range blks {
 		set, preState, err = state.ExecuteStateTransitionNoVerifyAnySig(ctx, preState, b)
 		if err != nil {
@@ -319,6 +332,48 @@ func (s *Service) onBlockBatch(ctx context.Context, blks []interfaces.SignedBeac
 				log.WithField("nextEpoch", nextEpoch).WithField("latestSentEpoch", s.latestSentEpoch).Debug("publishing latest epoch info")
 				s.publishEpochInfo(b.Block().Slot(), proposerIndices, pubKeys)
 				s.latestSentEpoch = nextEpoch
+			}
+
+			blockData := b.Block()
+			blockBody := blockData.Body()
+
+			if nil == blockBody || blockBody.IsNil() {
+				return nil, nil, errors.Wrap(err, "block body is nil, could not process batch")
+			}
+
+			proposerIndex := blockData.ProposerIndex()
+			publicKey, currentErr := preState.ValidatorAtIndex(proposerIndex)
+
+			if nil != currentErr {
+				return nil, nil, errors.Wrap(
+					currentErr,
+					fmt.Sprintf("could not get proposer at index: %d", blockData.ProposerIndex()),
+				)
+			}
+
+			blsPubKey, currentErr := bls.PublicKeyFromBytes(publicKey.GetPublicKey())
+
+			if nil != currentErr {
+				return nil, nil, errors.Wrap(currentErr, "could not cast bytes to pubkey")
+			}
+
+			pandoraShards := blockBody.PandoraShards()
+
+			if nil == pandoraShards || len(pandoraShards) < 1 {
+				return nil, nil, errors.Wrap(errInvalidPandoraShardInfo, "empty pandora shards")
+			}
+
+			for shardIndex, shard := range pandoraShards {
+				currentErr = GuardPandoraShardSignature(shard, blsPubKey)
+
+				if nil != currentErr {
+					return nil, nil, errors.Wrapf(
+						currentErr,
+						"signature of shard did not verify. Slot: %d ShardIndex: %d",
+						blockData.Slot(),
+						shardIndex,
+					)
+				}
 			}
 		}
 		jCheckpoints[i] = preState.CurrentJustifiedCheckpoint()
